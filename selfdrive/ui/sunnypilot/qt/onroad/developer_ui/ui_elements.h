@@ -26,7 +26,7 @@ Last updated: July 29, 2024
 
 #pragma once
 
-#include <QColor>
+#include "selfdrive/ui/sunnypilot/qt/util.h"
 
 struct UiElement {
   QString value{};

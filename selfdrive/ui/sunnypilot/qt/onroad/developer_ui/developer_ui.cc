@@ -52,7 +52,7 @@ UiElement DeveloperUi::getDRel(bool lead_status, float lead_d_rel) {
 
 // Add Relative Velocity vs Primary Lead Car
 // Unit: kph if metric, else mph
-UiElement DeveloperUi::getVRel(bool lead_status, float lead_v_rel, bool is_metric, const QString &speed_unit) {
+UiElement DeveloperUi::getVRel(bool lead_status, float lead_v_rel, bool is_metric) {
   QString value = lead_status ? QString::number(lead_v_rel * (is_metric ? MS_TO_KPH : MS_TO_MPH), 'f', 0) : "-";
   QColor color = QColor(255, 255, 255, 255);
 
@@ -66,7 +66,7 @@ UiElement DeveloperUi::getVRel(bool lead_status, float lead_v_rel, bool is_metri
     }
   }
 
-  return UiElement(value, "REL SPEED", speed_unit, color);
+  return UiElement(value, "REL SPEED", is_metric ? tr("km/h") : tr("mph"), color);
 }
 
 // Add Real Steering Angle
@@ -138,7 +138,7 @@ UiElement DeveloperUi::getAEgo(float a_ego) {
 
 // Add Relative Velocity to Primary Lead Car
 // Unit: kph if metric, else mph
-UiElement DeveloperUi::getVEgoLead(bool lead_status, float lead_v_rel, float v_ego, bool is_metric, const QString &speed_unit) {
+UiElement DeveloperUi::getVEgoLead(bool lead_status, float lead_v_rel, float v_ego, bool is_metric) {
   QString value = lead_status ? QString::number((lead_v_rel + v_ego) * (is_metric ? MS_TO_KPH : MS_TO_MPH), 'f', 0) : "-";
   QColor color = QColor(255, 255, 255, 255);
 
@@ -152,7 +152,7 @@ UiElement DeveloperUi::getVEgoLead(bool lead_status, float lead_v_rel, float v_e
     }
   }
 
-  return UiElement(value, "L.S.", speed_unit, color);
+  return UiElement(value, "L.S.", is_metric ? tr("km/h") : tr("mph"), color);
 }
 
 // Add Friction Coefficient Raw from torqued
