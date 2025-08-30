@@ -23,6 +23,10 @@
         <translation>自動網路分享</translation>
     </message>
     <message>
+        <source>Network sharing will be automatically controlled according to the vehicle's starting status.</source>
+        <translation>網路共享將根據車輛的啟動狀態自動控制。</translation>
+    </message>
+    <message>
         <source>Enable Tethering</source>
         <translation>啟用網路分享</translation>
     </message>

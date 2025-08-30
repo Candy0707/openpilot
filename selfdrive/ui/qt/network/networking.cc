@@ -140,7 +140,7 @@ AdvancedNetworking::AdvancedNetworking(QWidget* parent, WifiManager* wifi): QWid
 
   // Auto tethering layout
   const bool AutoTetheringEnabled = params.getBool("AutoTethering");
-  AutotetheringToggle = new ToggleControl(tr("Auto Tethering"), "", "", AutoTetheringEnabled);
+  AutotetheringToggle = new ToggleControl(tr("Auto Tethering"), tr("Network sharing will be automatically controlled according to the vehicle's starting status."), "", AutoTetheringEnabled);
   list->addItem(AutotetheringToggle);
 
   // Enable tethering layout
@@ -256,7 +256,6 @@ void AdvancedNetworking::setGsmVisible(bool visible) {
 
 void AdvancedNetworking::refresh() {
   ipLabel->setText(wifi->ipv4_address);
-  tetheringToggle->setEnabled(true);
 
   if (wifi->isTetheringEnabled() || wifi->ipv4_address == "") {
     wifiMeteredToggle->setEnabled(false);
@@ -269,6 +268,7 @@ void AdvancedNetworking::refresh() {
 
   bool AutoTethering = params.getBool("AutoTethering");
   bool AutoTetheringToggle = params.getBool("AutoTetheringToggle");
+  tetheringToggle->setEnabled(!AutoTethering);
   if(AutoTethering) {
     if(AutoTetheringToggle != !wifi->isTetheringEnabled()){
       tetheringToggle->setBool(AutoTetheringToggle);
@@ -280,7 +280,6 @@ void AdvancedNetworking::refresh() {
 
 void AdvancedNetworking::toggleTethering(bool enabled) {
   wifi->setTetheringEnabled(enabled);
-  tetheringToggle->setEnabled(false);
   if (enabled) {
     wifiMeteredToggle->setEnabled(false);
     wifiMeteredToggle->setCheckedButton(0);
