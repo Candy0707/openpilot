@@ -95,6 +95,8 @@ class Controls(ControlsExt, ModelStateBase):
         self.LaC.update_live_torque_params(torque_params.latAccelFactorFiltered, torque_params.latAccelOffsetFiltered,
                                            torque_params.frictionCoefficientFiltered)
 
+        self.LaC.extension.update_limits()
+
       self.LaC.extension.update_model_v2(self.sm['modelV2'])
 
       self.lat_delay = get_lat_delay(self.params, self.sm["liveDelay"].lateralDelay)
@@ -178,6 +180,8 @@ class Controls(ControlsExt, ModelStateBase):
     hudControl.leadVisible = self.sm['longitudinalPlan'].hasLead
     hudControl.leadDistanceBars = self.sm['selfdriveState'].personality.raw + 1
     hudControl.visualAlert = self.sm['selfdriveState'].alertHudVisual
+    hudControl.leftLaneVisible  = model_v2.laneLineProbs[1] > 0.5
+    hudControl.rightLaneVisible = model_v2.laneLineProbs[2] > 0.5
 
     hudControl.rightLaneVisible = 1 if(model.LaneLines[2] and model.LaneLineProbs[2] > 0.5) else 0
     hudControl.leftLaneVisible = 1 if(model.LaneLines[1] and model.LaneLineProbs[1] > 0.5) else 0
