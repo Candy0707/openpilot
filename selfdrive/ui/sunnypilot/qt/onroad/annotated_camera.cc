@@ -8,47 +8,75 @@
 #include "selfdrive/ui/sunnypilot/qt/util.h"
 #include "selfdrive/ui/sunnypilot/qt/onroad/annotated_camera.h"
 
-AnnotatedCameraWidgetSP::AnnotatedCameraWidgetSP(VisionStreamType type, QWidget *parent) : AnnotatedCameraWidget(type, parent) {
-  QObject::disconnect(uiState(), &UIState::uiUpdate, this, &AnnotatedCameraWidget::updateState);
-  QObject::connect(uiState(), &UIState::uiUpdate, this, &AnnotatedCameraWidget::updateState);
+AnnotatedCameraWidgetSP::AnnotatedCameraWidgetSP(VisionStreamType type, QWidget *parent) : AnnotatedCameraWidget(type, parent)
+{
 }
 
-void AnnotatedCameraWidgetSP::updateState(const UIState &s) {
+void AnnotatedCameraWidgetSP::updateState(const UIState &s)
+{
   AnnotatedCameraWidget::updateState(s);
 
   is_metric = s.scene.is_metric;
 
-    /*
+  /*
 
-    latActive = car_control.getLatActive();
-    madsEnabled = car_state.getMadsEnabled();
-    // ############################## DEV UI START ##############################
-    lead_d_rel = radar_state.getLeadOne().getDRel();
-    lead_v_rel = radar_state.getLeadOne().getVRel();
-    lead_status = radar_state.getLeadOne().getStatus();
-    lateralState = QString::fromStdString(cs_sp.getLateralState());
-    angleSteers = car_state.getSteeringAngleDeg();
-    steerAngleDesired = cs.getLateralControlState().getPidState().getSteeringAngleDesiredDeg();
-    curvature = cs.getCurvature();
-    roll = sm["liveParameters"].getLiveParameters().getRoll();
-    memoryUsagePercent = sm["deviceState"].getDeviceState().getMemoryUsagePercent();
-    devUiInfo = s.scene.dev_ui_info;
-    gpsAccuracy = is_gps_location_external ? gpsLocation.getHorizontalAccuracy() : 1.0; //External reports accuracy, internal does not.
-    altitude = gpsLocation.getAltitude();
-    vEgo = car_state.getVEgo();
-    aEgo = car_state.getAEgo();
-    steeringTorqueEps = car_state.getSteeringTorqueEps();
-    bearingAccuracyDeg = gpsLocation.getBearingAccuracyDeg();
-    bearingDeg = gpsLocation.getBearingDeg();
-    torquedUseParams = (ltp.getUseParams() || s.scene.live_torque_toggle) && !s.scene.torqued_override;
-    latAccelFactorFiltered = ltp.getLatAccelFactorFiltered();
-    frictionCoefficientFiltered = ltp.getFrictionCoefficientFiltered();
-    liveValid = ltp.getLiveValid();
-    // ############################## DEV UI END ##############################
-    */
+  latActive = car_control.getLatActive();
+  madsEnabled = car_state.getMadsEnabled();
+  // ############################## DEV UI START ##############################
+  lead_d_rel = radar_state.getLeadOne().getDRel();
+  lead_v_rel = radar_state.getLeadOne().getVRel();
+  lead_status = radar_state.getLeadOne().getStatus();
+  lateralState = QString::fromStdString(cs_sp.getLateralState());
+  angleSteers = car_state.getSteeringAngleDeg();
+  steerAngleDesired = cs.getLateralControlState().getPidState().getSteeringAngleDesiredDeg();
+  curvature = cs.getCurvature();
+  roll = sm["liveParameters"].getLiveParameters().getRoll();
+  memoryUsagePercent = sm["deviceState"].getDeviceState().getMemoryUsagePercent();
+  devUiInfo = s.scene.dev_ui_info;
+  gpsAccuracy = is_gps_location_external ? gpsLocation.getHorizontalAccuracy() : 1.0; //External reports accuracy, internal does not.
+  altitude = gpsLocation.getAltitude();
+  vEgo = car_state.getVEgo();
+  aEgo = car_state.getAEgo();
+  steeringTorqueEps = car_state.getSteeringTorqueEps();
+  bearingAccuracyDeg = gpsLocation.getBearingAccuracyDeg();
+  bearingDeg = gpsLocation.getBearingDeg();
+  torquedUseParams = (ltp.getUseParams() || s.scene.live_torque_toggle) && !s.scene.torqued_override;
+  latAccelFactorFiltered = ltp.getLatAccelFactorFiltered();
+  frictionCoefficientFiltered = ltp.getFrictionCoefficientFiltered();
+  liveValid = ltp.getLiveValid();
+  // ############################## DEV UI END ##############################
+  */
 }
 
-void AnnotatedCameraWidgetSP::drawText(QPainter &p, int x, int y, const QString &text, QColor color) {
+void AnnotatedCameraWidgetSP::paintGL()
+{
+  AnnotatedCameraWidget::paintGL();
+  QPainter painter(this);
+  painter.setRenderHint(QPainter::Antialiasing);
+  painter.setPen(Qt::NoPen);
+  drawHud(painter);
+}
+
+void AnnotatedCameraWidgetSP::drawHud(QPainter &p)
+{
+  p.save();
+
+  // ####### 1 ROW #######
+  QRect bar_rect1(rect().left(), rect().bottom() - 60, rect().width(), 61);
+  p.setPen(Qt::NoPen);
+  p.setBrush(QColor(0, 0, 0, 100));
+  p.drawRect(bar_rect1);
+  drawNewDevUi2(p, bar_rect1.left(), bar_rect1.center().y());
+
+  // ####### 1 COLUMN ########
+  QRect rc2(rect().right() - (UI_BORDER_SIZE * 2), UI_BORDER_SIZE * 1.5, 184, 152);
+  drawRightDevUi(p, rect().right() - 184 - UI_BORDER_SIZE * 2, UI_BORDER_SIZE * 2 + rc2.height());
+
+  p.restore();
+}
+
+void AnnotatedCameraWidgetSP::drawText(QPainter &p, int x, int y, const QString &text, QColor color)
+{
   QRect real_rect = p.fontMetrics().boundingRect(text);
   real_rect.moveCenter({x, y - real_rect.height() / 2});
   p.setPen(color);
@@ -56,7 +84,8 @@ void AnnotatedCameraWidgetSP::drawText(QPainter &p, int x, int y, const QString 
 }
 
 // ############################## DEV UI START ##############################
-void AnnotatedCameraWidgetSP::drawCenteredLeftText(QPainter &p, int x, int y, const QString &text1, QColor color1, const QString &text2, const QString &text3, QColor color2) {
+void AnnotatedCameraWidgetSP::drawCenteredLeftText(QPainter &p, int x, int y, const QString &text1, QColor color1, const QString &text2, const QString &text3, QColor color2)
+{
   QFontMetrics fm(p.font());
   QRect init_rect = fm.boundingRect(text1 + " ");
   QRect real_rect = fm.boundingRect(init_rect, 0, text1 + " ");
@@ -80,14 +109,16 @@ void AnnotatedCameraWidgetSP::drawCenteredLeftText(QPainter &p, int x, int y, co
   p.drawText(real_rect3, Qt::AlignLeft | Qt::AlignVCenter, text3);
 }
 
-int AnnotatedCameraWidgetSP::drawDevUiRight(QPainter &p, int x, int y, const QString &value, const QString &label, const QString &units, QColor &color) {
+int AnnotatedCameraWidgetSP::drawDevUiRight(QPainter &p, int x, int y, const QString &value, const QString &label, const QString &units, QColor &color)
+{
   p.setFont(InterFont(30 * 2, QFont::Bold));
   drawText(p, x + 92, y + 80, value, color);
 
   p.setFont(InterFont(28, QFont::Bold));
   drawText(p, x + 92, y + 80 + 42, label, alpha);
 
-  if (units.length() > 0) {
+  if (units.length() > 0)
+  {
     p.save();
     p.translate(x + 54 + 30 - 3 + 92 + 30, y + 37 + 25);
     p.rotate(-90);
@@ -98,7 +129,8 @@ int AnnotatedCameraWidgetSP::drawDevUiRight(QPainter &p, int x, int y, const QSt
   return 110;
 }
 
-void AnnotatedCameraWidgetSP::drawRightDevUi(QPainter &p, int x, int y) {
+void AnnotatedCameraWidgetSP::drawRightDevUi(QPainter &p, int x, int y)
+{
   int rh = 5;
   int ry = y;
 
@@ -114,10 +146,13 @@ void AnnotatedCameraWidgetSP::drawRightDevUi(QPainter &p, int x, int y) {
   rh += drawDevUiRight(p, x, ry, steeringAngleDegElement.value, steeringAngleDegElement.label, steeringAngleDegElement.units, steeringAngleDegElement.color);
   ry = y + rh;
 
-  if (lateralState == "torque") {
+  if (lateralState == "torque")
+  {
     UiElement actualLateralAccelElement = DeveloperUi::getActualLateralAccel(curvature, vEgo, roll, madsEnabled, latActive);
     rh += drawDevUiRight(p, x, ry, actualLateralAccelElement.value, actualLateralAccelElement.label, actualLateralAccelElement.units, actualLateralAccelElement.color);
-  } else {
+  }
+  else
+  {
     UiElement steeringAngleDesiredDegElement = DeveloperUi::getSteeringAngleDesiredDeg(madsEnabled, latActive, steerAngleDesired, angleSteers);
     rh += drawDevUiRight(p, x, ry, steeringAngleDesiredDegElement.value, steeringAngleDesiredDegElement.label, steeringAngleDesiredDegElement.units, steeringAngleDesiredDegElement.color);
   }
@@ -132,7 +167,8 @@ void AnnotatedCameraWidgetSP::drawRightDevUi(QPainter &p, int x, int y) {
   QRect ldu(x, y, 184, rh);
 }
 
-int AnnotatedCameraWidgetSP::drawNewDevUi(QPainter &p, int x, int y, const QString &value, const QString &label, const QString &units, QColor &color) {
+int AnnotatedCameraWidgetSP::drawNewDevUi(QPainter &p, int x, int y, const QString &value, const QString &label, const QString &units, QColor &color)
+{
   p.setFont(InterFont(38, QFont::Bold));
   QColor white = QColor(0, 0, 0, 0);
   drawCenteredLeftText(p, x, y, label, white, value, units, color);
@@ -140,7 +176,8 @@ int AnnotatedCameraWidgetSP::drawNewDevUi(QPainter &p, int x, int y, const QStri
   return 430;
 }
 
-void AnnotatedCameraWidgetSP::drawNewDevUi2(QPainter &p, int x, int y) {
+void AnnotatedCameraWidgetSP::drawNewDevUi2(QPainter &p, int x, int y)
+{
   int rw = 90;
 
   UiElement aEgoElement = DeveloperUi::getAEgo(aEgo);
@@ -149,13 +186,16 @@ void AnnotatedCameraWidgetSP::drawNewDevUi2(QPainter &p, int x, int y) {
   UiElement vEgoLeadElement = DeveloperUi::getVEgoLead(lead_status, lead_v_rel, vEgo, is_metric);
   rw += drawNewDevUi(p, rw, y, vEgoLeadElement.value, vEgoLeadElement.label, vEgoLeadElement.units, vEgoLeadElement.color);
 
-  if (torquedUseParams) {
+  if (torquedUseParams)
+  {
     UiElement frictionCoefficientFilteredElement = DeveloperUi::getFrictionCoefficientFiltered(frictionCoefficientFiltered, liveValid);
     rw += drawNewDevUi(p, rw, y, frictionCoefficientFilteredElement.value, frictionCoefficientFilteredElement.label, frictionCoefficientFilteredElement.units, frictionCoefficientFilteredElement.color);
 
     UiElement latAccelFactorFilteredElement = DeveloperUi::getLatAccelFactorFiltered(latAccelFactorFiltered, liveValid);
     rw += drawNewDevUi(p, rw, y, latAccelFactorFilteredElement.value, latAccelFactorFilteredElement.label, latAccelFactorFilteredElement.units, latAccelFactorFilteredElement.color);
-  } else {
+  }
+  else
+  {
     UiElement steeringTorqueEpsElement = DeveloperUi::getSteeringTorqueEps(steeringTorqueEps);
     rw += drawNewDevUi(p, rw, y, steeringTorqueEpsElement.value, steeringTorqueEpsElement.label, steeringTorqueEpsElement.units, steeringTorqueEpsElement.color);
 
