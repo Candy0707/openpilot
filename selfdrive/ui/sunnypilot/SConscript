@@ -42,7 +42,7 @@ qt_src = [
   "sunnypilot/qt/onroad/hud.cc",
   "sunnypilot/qt/onroad/model.cc",
   "sunnypilot/qt/onroad/onroad_home.cc",
-  "sunnypilot/qt/onroad/turnsignal_UI.cc",
+  "sunnypilot/qt/onroad/turnsignal_ui.cc",
   "sunnypilot/qt/onroad/developer_ui/developer_ui.cc",
 ]
 

@@ -1,6 +1,6 @@
 #include "selfdrive/ui/sunnypilot/ui.h"
 #include "selfdrive/ui/sunnypilot/qt/util.h"
-#include "selfdrive/ui/sunnypilot/qt/onroad/turnsignal_UI.h"
+#include "selfdrive/ui/sunnypilot/qt/onroad/turnsignal_ui.h"
 
 TurnSignalWidget::TurnSignalWidget(QWidget *parent) : QObject(parent)
 {

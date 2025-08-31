@@ -10,7 +10,7 @@
 #include <QPainter>
 
 #include "selfdrive/ui/qt/onroad/hud.h"
-#include "selfdrive/ui/sunnypilot/qt/onroad/turnsignal_UI.h"
+#include "selfdrive/ui/sunnypilot/qt/onroad/turnsignal_ui.h"
 
 class HudRendererSP : public HudRenderer {
   Q_OBJECT
