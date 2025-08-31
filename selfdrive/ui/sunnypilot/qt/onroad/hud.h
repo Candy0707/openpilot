@@ -10,6 +10,7 @@
 #include <QPainter>
 
 #include "selfdrive/ui/qt/onroad/hud.h"
+#include "selfdrive/ui/sunnypilot/qt/onroad/turnsignal_UI.h"
 
 class HudRendererSP : public HudRenderer {
   Q_OBJECT
@@ -19,4 +20,10 @@ public:
   void updateState(const UIState &s) override;
   void draw(QPainter &p, const QRect &surface_rect) override;
   void drawSurfaceRect(QPainter &p, const QRect &surface_rect);
+
+protected:
+  TurnSignalWidget *turnSignalWidget;
+
+private:
+
 };

@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include "selfdrive/ui/sunnypilot/qt/util.h"
 #include "selfdrive/ui/qt/onroad/annotated_camera.h"
+#include "selfdrive/ui/sunnypilot/qt/util.h"
 #include "selfdrive/ui/sunnypilot/qt/onroad/developer_ui/developer_ui.h"
 
 class AnnotatedCameraWidgetSP : public AnnotatedCameraWidget {
@@ -45,9 +45,9 @@ private:
   QString lateralState;
   float angleSteers = 0;
   float steerAngleDesired = 0;
+  int memoryUsagePercent = 0;
   float curvature;
   float roll;
-  int memoryUsagePercent;
   int devUiInfo;
   float gpsAccuracy;
   float altitude;

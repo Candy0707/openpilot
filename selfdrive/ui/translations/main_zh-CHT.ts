@@ -1527,6 +1527,13 @@ Warning: You are on a metered connection!</source>
     </message>
 </context>
 <context>
+    <name>BrandSettingsInterface</name>
+    <message>
+        <source>&lt;span style=&apos;font-family: &quot;Noto Color Emoji&quot;;&apos;&gt;🚗&lt;/span&gt; Brand vehicle settings &lt;span style=&apos;font-family: Noto Color Emoji;&apos;&gt;⚙️&lt;/span&gt;</source>
+        <translation>&lt;span style=&apos;font-family: &quot;Noto Color Emoji&quot;;&apos;&gt;🚗&lt;/span&gt; 品牌車輛設置 &lt;span style=&apos;font-family: Noto Color Emoji;&apos;&gt;⚙️&lt;/span&gt;</translation>
+    </message>
+</context>
+<context>
     <name>PrimeAdWidget</name>
     <message>
         <source>Upgrade Now</source>

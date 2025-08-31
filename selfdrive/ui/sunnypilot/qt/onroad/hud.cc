@@ -8,18 +8,22 @@
 #include "selfdrive/ui/qt/util.h"
 #include "selfdrive/ui/sunnypilot/qt/onroad/hud.h"
 
+
 HudRendererSP::HudRendererSP() : HudRenderer()
 {
+  turnSignalWidget = new TurnSignalWidget();
 }
 
 void HudRendererSP::updateState(const UIState &s)
 {
   HudRenderer::updateState(s);
+  turnSignalWidget->updateState(s);
 }
 
 void HudRendererSP::draw(QPainter &p, const QRect &surface_rect)
 {
   HudRenderer::draw(p, surface_rect);
+  turnSignalWidget->draw(p, surface_rect);
 
   // Test box
   drawSurfaceRect(p, surface_rect);
