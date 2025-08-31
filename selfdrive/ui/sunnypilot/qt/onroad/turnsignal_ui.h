@@ -16,13 +16,14 @@ public:
 
 protected:
   bool ShowTurnSignals = false;
-
   void drawTurnSignal(QPainter &p, int circleX, int circleY, bool isLeft);
-
+  void blinkerPulse(int frame);
 private:
-  // 閃爍控制
-  QTimer *blinkTimer;
+  Params params;
+  int blinker_frame = 0;
   bool blinkState = false;
+  bool left_blinker = false;
+  bool right_blinker = false;
 
   // 位置
   int x = 0;

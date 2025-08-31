@@ -5,39 +5,41 @@
 TurnSignalWidget::TurnSignalWidget(QWidget *parent) : QObject(parent)
 {
   y = 140;
-
   size = 120;
-  distance = 200;
-
   arrowSize = 60;
-
-  // 閃爍定時器，每 500ms 反轉 blinkState
-  blinkTimer = new QTimer(this);
-  connect(blinkTimer, &QTimer::timeout, this, [this]()
-          {
-            blinkState = !blinkState; // 反轉閃爍狀態
-          });
-  blinkTimer->start(500); // 每 500ms 閃爍
+  distance = 200;
 }
 
 void TurnSignalWidget::updateState(const UIState &s)
 {
-  ShowTurnSignals = true;
+  ShowTurnSignals = params.getBool("TurnSignals");
+
+  const SubMaster &sm = *(s.sm);
+  const auto car_state = sm["carState"].getCarState();
+  left_blinker = car_state.getLeftBlinker();
+  right_blinker = car_state.getRightBlinker();
 }
 
 void TurnSignalWidget::draw(QPainter &p, const QRect &surface_rect)
 {
-  // 中心位置 往下100
+  // 取得中心位置
   x = surface_rect.center().x();
   if (ShowTurnSignals)
   {
-    if (true)
+    blinker_frame++;
+    blinkerPulse(blinker_frame);
+    if (left_blinker)
+    {
       drawTurnSignal(p, x - distance, y, true); // 左箭頭
-    if (true)
+    }
+    if (right_blinker)
+    {
       drawTurnSignal(p, x + distance, y, false); // 右箭頭
+    }
   }
   else
   {
+    blinker_frame = 0;
   }
 }
 
@@ -84,3 +86,18 @@ void TurnSignalWidget::drawTurnSignal(QPainter &p, int circleX, int circleY, boo
 
   p.fillRect(tailRect, arrowColor);
 }
+<<<<<<< HEAD
+=======
+
+void TurnSignalWidget::blinkerPulse(int frame)
+{
+  if (frame % UI_FREQ < (UI_FREQ / 2))
+  {
+    blinkState = true;
+  }
+  else
+  {
+    blinkState = false;
+  }
+}
+>>>>>>> b47eb0ab0 (顯示方向燈)

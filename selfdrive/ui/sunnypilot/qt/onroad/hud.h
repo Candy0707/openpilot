@@ -19,7 +19,6 @@ public:
   explicit HudRendererSP();
   void updateState(const UIState &s) override;
   void draw(QPainter &p, const QRect &surface_rect) override;
-  void drawSurfaceRect(QPainter &p, const QRect &surface_rect);
 
 protected:
   TurnSignalWidget *turnSignalWidget;
