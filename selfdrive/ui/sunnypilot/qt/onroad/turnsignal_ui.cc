@@ -86,8 +86,6 @@ void TurnSignalWidget::drawTurnSignal(QPainter &p, int circleX, int circleY, boo
 
   p.fillRect(tailRect, arrowColor);
 }
-<<<<<<< HEAD
-=======
 
 void TurnSignalWidget::blinkerPulse(int frame)
 {
@@ -100,4 +98,3 @@ void TurnSignalWidget::blinkerPulse(int frame)
     blinkState = false;
   }
 }
->>>>>>> b47eb0ab0 (顯示方向燈)
