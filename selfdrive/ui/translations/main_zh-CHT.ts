@@ -2333,6 +2333,14 @@ Note that this feature is only compatible with select cars.</source>
         <translation>只要您的車輛支援 BSM，啟用此功能後，當在您的盲點中偵測到車輛時，將顯示警告。</translation>
     </message>
     <message>
+        <source>Show Turn Signals</source>
+        <translation>顯示方向燈</translation>
+    </message>
+    <message>
+        <source>Enabling this feature will display turn signals on the UI.</source>
+        <translation>啟用此功能後，當打開方向燈時，將在UI顯示。</translation>
+    </message>
+    <message>
         <source> Changing this setting will restart openpilot if the car is powered on.</source>
         <translation> 若車輛電源為開啟狀態，變更此設定將會重新啟動 openpilot。</translation>
     </message>
