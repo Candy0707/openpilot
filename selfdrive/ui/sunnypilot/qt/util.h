@@ -7,10 +7,13 @@
 
 #pragma once
 
-#include <QMap>
-#include <QRegularExpression>
+#include <optional>
+#include <vector>
 
-#include "selfdrive/ui/qt/util.h"
+#include <QMap>
+#include <QPainter>
+#include <QRegularExpression>
+#include <QWidget>
 
 QString getUserAgent(bool sunnylink = false);
 std::optional<QString> getSunnylinkDongleId();
