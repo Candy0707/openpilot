@@ -73,9 +73,9 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"LastOffroadStatusPacket", {CLEAR_ON_MANAGER_START | CLEAR_ON_OFFROAD_TRANSITION, JSON}},
     {"LastPowerDropDetected", {CLEAR_ON_MANAGER_START, STRING}},
     {"LastUpdateException", {CLEAR_ON_MANAGER_START, STRING}},
-    {"LastUpdateRouteCount", {PERSISTENT, INT, "0"}},
+    {"LastUpdateRouteCount", {PERSISTENT, INT}},
     {"LastUpdateTime", {PERSISTENT, TIME}},
-    {"LastUpdateUptimeOnroad", {PERSISTENT, FLOAT, "0.0"}},
+    {"LastUpdateUptimeOnroad", {PERSISTENT, FLOAT}},
     {"LiveDelay", {PERSISTENT | BACKUP, BYTES}},
     {"LiveParameters", {PERSISTENT, JSON}},
     {"LiveParametersV2", {PERSISTENT, BYTES}},
@@ -131,6 +131,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"Version", {PERSISTENT, STRING}},
 
     // --- sunnypilot params --- //
+    {"AccelPersonality", {PERSISTENT | BACKUP, INT, std::to_string(static_cast<int>(cereal::LongitudinalPlanSP::AccelerationPersonality::NORMAL))}},
     {"ApiCache_DriveStats", {PERSISTENT, JSON}},
     {"AutoLaneChangeBsmDelay", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"AutoLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},
@@ -160,7 +161,9 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"RainbowMode", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"ShowAdvancedControls", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"TurnSignals", {PERSISTENT | BACKUP, BOOL, "0"}},
-
+    {"VibePersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"VibeAccelPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"VibeFollowPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
 
     // MADS params
     {"Mads", {PERSISTENT | BACKUP, BOOL, "1"}},

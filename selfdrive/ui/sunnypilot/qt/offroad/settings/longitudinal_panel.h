@@ -7,9 +7,9 @@
 
 #pragma once
 
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/longitudinal/custom_acc_increment.h"
-#include "selfdrive/ui/sunnypilot/qt/offroad/settings/settings.h"
 #include "selfdrive/ui/sunnypilot/qt/widgets/scrollview.h"
+#include "selfdrive/ui/sunnypilot/qt/offroad/settings/settings.h"
+#include "selfdrive/ui/sunnypilot/qt/offroad/settings/longitudinal/custom_acc_increment.h"
 
 class LongitudinalPanel : public QWidget {
   Q_OBJECT
@@ -29,4 +29,12 @@ private:
   ScrollViewSP *cruisePanelScroller = nullptr;
   QWidget *cruisePanelScreen = nullptr;
   CustomAccIncrement *customAccIncrement = nullptr;
+
+  ButtonParamControl *accel_personality_setting;
+  ParamControlSP *vibePersonalityControl;
+  ParamControlSP *vibeAccelPersonalityControl;
+  ParamControlSP *vibeFollowPersonalityControl;
+
+private slots:
+  void updateState(const UIState &s);
 };

@@ -797,6 +797,66 @@ Firehose 模式可讓您最大限度地上傳訓練數據，以改進 openpilot 
         <source>Start the vehicle to check vehicle compatibility.</source>
         <translation>啟動車輛以檢查車輛相容性。</translation>
     </message>
+
+    <message>
+        <source>Sport</source>
+        <translation>運動</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <translation>正常</translation>
+    </message>
+    <message>
+        <source>Eco</source>
+        <translation>經濟</translation>
+    </message>
+
+    <message>
+        <source>Normal is recommended. In sport mode, sunnypilot will provide aggressive acceleration for a dynamic driving experience. In eco mode, sunnypilot will apply smoother and more relaxed acceleration. On supported cars, you can cycle through these acceleration personality within Onroad Settings on the driving screen.</source>
+        <translation>駕駛螢幕上的道路設定中的加速個性：
+經濟模式，將提供更平順、更輕鬆的加速。
+正常模式，建議使用。
+運動模式，將提供強勁加速，帶來動態駕駛體驗。</translation>
+    </message>
+
+    <message>
+        <source>Vibe Personality Controller</source>
+        <translation>Vibe 個性控制系統</translation>
+    </message>
+    <message>
+        <source>Advanced driving personality system with separate controls for acceleration behavior (Eco/Normal/Sport) and following distance/braking (Relaxed/Standard/Aggressive). Customize your driving experience with independent acceleration and distance personalities.</source>
+        <translation>先進的駕駛個性系統。
+加速個性（經濟/正常/運動）。
+跟隨距離性格（輕鬆/標準/激進）。
+透過獨立的加速和距離個性來客製化您的駕駛體驗。</translation>
+    </message>
+
+    <message>
+        <source>Acceleration Personality</source>
+        <translation>加速個性</translation>
+    </message>
+    <message>
+        <source>Controls acceleration behavior: Eco (efficient), Normal (balanced), Sport (responsive). Adjust how aggressively the vehicle accelerates while maintaining smooth operation.</source>
+        <translation>控制加速行為：
+經濟（緩和）
+正常（平衡）
+運動（快速）
+在保持平穩運轉的同時，調整車輛的加速程度。</translation>
+    </message>
+
+    <message>
+        <source>Following Distance Personality</source>
+        <translation>跟隨距離個性</translation>
+    </message>
+    <message>
+        <source>Controls following distance and braking behavior: Relaxed (longer distance, gentler braking), Standard (balanced), Aggressive (shorter distance, firmer braking). Fine-tune your comfort level in traffic situations.</source>
+        <translation>控制跟車距離和煞車行為：
+放鬆（距離較長，煞車較柔和）
+標準（平衡）
+積極（距離較短，煞車較強）
+微調您在交通狀況下的舒適度。</translation>
+    </message>
+
 </context>
 <context>
     <name>MadsSettings</name>
