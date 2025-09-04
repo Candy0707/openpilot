@@ -86,7 +86,7 @@ class SelfdriveD(CruiseHelper):
     # TODO: de-couple selfdrived with card/conflate on carState without introducing controls mismatches
     self.car_state_sock = messaging.sub_sock('carState', timeout=20)
 
-    ignore = self.sensor_packets + self.gps_packets + ['alertDebug']
+    ignore = self.sensor_packets + self.gps_packets + ['alertDebug'] + ['modelDataV2SP']
     if SIMULATION:
       ignore += ['driverCameraState', 'managerState']
     if REPLAY:
@@ -95,7 +95,8 @@ class SelfdriveD(CruiseHelper):
     self.sm = messaging.SubMaster(['deviceState', 'pandaStates', 'peripheralState', 'modelV2', 'liveCalibration',
                                    'carOutput', 'driverMonitoringState', 'longitudinalPlan', 'livePose', 'liveDelay',
                                    'managerState', 'liveParameters', 'radarState', 'liveTorqueParameters',
-                                   'controlsState', 'carControl', 'driverAssistance', 'alertDebug', 'userBookmark', 'audioFeedback'] + \
+                                   'controlsState', 'carControl', 'driverAssistance', 'alertDebug', 'userBookmark', 'audioFeedback',
+                                   'modelDataV2SP'] + \
                                    self.camera_packets + self.sensor_packets + self.gps_packets,
                                   ignore_alive=ignore, ignore_avg_freq=ignore,
                                   ignore_valid=ignore, frequency=int(1/DT_CTRL))
@@ -300,6 +301,13 @@ class SelfdriveD(CruiseHelper):
                                                     LaneChangeState.laneChangeFinishing):
       self.events.add(EventName.laneChange)
 
+    # Handle lane turn
+    lane_turn_direction = self.sm['modelDataV2SP'].laneTurnDirection
+    if lane_turn_direction == custom.TurnDirection.turnLeft:
+      self.events_sp.add(custom.OnroadEventSP.EventName.laneTurnLeft)
+    elif lane_turn_direction == custom.TurnDirection.turnRight:
+      self.events_sp.add(custom.OnroadEventSP.EventName.laneTurnRight)
+
     for i, pandaState in enumerate(self.sm['pandaStates']):
       # All pandas must match the list of safetyConfigs, and if outside this list, must be silent or noOutput
       if i < len(self.CP.safetyConfigs):
@@ -435,7 +443,7 @@ class SelfdriveD(CruiseHelper):
     for be in CS.buttonEvents:
      # decrement personality on distance button press
       if self.CP.openpilotLongitudinalControl:
-        if any(not be.pressed and be.type == ButtonType.gapAdjustCruise):
+        if not be.pressed and be.type == ButtonType.gapAdjustCruise:
           if not self.experimental_mode_switched:
             self.personality = (self.personality - 1) % 3
             self.params.put_nonblocking('LongitudinalPersonality', self.personality)
