@@ -1096,13 +1096,23 @@ The default software delay value is 0.2</source>
         <source>Fetching Latest Models</source>
         <translation>取得最新模型</translation>
     </message>
+
     <message>
-        <source>Enable this for the car to learn and adapt its steering response time. Disable to use a fixed steering response time. Keeping this on provides the stock openpilot experience.</source>
-        <translation>啟用此功能可讓車輛學習並調整其轉向反應時間。禁用則使用固定的轉向回應時間。維持此功能可提供原廠 OpenPilot 體驗。</translation>
+        <source>Use Lane Turn Desires</source>
+        <translation>使用方向燈預測車道路徑</translation>
     </message>
+    <message>
+        <source>If you’re driving at 20 mph (32 km/h) or below and have your blinker on, the car will plan a turn in that direction at the nearest drivable path. This prevents situations (like at red lights) where the car might plan the wrong turn direction.</source>
+        <translation>如果您以 20 英里/小時（32 公里/小時）或以下的速度行駛，並且開啟了轉向燈，車輛將沿著最近的可行駛路徑規劃轉向方向。這可以避免車輛在遇到紅燈等情況時規劃錯誤的轉彎方向。</translation>
+    </message>
+
     <message>
         <source>Live Steer Delay:</source>
         <translation>即時轉向延遲：</translation>
+    </message>
+    <message>
+        <source>Enable this for the car to learn and adapt its steering response time. Disable to use a fixed steering response time. Keeping this on provides the stock openpilot experience.</source>
+        <translation>啟用此功能可讓車輛學習並調整其轉向反應時間。禁用則使用固定的轉向回應時間。維持此功能可提供原廠 OpenPilot 體驗。</translation>
     </message>
     <message>
         <source>Actuator Delay:</source>
