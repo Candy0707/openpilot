@@ -12,7 +12,7 @@ CircleWidget::CircleWidget(QWidget *parent) : QObject(parent)
     minAngle = -180;
     maxAngle = 180;
     size = 192;
-    innerArcWidth = 20;
+    innerArcWidth = 30;
 }
 
 void CircleWidget::updateState(const UIState &s)
@@ -21,8 +21,8 @@ void CircleWidget::updateState(const UIState &s)
     const auto car_state = sm["carState"].getCarState();
     const auto controls_state = sm["controlsState"].getControlsState();
 
-    angle1 = car_state.getSteeringAngleDeg();
-    angle2 = controls_state.getLateralControlState().getPidState().getSteeringAngleDesiredDeg();
+    angle1 = -1 * car_state.getSteeringAngleDeg();
+    angle2 = -1 * controls_state.getLateralControlState().getPidState().getSteeringAngleDesiredDeg();
 }
 
 void CircleWidget::draw(QPainter &p, const QRect &surface_rect)

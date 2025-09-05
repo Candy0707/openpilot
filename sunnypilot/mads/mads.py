@@ -104,7 +104,7 @@ class ModularAssistiveDrivingSystem:
     self.events.remove(old_event)
     self.events_sp.add(new_event)
 
-  def update_events(self, CS: structs.CarState):
+  def update_events(self, CS: structs.CarState, CS_SP: custom.CarStateSP):
     if not self.selfdrive.enabled and self.enabled:
       if self.events.has(EventName.doorOpen):
         self.replace_event(EventName.doorOpen, EventNameSP.silentDoorOpen)
@@ -153,15 +153,14 @@ class ModularAssistiveDrivingSystem:
         if CS.cruiseState.available and not self.selfdrive.CS_prev.cruiseState.available:
           self.events_sp.add(EventNameSP.lkasEnable)
 
-
     if self.lkasState:
-      if CS.lkasEnabled:
+      if CS_SP.lkasEnabled:
+        self.events_sp.add(EventNameSP.lkasEnable)
+      else:
         if self.selfdrive.enabled:
           self.events_sp.add(EventNameSP.manualSteeringRequired)
         else:
           self.events_sp.add(EventNameSP.lkasDisable)
-      else:
-        self.events_sp.add(EventNameSP.lkasEnable)
     else:
       for be in CS.buttonEvents:
         if be.type == ButtonType.cancel:
@@ -201,11 +200,11 @@ class ModularAssistiveDrivingSystem:
     self.events.remove(EventName.pedalPressed)
     self.events.remove(EventName.wrongCruiseMode)
 
-  def update(self, CS: structs.CarState):
+  def update(self, CS: structs.CarState, CS_SP: custom.CarStateSP):
     if not self.enabled_toggle:
       return
 
-    self.update_events(CS)
+    self.update_events(CS, CS_SP)
 
     if not self.CP.passive and self.selfdrive.initialized:
       self.enabled, self.active = self.state_machine.update()
