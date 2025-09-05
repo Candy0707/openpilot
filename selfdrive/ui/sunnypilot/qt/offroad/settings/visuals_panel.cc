@@ -29,9 +29,16 @@ VisualsPanel::VisualsPanel(QWidget *parent) : QWidget(parent) {
       false,
     },
     {
-      "TurnSignals",
+      "ShowTurnSignals",
       tr("Show Turn Signals"),
       tr("Enabling this feature will display turn signals on the UI."),
+      "../assets/offroad/icon_monitoring.png",
+      false,
+    },
+    {
+      "ShowSteeringAngle",
+      tr("Show Steering Angle"),
+      tr("Enabling this option will display the steering angle versus the desired steering angle."),
       "../assets/offroad/icon_monitoring.png",
       false,
     },

@@ -10,7 +10,8 @@
 #include <QPainter>
 
 #include "selfdrive/ui/qt/onroad/hud.h"
-#include "selfdrive/ui/sunnypilot/qt/onroad/turnsignal_ui.h"
+#include "selfdrive/ui/sunnypilot/qt/onroad/hud/turnsignal_ui.h"
+#include "selfdrive/ui/sunnypilot/qt/onroad/hud/CircleWidget.h"
 
 class HudRendererSP : public HudRenderer {
   Q_OBJECT
@@ -22,7 +23,9 @@ public:
 
 protected:
   TurnSignalWidget *turnSignalWidget;
+  CircleWidget *circleWidget;
 
 private:
-
+  Params params;
+  bool EN;
 };
