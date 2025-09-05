@@ -9,7 +9,6 @@ from cereal import log, custom
 
 from opendbc.car import structs
 from opendbc.car.hyundai.values import HyundaiFlags
-from opendbc.car.toyota.values import ToyotaFlags
 from openpilot.common.params import Params
 from openpilot.sunnypilot.mads.helpers import MadsSteeringModeOnBrake, read_steering_mode_param, get_mads_limited_brands
 from openpilot.sunnypilot.mads.state import StateMachine, GEARS_ALLOW_PAUSED_SILENT
@@ -41,10 +40,12 @@ class ModularAssistiveDrivingSystem:
     self.events = self.selfdrive.events
     self.events_sp = self.selfdrive.events_sp
     self.disengage_on_accelerator = Params().get_bool("DisengageOnAccelerator")
-    if self.CP.brand == "hyundai" or "toyota":
+
+    # LSAS State
+    self.lkasState = self.CP.brand in ("toyota")
+
+    if self.CP.brand == "hyundai":
       if self.CP.flags & (HyundaiFlags.HAS_LDA_BUTTON | HyundaiFlags.CANFD):
-        self.allow_always = True
-      if self.CP.flags & (ToyotaFlags.TSS2):
         self.allow_always = True
 
     if get_mads_limited_brands(self.CP):
@@ -152,18 +153,29 @@ class ModularAssistiveDrivingSystem:
         if CS.cruiseState.available and not self.selfdrive.CS_prev.cruiseState.available:
           self.events_sp.add(EventNameSP.lkasEnable)
 
-    for be in CS.buttonEvents:
-      if be.type == ButtonType.cancel:
-        if not self.selfdrive.enabled and self.selfdrive.enabled_prev:
-          self.events_sp.add(EventNameSP.manualLongitudinalRequired)
-      if be.type == ButtonType.lkas and be.pressed and (CS.cruiseState.available or self.allow_always):
-        if self.enabled:
-          if self.selfdrive.enabled:
-            self.events_sp.add(EventNameSP.manualSteeringRequired)
-          else:
-            self.events_sp.add(EventNameSP.lkasDisable)
+
+    if self.lkasState:
+      if CS.lkasEnabled:
+        if self.selfdrive.enabled:
+          self.events_sp.add(EventNameSP.manualSteeringRequired)
         else:
-          self.events_sp.add(EventNameSP.lkasEnable)
+          self.events_sp.add(EventNameSP.lkasDisable)
+      else:
+        self.events_sp.add(EventNameSP.lkasEnable)
+    else:
+      for be in CS.buttonEvents:
+        if be.type == ButtonType.cancel:
+          if not self.selfdrive.enabled and self.selfdrive.enabled_prev:
+            self.events_sp.add(EventNameSP.manualLongitudinalRequired)
+        if be.type == ButtonType.lkas and be.pressed and (CS.cruiseState.available or self.allow_always):
+          if self.enabled:
+            if self.selfdrive.enabled:
+              self.events_sp.add(EventNameSP.manualSteeringRequired)
+            else:
+              self.events_sp.add(EventNameSP.lkasDisable)
+          else:
+            self.events_sp.add(EventNameSP.lkasEnable)
+
 
     if not CS.cruiseState.available and not self.no_main_cruise:
       self.events.remove(EventName.buttonEnable)

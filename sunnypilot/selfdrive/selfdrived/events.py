@@ -32,11 +32,19 @@ class EventsSP(EventsBase):
 EVENTS_SP: dict[int, dict[str, Alert | AlertCallbackType]] = {
   # sunnypilot
   EventNameSP.lkasEnable: {
-    ET.ENABLE: EngagementAlert(AudibleAlert.engage),
+    ET.ENABLE: Alert(
+      "LKAS Enable",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOW, VisualAlert.none, AudibleAlert.engage, 1.),
   },
 
   EventNameSP.lkasDisable: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.disengage),
+    ET.USER_DISABLE: Alert(
+      "LKAS Disable",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOW, VisualAlert.none, AudibleAlert.disengage, 1.),
   },
 
   EventNameSP.manualSteeringRequired: {
@@ -56,11 +64,19 @@ EVENTS_SP: dict[int, dict[str, Alert | AlertCallbackType]] = {
   },
 
   EventNameSP.silentLkasEnable: {
-    ET.ENABLE: EngagementAlert(AudibleAlert.none),
+    ET.ENABLE: Alert(
+      "LKAS Enable",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1.),
   },
 
   EventNameSP.silentLkasDisable: {
-    ET.USER_DISABLE: EngagementAlert(AudibleAlert.none),
+    ET.USER_DISABLE: Alert(
+      "LKAS Disable",
+      "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOW, VisualAlert.none, AudibleAlert.none, 1.),
   },
 
   EventNameSP.silentBrakeHold: {
