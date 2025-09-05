@@ -2,9 +2,9 @@
 
 TurnSignalWidget::TurnSignalWidget(QWidget *parent) : QObject(parent)
 {
-  y = 200;
+  y = 160;
   size = 160;
-  arrowSize = 140;
+  arrowSize = 120;
   distance = 300;
 }
 
