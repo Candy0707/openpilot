@@ -116,7 +116,7 @@ class SelfdriveD(CruiseHelper):
       self.params.remove("ExperimentalMode")
 
     self.CS_prev = car.CarState.new_message()
-    self.CS_SP_prev = car.CarStateSP.new_message()
+    self.CS_SP_prev = custom.CarStateSP.new_message()
     self.AM = AlertManager()
     self.events = Events()
 
@@ -455,7 +455,7 @@ class SelfdriveD(CruiseHelper):
     _car_state = messaging.recv_one(self.car_state_sock)
     CS = _car_state.carState if _car_state else self.CS_prev
     _car_stateSP = messaging.recv_one(self.car_stateSP_sock)
-    CS_SP = _car_state.carStateSP if _car_stateSP else self.CS_prevSP
+    CS_SP = _car_state.carStateSP if _car_stateSP else self.CS_SP_prev
     self.sm.update(0)
 
     if not self.initialized:
