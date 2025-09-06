@@ -13,21 +13,22 @@ from openpilot.common.params import Params
 LongPersonality = log.LongitudinalPersonality
 AccelPersonality = custom.LongitudinalPlanSP.AccelerationPersonality
 
-# Acceleration Profiles mapped to AccelPersonality (eco/normal/sport)
-MAX_ACCEL_PROFILES = {
-  AccelPersonality.eco:       [2.00, 2.0,  1.80, 1.35, 0.83, .57,  .46, .28, .13, .088],  # eco
-  AccelPersonality.normal:    [2.00, 2.0,  1.90, 1.55, 1.20, .63,  .54, .33, .22, .13],   # normal
-  AccelPersonality.sport:     [2.00, 2.0,  1.98, 1.75, 1.50, .80,  .70, .52, .34, .2],   # sport
-}
-MAX_ACCEL_BREAKPOINTS =       [0.,   4.,   6.,   9.,   11.,  16.,  20., 25., 30., 55.]
+# 定義速度點（m/s）
+speed_breakpoints = np.array([0, 5, 10, 20, 30, 40, 50, 60])
 
-# Braking profiles mapped to LongPersonality (relaxed/standard/aggressive)
-MIN_ACCEL_PROFILES = {
-  LongPersonality.relaxed:    [-.23, -.24, -.33, -1.10],  # gentler braking
-  LongPersonality.standard:   [-.24, -.25, -.35, -1.15],  # normal braking
-  LongPersonality.aggressive: [-.25, -.26, -.37, -1.20],  # more aggressive braking
+# 加速上限 (平滑化)
+MAX_ACCEL_PROFILES = {
+  'eco': np.linspace(2.0, 0.8, len(speed_breakpoints)),
+  'normal': np.linspace(2.0, 1.0, len(speed_breakpoints)),
+  'sport': np.linspace(2.2, 1.2, len(speed_breakpoints))
 }
-MIN_ACCEL_BREAKPOINTS =       [0.,   1.,   2.,   50.]
+
+# 減速上限 (平滑化)
+MIN_ACCEL_PROFILES = {
+  'relaxed': np.linspace(-0.3, -1.0, len(speed_breakpoints)),
+  'standard': np.linspace(-0.35, -1.1, len(speed_breakpoints)),
+  'aggressive': np.linspace(-0.37, -1.2, len(speed_breakpoints))
+}
 
 # Following Distance Profiles mapped to LongPersonality (relaxed/standard/aggressive)
 FOLLOW_DISTANCE_PROFILES = {
@@ -194,10 +195,10 @@ class VibePersonalityController:
 
     try:
       # Max acceleration from AccelPersonality
-      max_a = np.interp(v_ego, MAX_ACCEL_BREAKPOINTS, MAX_ACCEL_PROFILES[self.accel_personality])
+      max_a = np.interp(v_ego, speed_breakpoints, MAX_ACCEL_PROFILES[self.accel_personality])
 
       # Min acceleration (braking) from LongPersonality
-      min_a = np.interp(v_ego, MIN_ACCEL_BREAKPOINTS, MIN_ACCEL_PROFILES[self.long_personality])
+      min_a = np.interp(v_ego, speed_breakpoints, MIN_ACCEL_PROFILES[self.long_personality])
 
       return float(min_a), float(max_a)
     except (KeyError, IndexError):

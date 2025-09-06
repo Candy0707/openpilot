@@ -160,11 +160,12 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"QuietMode", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"RainbowMode", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"ShowAdvancedControls", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"ShowTurnSignals", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"ShowSteeringAngle", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"VibePersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"VibeAccelPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"VibeFollowPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"ShowTurnSignals", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"ShowSteerState", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"ShowLongState", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"VibePersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"VibeAccelPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"VibeFollowPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "1"}},
 
     // MADS params
     {"Mads", {PERSISTENT | BACKUP, BOOL, "1"}},

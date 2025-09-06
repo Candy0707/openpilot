@@ -23,9 +23,9 @@ public:
 
 protected:
   TurnSignalWidget *turnSignalWidget;
-  CircleWidget *circleWidget;
+  CircleWidget *SteerWidget;
+  CircleWidget *LongWidget;
 
 private:
   Params params;
-  bool EN;
 };

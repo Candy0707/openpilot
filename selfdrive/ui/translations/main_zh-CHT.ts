@@ -2411,14 +2411,13 @@ Note that this feature is only compatible with select cars.</source>
         <translation>啟用此功能後，當打開方向燈時，將在UI顯示。</translation>
     </message>
     <message>
-        <source>Show Steering Angle</source>
-        <translation>顯示轉向角度</translation>
+        <source>Show Steer State</source>
+        <translation>顯示轉向角度狀態</translation>
     </message>
     <message>
-        <source>Enabling this option will display the steering angle versus the desired steering angle.</source>
-        <translation>啟用此選項將顯示轉向角度與所需轉向角度。</translation>
+        <source>Show Long State</source>
+        <translation>顯示加速減速狀態</translation>
     </message>
-
     <message>
         <source>Enable Tesla Rainbow Mode</source>
         <translation>啟用特斯拉彩虹模式</translation>
