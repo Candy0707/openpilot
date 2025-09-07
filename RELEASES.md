@@ -1,5 +1,11 @@
 Version 0.10.1 (2025-09-08)
 ========================
+* 新增 轉向、加減速、控制狀態顯示。
+* 新增路名顯示
+* 調教Vibe控制器加減速與跟車距離
+
+Version 0.10.1 (2025-09-08)
+========================
 * Record driving feedback using LKAS button
 * Honda City 2023 support thanks to drFritz!
 

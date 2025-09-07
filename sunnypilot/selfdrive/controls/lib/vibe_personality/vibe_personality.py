@@ -16,35 +16,36 @@ AccelPersonality = custom.LongitudinalPlanSP.AccelerationPersonality
 # 速度點 (m/s)
 speed_breakpoints = np.array([0, 5, 10, 20, 30, 40, 50, 60])
 
-# 加速上限 (平滑化)
+# 加速上限
 MAX_ACCEL_PROFILES = {
-  'eco': np.linspace(1.2, 0.8, len(speed_breakpoints)),  # 低速柔和，高速平滑
-  'normal': np.linspace(1.6, 1.0, len(speed_breakpoints)),  # 中等加速，隨速度稍增加
-  'sport': np.linspace(2.0, 1.2, len(speed_breakpoints)),  # 高速可達 2 m/s²
+    'eco':    np.array([1.00, 0.88, 0.77, 0.53, 0.30, 0.23, 0.17, 0.10]),
+    'normal': np.array([1.40, 1.32, 1.23, 0.82, 0.40, 0.32, 0.24, 0.15]),
+    'sport':  np.array([1.80, 1.65, 1.50, 1.00, 0.50, 0.40, 0.30, 0.20]),
 }
 
-# 減速上限 (平滑化)
+# 減速上限
 MIN_ACCEL_PROFILES = {
-  'relaxed': np.linspace(-0.5, -1.0, len(speed_breakpoints)),  # 舒適安全
-  'standard': np.linspace(-0.6, -1.1, len(speed_breakpoints)),  # 平衡
-  'aggressive': np.linspace(-0.7, -1.2, len(speed_breakpoints)),  # 靈敏
+    'relaxed':    np.linspace(-0.6, -1.2, len(speed_breakpoints)),
+    'standard':   np.linspace(-0.7, -1.3, len(speed_breakpoints)),
+    'aggressive': np.linspace(-0.8, -1.4, len(speed_breakpoints)),
 }
 
 # 跟車距離
 FOLLOW_DISTANCE_PROFILES = {
-  LongPersonality.relaxed: {
-    'x_vel': [0.0, 10.0, 40.0],
-    'y_dist': [1.5, 1.5, 3.2]
-  },
-  LongPersonality.standard: {
-    'x_vel': [0.0, 10.0, 40.0],
-    'y_dist': [1.2, 1.2, 2.8]
-  },
-  LongPersonality.aggressive: {
-    'x_vel': [0.0, 10.0, 40.0],
-    'y_dist': [1.0, 1.0, 1.8]
-  },
+    'relaxed': {
+        'x_vel': [0.0, 10.0, 40.0],
+        'y_dist': [1.6, 1.6, 3.2]
+    },
+    'standard': {
+        'x_vel': [0.0, 10.0, 40.0],
+        'y_dist': [1.4, 1.4, 3.0]
+    },
+    'aggressive': {
+        'x_vel': [0.0, 10.0, 40.0],
+        'y_dist': [1.2, 1.2, 2.8]
+    },
 }
+
 class VibePersonalityController:
   """
   Controller for managing separated acceleration and distance controls:
