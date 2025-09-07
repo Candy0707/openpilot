@@ -39,13 +39,13 @@ void HudRendererSP::updateState(const UIState &s)
     if (sm.alive("carState") && sm.rcv_frame("carState") > 0)
     {
       const auto car_state = sm["carState"].getCarState();
+      enabled = car_state.getCruiseState().getAvailable();
       CS_Steer = car_state.getSteeringAngleDeg();
       CS_Long = car_state.getAEgo();
     }
     if (sm.alive("carControl") && sm.rcv_frame("carControl") > 0)
     {
       const auto car_control = sm["carControl"].getCarControl();
-      enabled = car_control.getEnabled();
       latActive = car_control.getLatActive();
       longActive = car_control.getLongActive();
       if (car_control.hasActuators())

@@ -64,7 +64,7 @@ void update_state(UIState *s) {
 
   auto params = Params();
   scene.recording_audio = params.getBool("RecordAudio") && scene.started;
-  params.putBool("AutoTetheringToggle", scene.started);
+  params.putBool("AutoTethering", scene.started);
 }
 
 void ui_update_params(UIState *s) {
@@ -118,7 +118,7 @@ void UIState::updateStatus() {
 UIState::UIState(QObject *parent) : QObject(parent) {
   sm = std::make_unique<SubMaster>(std::vector<const char*>{
     "modelV2", "controlsState", "liveCalibration", "radarState", "deviceState",
-    "pandaStates", "carParams", "driverMonitoringState", "carState", "carControl", "driverStateV2",
+    "pandaStates", "carParams", "driverMonitoringState", "carState", "driverStateV2",
     "wideRoadCameraState", "managerState", "selfdriveState", "longitudinalPlan",
   });
   prime_state = new PrimeState(this);

@@ -139,17 +139,17 @@ AdvancedNetworking::AdvancedNetworking(QWidget* parent, WifiManager* wifi): QWid
   ListWidget *list = new ListWidget(this);
 
   // Auto tethering layout
-  const bool AutoTetheringEnabled = params.getBool("AutoTethering");
-  AutotetheringToggle = new ToggleControl(tr("Auto Tethering"), tr("Network sharing will be automatically controlled according to the vehicle's starting status."), "", AutoTetheringEnabled);
-  list->addItem(AutotetheringToggle);
+  const bool AutoTetheringEnabled = params.getBool("AutoTetheringEnabled");
+  AutoTetheringToggle = new ToggleControl(tr("Auto Tethering"), tr("Network sharing will be automatically controlled according to the vehicle's starting status."), "", AutoTetheringEnabled);
+  list->addItem(AutoTetheringToggle);
 
   // Enable tethering layout
   tetheringToggle = new ToggleControl(tr("Enable Tethering"), "", "", wifi->isTetheringEnabled());
   list->addItem(tetheringToggle);
   QObject::connect(tetheringToggle, &ToggleControl::toggleFlipped, this, &AdvancedNetworking::toggleTethering);
 
-  QObject::connect(AutotetheringToggle, &ToggleControl::toggleFlipped, [=](bool state) {
-    params.putBool("AutoTethering", state);
+  QObject::connect(AutoTetheringToggle, &ToggleControl::toggleFlipped, [=](bool state) {
+    params.putBool("AutoTetheringEnabled", state);
     tetheringToggle->setEnabled(!state);
   });
 
@@ -266,12 +266,12 @@ void AdvancedNetworking::refresh() {
     wifiMeteredToggle->setCheckedButton(static_cast<int>(metered));
   }
 
+  bool AutoTetheringEnabled = params.getBool("AutoTetheringEnabled");
   bool AutoTethering = params.getBool("AutoTethering");
-  bool AutoTetheringToggle = params.getBool("AutoTetheringToggle");
   tetheringToggle->setEnabled(!AutoTethering);
-  if(AutoTethering) {
-    if(AutoTetheringToggle != !wifi->isTetheringEnabled()){
-      tetheringToggle->setBool(AutoTetheringToggle);
+  if(AutoTetheringEnabled) {
+    if(AutoTethering != !wifi->isTetheringEnabled()){
+      tetheringToggle->setBool(AutoTethering);
     }
   }
 

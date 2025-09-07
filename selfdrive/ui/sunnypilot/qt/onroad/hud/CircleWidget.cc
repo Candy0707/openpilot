@@ -55,13 +55,12 @@ void CircleWidget::draw(QPainter &p, const QRect &surface_rect)
     // -----------------------
     // HUD 半透明光暈背景
     // -----------------------
-    QRadialGradient bgGlow(center, radiusOuter * 1.2f);
-    bgGlow.setColorAt(0.0f, QColor(0, 0, 0, 60));
-    bgGlow.setColorAt(0.7f, QColor(0, 0, 0, 10));
-    bgGlow.setColorAt(1.0f, QColor(0, 0, 0, 0));
+    QRadialGradient bgGlow(center, radiusOuter);
+    bgGlow.setColorAt(0.0f, QColor(0, 0, 0, 120)); // 中間更黑
+    bgGlow.setColorAt(1.0f, QColor(0, 0, 0, 0));   // 邊緣全透明
     p.setBrush(bgGlow);
     p.setPen(Qt::NoPen);
-    p.drawEllipse(center, radiusOuter * 1.1f, radiusOuter * 1.1f);
+    p.drawEllipse(center, radiusOuter, radiusOuter);
 
     // -----------------------
     // 外框圓
@@ -93,15 +92,8 @@ void CircleWidget::draw(QPainter &p, const QRect &surface_rect)
     p.setFont(font);
 
     // 計算比例 0~1
-    float ratio = (qAbs(value1) - minValue) / (maxValue - minValue);
-    if (ratio < 0.0f)
-    {
-        ratio = 0.0f;
-    }
-    if (ratio > 1.0f)
-    {
-        ratio = 1.0f;
-    }
+    float ratio = (qAbs(value1) - 0) / (maxValue);
+    ratio = std::clamp(ratio, 0.0f, 1.0f);
 
     // 根據比例線性插值顏色 (綠 → 黃 → 紅)
     QColor textcolor;
