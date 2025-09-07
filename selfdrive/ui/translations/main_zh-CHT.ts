@@ -2411,6 +2411,10 @@ Note that this feature is only compatible with select cars.</source>
         <translation>啟用此功能後，當打開方向燈時，將在UI顯示。</translation>
     </message>
     <message>
+        <source>Show Road Name</source>
+        <translation>顯示路名</translation>
+    </message>
+    <message>
         <source>Show Steer State</source>
         <translation>顯示轉向角度狀態</translation>
     </message>

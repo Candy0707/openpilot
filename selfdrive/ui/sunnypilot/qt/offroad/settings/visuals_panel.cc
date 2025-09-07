@@ -29,6 +29,13 @@ VisualsPanel::VisualsPanel(QWidget *parent) : QWidget(parent) {
       false,
     },
     {
+      "ShowRoadName",
+      tr("Show Road Name"),
+      tr(""),
+      "../assets/offroad/icon_monitoring.png",
+      false,
+    },
+    {
       "ShowTurnSignals",
       tr("Show Turn Signals"),
       tr("Enabling this feature will display turn signals on the UI."),

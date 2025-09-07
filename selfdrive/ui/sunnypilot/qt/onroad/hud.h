@@ -28,4 +28,7 @@ protected:
 
 private:
   Params params;
+  QString road_name;
+
+  void drawRoadName(QPainter &p, const QRect &surface_rect);
 };
