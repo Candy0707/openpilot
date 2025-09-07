@@ -61,7 +61,7 @@ void HudRendererSP::updateState(const UIState &s)
   }
 
   SteerWidget->updateState(s);
-  SteerWidget->setValue(enabled, latActive, CS_Steer, CC_Steer);
+  SteerWidget->setValue(enabled, latActive, -CS_Steer, -CC_Steer);
 
   LongWidget->updateState(s);
   LongWidget->setValue(enabled, longActive, CS_Long, CC_Long);
