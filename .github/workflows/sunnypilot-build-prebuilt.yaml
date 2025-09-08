@@ -8,7 +8,7 @@ env:
   PUBLIC_REPO_URL: "https://github.com/Candy0707/CandyPilot"
 
   # Branch configurations
-  STAGING_SOURCE_BRANCH: 'Enhanced'
+  STAGING_SOURCE_BRANCH: 'master'
 
   # Runtime configuration
   SOURCE_BRANCH: "${{ github.head_ref || github.ref_name }}"
