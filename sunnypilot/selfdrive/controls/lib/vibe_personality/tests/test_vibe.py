@@ -204,8 +204,8 @@ class TestVibePersonalityController:
     }
 
     # Test with different speeds and personalities
-    controller.accel_personality = 1  # normal
-    controller.long_personality = 1  # standard
+    controller.accel_personality = custom.LongitudinalPlanSP.AccelerationPersonality.normal
+    controller.long_personality = log.LongitudinalPersonality.standard
 
     limits = controller.get_accel_limits(10.0)  # 10 m/s
     assert limits is not None

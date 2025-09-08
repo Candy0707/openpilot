@@ -1180,7 +1180,7 @@ The default software delay value is 0.2</source>
     </message>
     <message>
         <source>Start the car to check car compatibility</source>
-        <translation></translation>
+        <translation>啟動車輛以檢查車型相容性</translation>
     </message>
     <message>
         <source>NNLC Not Loaded</source>
