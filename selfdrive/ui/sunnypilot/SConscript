@@ -44,7 +44,6 @@ qt_src = [
   "sunnypilot/qt/onroad/onroad_home.cc",
   "sunnypilot/qt/onroad/hud/turnsignal_ui.cc",
   "sunnypilot/qt/onroad/hud/CircleWidget.cc",
-  #"sunnypilot/qt/onroad/hud/developer_ui.cc",
 ]
 
 lateral_panel_qt_src = [

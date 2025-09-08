@@ -47,7 +47,7 @@ struct LeadData {
 }
 
 struct SelfdriveStateSP @0x81c2f05a394cf4af {
-  mads@0 :ModularAssistiveDrivingSystem;
+  mads @0 :ModularAssistiveDrivingSystem;
 }
 
 struct ModelManagerSP @0xaedffd8f31e7b55d {

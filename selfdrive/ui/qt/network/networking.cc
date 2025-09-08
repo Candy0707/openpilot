@@ -137,21 +137,10 @@ AdvancedNetworking::AdvancedNetworking(QWidget* parent, WifiManager* wifi): QWid
   main_layout->addWidget(back, 0, Qt::AlignLeft);
 
   ListWidget *list = new ListWidget(this);
-
-  // Auto tethering layout
-  const bool AutoTetheringEnabled = params.getBool("AutoTetheringEnabled");
-  AutoTetheringToggle = new ToggleControl(tr("Auto Tethering"), tr("Network sharing will be automatically controlled according to the vehicle's starting status."), "", AutoTetheringEnabled);
-  list->addItem(AutoTetheringToggle);
-
   // Enable tethering layout
   tetheringToggle = new ToggleControl(tr("Enable Tethering"), "", "", wifi->isTetheringEnabled());
   list->addItem(tetheringToggle);
   QObject::connect(tetheringToggle, &ToggleControl::toggleFlipped, this, &AdvancedNetworking::toggleTethering);
-
-  QObject::connect(AutoTetheringToggle, &ToggleControl::toggleFlipped, [=](bool state) {
-    params.putBool("AutoTetheringEnabled", state);
-    tetheringToggle->setEnabled(!state);
-  });
 
   // Change tethering password
   ButtonControl *editPasswordButton = new ButtonControl(tr("Tethering Password"), tr("EDIT"));
@@ -256,6 +245,7 @@ void AdvancedNetworking::setGsmVisible(bool visible) {
 
 void AdvancedNetworking::refresh() {
   ipLabel->setText(wifi->ipv4_address);
+  tetheringToggle->setEnabled(true);
 
   if (wifi->isTetheringEnabled() || wifi->ipv4_address == "") {
     wifiMeteredToggle->setEnabled(false);
@@ -266,20 +256,12 @@ void AdvancedNetworking::refresh() {
     wifiMeteredToggle->setCheckedButton(static_cast<int>(metered));
   }
 
-  bool AutoTetheringEnabled = params.getBool("AutoTetheringEnabled");
-  bool AutoTethering = params.getBool("AutoTethering");
-  tetheringToggle->setEnabled(!AutoTethering);
-  if(AutoTetheringEnabled) {
-    if(AutoTethering != !wifi->isTetheringEnabled()){
-      tetheringToggle->setBool(AutoTethering);
-    }
-  }
-
   update();
 }
 
 void AdvancedNetworking::toggleTethering(bool enabled) {
   wifi->setTetheringEnabled(enabled);
+  tetheringToggle->setEnabled(false);
   if (enabled) {
     wifiMeteredToggle->setEnabled(false);
     wifiMeteredToggle->setCheckedButton(0);
