@@ -15,7 +15,7 @@ env:
 
 on:
   push:
-    branches: [ Enhanced-Test, Enhanced ]
+    branches: [ CandyPilot, CandyPilot-Test ]
     tags: [ 'release/*' ]
   pull_request_target:
     types: [ labeled ]
