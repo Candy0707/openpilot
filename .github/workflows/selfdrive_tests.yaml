@@ -2,8 +2,7 @@ name: selfdrive
 
 on:
   push:
-    branches:
-      - master
+    branches: [ CandyPilot, CandyPilot-Test ]
   pull_request:
   workflow_dispatch:
   workflow_call:
