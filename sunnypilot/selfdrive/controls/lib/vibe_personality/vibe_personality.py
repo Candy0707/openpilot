@@ -13,30 +13,37 @@ from openpilot.common.params import Params
 LongPersonality = log.LongitudinalPersonality
 AccelPersonality = custom.LongitudinalPlanSP.AccelerationPersonality
 
-# 速度點 (m/s)
-speed_breakpoints = np.array([0, 5, 10, 20, 30, 40, 50, 60])
-
-# 加速上限
+# Acceleration Profiles mapped to AccelPersonality (eco/normal/sport)
 MAX_ACCEL_PROFILES = {
-  AccelPersonality.eco: np.array([1.00, 0.88, 0.77, 0.53, 0.30, 0.23, 0.17, 0.10]),
-  AccelPersonality.normal: np.array([1.40, 1.32, 1.23, 0.82, 0.40, 0.32, 0.24, 0.15]),
-  AccelPersonality.sport: np.array([1.80, 1.65, 1.50, 1.00, 0.50, 0.40, 0.30, 0.20]),
+  AccelPersonality.eco:       [1.0, 1.4,  1.2, 1.0, 0.8, 0.5,  0.4, 0.2, 0.1, 0.08],  # eco
+  AccelPersonality.normal:    [1.5, 1.6,  1.4, 1.2, 1.2, 0.6,  0.5, 0.3, 0.2, 0.1],   # normal
+  AccelPersonality.sport:     [2.0, 1.8,  1.6, 1.4, 1.5, 0.8,  0.7, 0.5, 0.3, 0.2],   # sport
 }
+MAX_ACCEL_BREAKPOINTS =       [0.,   4.,   6.,   9.,   11.,  16.,  20., 25., 30., 55.]
 
-# 減速上限
+# Braking profiles mapped to LongPersonality (relaxed/standard/aggressive)
 MIN_ACCEL_PROFILES = {
-  LongPersonality.relaxed: np.linspace(-0.6, -1.2, len(speed_breakpoints)),
-  LongPersonality.standard: np.linspace(-0.7, -1.3, len(speed_breakpoints)),
-  LongPersonality.aggressive: np.linspace(-0.8, -1.4, len(speed_breakpoints)),
+  LongPersonality.relaxed:    [-.23, -.24, -.33, -1.10],  # gentler braking
+  LongPersonality.standard:   [-.24, -.25, -.35, -1.15],  # normal braking
+  LongPersonality.aggressive: [-.25, -.26, -.37, -1.20],  # more aggressive braking
 }
+MIN_ACCEL_BREAKPOINTS =       [0.,   1.,   2.,   50.]
 
-# 跟車距離
+# Following Distance Profiles mapped to LongPersonality (relaxed/standard/aggressive)
 FOLLOW_DISTANCE_PROFILES = {
-  LongPersonality.relaxed: {'x_vel': [0.0, 10.0, 40.0], 'y_dist': [1.6, 1.6, 3.2]},
-  LongPersonality.standard: {'x_vel': [0.0, 10.0, 40.0], 'y_dist': [1.4, 1.4, 3.0]},
-  LongPersonality.aggressive: {'x_vel': [0.0, 10.0, 40.0], 'y_dist': [1.2, 1.2, 2.8]},
+  LongPersonality.relaxed: {
+    'x_vel':  [0., 10., 40.],
+    'y_dist': [1.6, 1.6, 3.2]  # longer following distance
+  },
+  LongPersonality.standard: {
+    'x_vel':  [0., 10., 40.],
+    'y_dist': [1.4, 1.4, 3.0]  # longer following distance
+  },
+  LongPersonality.aggressive: {
+    'x_vel':  [0., 10., 40.],
+    'y_dist': [1.2, 1.2, 2.8]  # longer following distance
+  },
 }
-
 class VibePersonalityController:
   """
   Controller for managing separated acceleration and distance controls:
@@ -54,16 +61,16 @@ class VibePersonalityController:
 
     # Parameter keys
     self.param_keys = {
-      'accel_personality': 'AccelPersonality',  # eco=0, normal=1, sport=2
+      'accel_personality': 'AccelPersonality',        # eco=0, normal=1, sport=2
       'long_personality': 'LongitudinalPersonality',  # relaxed=0, standard=1, aggressive=2
       'enabled': 'VibePersonalityEnabled',
       'accel_enabled': 'VibeAccelPersonalityEnabled',
-      'follow_enabled': 'VibeFollowPersonalityEnabled',
+      'follow_enabled': 'VibeFollowPersonalityEnabled'
     }
 
   def _update_from_params(self):
     """Update personalities from params (rate limited)"""
-    if self.frame % int(1.0 / DT_MDL) != 0:
+    if self.frame % int(1. / DT_MDL) != 0:
       return
 
     # Update AccelPersonality
@@ -140,22 +147,16 @@ class VibePersonalityController:
     return int(self.long_personality)
 
   # Toggle Functions
-  def toggle_personality(self):
-    return self._toggle_flag('enabled')
-
-  def toggle_accel_personality(self):
-    return self._toggle_flag('accel_enabled')
-
-  def toggle_follow_distance_personality(self):
-    return self._toggle_flag('follow_enabled')
+  def toggle_personality(self): return self._toggle_flag('enabled')
+  def toggle_accel_personality(self): return self._toggle_flag('accel_enabled')
+  def toggle_follow_distance_personality(self): return self._toggle_flag('follow_enabled')
 
   def _toggle_flag(self, key):
     current = self._get_toggle_state(key)
     self._set_toggle_state(key, not current)
     return not current
 
-  def set_personality_enabled(self, enabled: bool):
-    self._set_toggle_state('enabled', enabled)
+  def set_personality_enabled(self, enabled: bool): self._set_toggle_state('enabled', enabled)
 
   # Feature-specific enable checks
   def is_accel_enabled(self) -> bool:
@@ -168,7 +169,8 @@ class VibePersonalityController:
 
   def is_enabled(self) -> bool:
     self._update_from_params()
-    return self._get_toggle_state('enabled') and (self._get_toggle_state('accel_enabled') or self._get_toggle_state('follow_enabled'))
+    return (self._get_toggle_state('enabled') and
+            (self._get_toggle_state('accel_enabled') or self._get_toggle_state('follow_enabled')))
 
   def get_accel_limits(self, v_ego: float) -> tuple[float, float] | None:
     """
@@ -183,10 +185,10 @@ class VibePersonalityController:
 
     try:
       # Max acceleration from AccelPersonality
-      max_a = np.interp(v_ego, speed_breakpoints, MAX_ACCEL_PROFILES[self.accel_personality])
+      max_a = np.interp(v_ego, MAX_ACCEL_BREAKPOINTS, MAX_ACCEL_PROFILES[self.accel_personality])
 
       # Min acceleration (braking) from LongPersonality
-      min_a = np.interp(v_ego, speed_breakpoints, MIN_ACCEL_PROFILES[self.long_personality])
+      min_a = np.interp(v_ego, MIN_ACCEL_BREAKPOINTS, MIN_ACCEL_PROFILES[self.long_personality])
 
       return float(min_a), float(max_a)
     except (KeyError, IndexError):
@@ -204,6 +206,8 @@ class VibePersonalityController:
       return multiplier
     except (KeyError, IndexError):
       return None
+
+
 
   def get_min_accel(self, v_ego: float) -> float | None:
     """Get minimum acceleration (braking) from distance mode"""
