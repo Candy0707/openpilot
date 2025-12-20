@@ -1,6 +1,7 @@
 from cereal import car, log, custom
 import cereal.messaging as messaging
 from opendbc.car import DT_CTRL, structs
+from opendbc.car.car_helpers import interfaces
 from opendbc.car.interfaces import MAX_CTRL_SPEED
 
 from openpilot.selfdrive.selfdrived.events import Events
@@ -48,7 +49,7 @@ class CarSpecificEvents:
     self.silent_steer_warning = True
 
   def update(self, CS: car.CarState, CS_prev: car.CarState, CC: car.CarControl):
-    extra_gears = BRAND_EXTRA_GEARS.get(self.CP.brand, None)
+    extra_gears = interfaces[self.CP.carFingerprint].DRIVABLE_GEARS
 
     if self.CP.brand in ('body', 'mock'):
       events = Events()
@@ -134,7 +135,7 @@ class CarSpecificEvents:
 
     return events
 
-  def create_common_events(self, CS: structs.CarState, CS_prev: car.CarState, extra_gears: list | None = None, pcm_enable=True,
+  def create_common_events(self, CS: structs.CarState, CS_prev: car.CarState, extra_gears: tuple = (), pcm_enable=True,
                            allow_button_cancel=True):
     events = Events()
 
@@ -142,8 +143,7 @@ class CarSpecificEvents:
       events.add(EventName.doorOpen)
     if CS.seatbeltUnlatched:
       events.add(EventName.seatbeltNotLatched)
-    if CS.gearShifter != GearShifter.drive and (extra_gears is None or
-       CS.gearShifter not in extra_gears):
+    if CS.gearShifter != GearShifter.drive and CS.gearShifter not in extra_gears:
       events.add(EventName.wrongGear)
     if CS.gearShifter == GearShifter.reverse:
       events.add(EventName.reverseGear)
