@@ -110,6 +110,11 @@ msgstr "APN 設定"
 msgid "Acknowledge Excessive Actuation"
 msgstr "確認過度作動"
 
+#: system/ui/widgets/network.py:20
+#, python-format
+msgid "Scan"
+msgstr "掃描"
+
 #: system/ui/widgets/network.py:74 system/ui/widgets/network.py:95
 #, python-format
 msgid "Advanced"
@@ -253,13 +258,70 @@ msgstr "拒絕"
 msgid "Decline, uninstall openpilot"
 msgstr "拒絕並解除安裝 openpilot"
 
-#: selfdrive/ui/layouts/settings/settings.py:67
-msgid "Developer"
-msgstr "開發人員"
-
-#: selfdrive/ui/layouts/settings/settings.py:62
+#: selfdrive/ui/layouts/settings/settings.py:113
 msgid "Device"
 msgstr "裝置"
+
+#: selfdrive/ui/layouts/settings/settings.py:114
+msgid "Network"
+msgstr "網路"
+
+#: selfdrive/ui/layouts/settings/settings.py:115
+msgid "sunnylink"
+msgstr "SunnyLink"
+
+#: selfdrive/ui/layouts/settings/settings.py:116
+msgid "Toggles"
+msgstr "設定"
+
+#: selfdrive/ui/layouts/settings/settings.py:117
+msgid "Software"
+msgstr "軟體"
+
+#: selfdrive/ui/layouts/settings/settings.py:118
+msgid "Models"
+msgstr "模型"
+
+#: selfdrive/ui/layouts/settings/settings.py:119
+msgid "Steering"
+msgstr "轉向"
+
+#: selfdrive/ui/layouts/settings/settings.py:120
+msgid "Cruise"
+msgstr "巡航"
+
+#: selfdrive/ui/layouts/settings/settings.py:121
+msgid "Visuals"
+msgstr "視覺"
+
+#: selfdrive/ui/layouts/settings/settings.py:122
+msgid "Display"
+msgstr "顯示"
+
+#: selfdrive/ui/layouts/settings/settings.py:123
+msgid "OSM"
+msgstr "圖資"
+
+#: selfdrive/ui/layouts/settings/settings.py:124
+msgid "Navigation"
+msgstr "導航"
+
+#: selfdrive/ui/layouts/settings/settings.py:125
+msgid "Trips"
+msgstr "旅程"
+
+#: selfdrive/ui/layouts/settings/settings.py:126
+msgid "Vehicle"
+msgstr "車輛"
+
+#: selfdrive/ui/layouts/settings/settings.py:127
+msgid "Firehose"
+msgstr "Firehose"
+
+#: selfdrive/ui/layouts/settings/settings.py:128
+msgid "Developer"
+msgstr "開發"
+
 
 #: selfdrive/ui/layouts/settings/toggles.py:58
 #, python-format
@@ -422,10 +484,6 @@ msgstr "正在遺忘..."
 msgid "Finish Setup"
 msgstr "完成設定"
 
-#: selfdrive/ui/layouts/settings/settings.py:66
-msgid "Firehose"
-msgstr "Firehose"
-
 #: selfdrive/ui/layouts/settings/firehose.py:18
 msgid "Firehose Mode"
 msgstr "Firehose 模式"
@@ -555,10 +613,6 @@ msgstr "無"
 #: selfdrive/ui/layouts/sidebar.py:142
 msgid "NO"
 msgstr "否"
-
-#: selfdrive/ui/layouts/settings/settings.py:63
-msgid "Network"
-msgstr "網路"
 
 #: selfdrive/ui/widgets/ssh_key.py:114
 #, python-format
@@ -809,10 +863,6 @@ msgstr "序號"
 msgid "Snooze Update"
 msgstr "延後更新"
 
-#: selfdrive/ui/layouts/settings/settings.py:65
-msgid "Software"
-msgstr "軟體"
-
 #: selfdrive/ui/layouts/settings/toggles.py:98
 #, python-format
 msgid "Standard"
@@ -854,10 +904,6 @@ msgstr "目標分支"
 #, python-format
 msgid "Tethering Password"
 msgstr "網路共享密碼"
-
-#: selfdrive/ui/layouts/settings/settings.py:64
-msgid "Toggles"
-msgstr "切換"
 
 #: selfdrive/ui/layouts/settings/software.py:72
 #, python-format
