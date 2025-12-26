@@ -322,7 +322,6 @@ msgstr "Firehose"
 msgid "Developer"
 msgstr "開發"
 
-
 #: selfdrive/ui/layouts/settings/toggles.py:58
 #, python-format
 msgid "Disengage on Accelerator Pedal"
@@ -589,6 +588,7 @@ msgid "LTE"
 msgstr "LTE"
 
 #: selfdrive/ui/layouts/settings/developer.py:64
+#: selfdrive/selfdrived/events.py:234
 #, python-format
 msgid "Longitudinal Maneuver Mode"
 msgstr "縱向操作模式"
@@ -743,11 +743,6 @@ msgstr "檢視"
 msgid "Reboot"
 msgstr "重新啟動"
 
-#: selfdrive/ui/onroad/alert_renderer.py:66
-#, python-format
-msgid "Reboot Device"
-msgstr "重新啟動裝置"
-
 #: selfdrive/ui/widgets/offroad_alerts.py:112
 #, python-format
 msgid "Reboot and Update"
@@ -879,16 +874,473 @@ msgstr ""
 "從容模式下，會與前車保持更遠距離。於支援車款，可用方向盤距離按鈕切換這些風"
 "格。"
 
+#: selfdrive/ui/onroad/alert_renderer.py:51
+#, python-format
+msgid "openpilot Unavailable"
+msgstr "openpilot 不可用"
+
+#: selfdrive/ui/onroad/alert_renderer.py:51
+#, python-format
+msgid "sunnypilot Unavailable"
+msgstr "sunnypilot 不可用"
+
+#: selfdrive/ui/onroad/alert_renderer.py:58
+#, python-format
+msgid "TAKE CONTROL IMMEDIATELY"
+msgstr "請立刻接手控制"
+
 #: selfdrive/ui/onroad/alert_renderer.py:59
 #: selfdrive/ui/onroad/alert_renderer.py:65
 #, python-format
 msgid "System Unresponsive"
 msgstr "系統無回應"
 
-#: selfdrive/ui/onroad/alert_renderer.py:58
+#: selfdrive/ui/onroad/alert_renderer.py:66
 #, python-format
-msgid "TAKE CONTROL IMMEDIATELY"
-msgstr "請立刻接手控制"
+msgid "Reboot Device"
+msgstr "重新啟動裝置"
+
+#: selfdrive/selfdrived/events.py:76
+#, python-format
+msgid "WARNING: This branch is not tested"
+msgstr "警告：此分支尚未測試"
+
+#: selfdrive/selfdrived/events.py:102
+#, python-format
+msgid "Recording Audio Feedback"
+msgstr "錄製音訊回饋"
+
+#: selfdrive/selfdrived/events.py:118
+#, python-format
+msgid "Posenet Speed Invalid"
+msgstr "Posenet 速度無效"
+
+#: selfdrive/selfdrived/events.py:124
+#, python-format
+msgid "Process Not Running"
+msgstr "程式未啟動"
+
+#: selfdrive/selfdrived/events.py:130
+#, python-format
+msgid "Communication Issue Between Processes"
+msgstr "流程間的溝通問題"
+
+#: selfdrive/selfdrived/events.py:136
+#: selfdrive/selfdrived/events.py:448
+#, python-format
+msgid "Camera Malfunction"
+msgstr "相機故障"
+
+#: selfdrive/selfdrived/events.py:144
+#, python-format
+msgid "Calibration Invalid"
+msgstr "校正無效"
+
+#: selfdrive/selfdrived/events.py:150
+#, python-format
+msgid "Steering misalignment detected"
+msgstr "偵測到轉向系統錯位"
+
+#: selfdrive/selfdrived/events.py:154
+#, python-format
+msgid "Steer ratio mismatch"
+msgstr "轉向比不匹配"
+
+#: selfdrive/selfdrived/events.py:158
+#, python-format
+msgid "Abnormal tire stiffness"
+msgstr "輪胎剛性異常"
+
+#: selfdrive/selfdrived/events.py:161
+#: selfdrive/selfdrived/events.py:481
+#, python-format
+msgid "paramsd Temporary Error"
+msgstr "paramsd 暫存錯誤"
+
+#: selfdrive/selfdrived/events.py:169
+#: selfdrive/selfdrived/events.py:614
+#, python-format
+msgid "System Overheated"
+msgstr "系統過熱"
+
+#: selfdrive/selfdrived/events.py:173
+#, python-format
+msgid "Low Memory"
+msgstr "記憶體不足"
+
+#: selfdrive/selfdrived/events.py:178
+#, python-format
+msgid "High CPU Usage"
+msgstr "CPU使用率過高"
+
+#: selfdrive/selfdrived/events.py:182
+#, python-format
+msgid "Driving Model Lagging"
+msgstr "駕駛模型延遲"
+
+#: selfdrive/selfdrived/events.py:189
+#, python-format
+msgid "Joystick Mode"
+msgstr "搖桿模式"
+
+#: selfdrive/selfdrived/events.py:208
+#, python-format
+msgid "Toggle stock LKAS on or off to engage"
+msgstr "切換原廠 LKAS 的開啟或關閉狀態以啟用"
+
+#: selfdrive/selfdrived/events.py:210
+#, python-format
+msgid "Switch to Traffic-Aware Cruise Control to engage"
+msgstr "切換到交通感知巡航控制模式以啟用"
+
+#: selfdrive/selfdrived/events.py:212
+#, python-format
+msgid "Enable your car's LKAS to engage"
+msgstr "啟用車輛的 LKAS 系統"
+
+#: selfdrive/selfdrived/events.py:214
+#, python-format
+msgid "Disable your car's stock LKAS to engage"
+msgstr "關閉車輛原廠車道維持輔助系統 (LKAS) 以啟用"
+
+#: selfdrive/selfdrived/events.py:215
+#: selfdrive/selfdrived/events.py:272
+#, python-format
+msgid "Invalid LKAS setting"
+msgstr "無效的 LKAS 設置"
+
+#: selfdrive/selfdrived/events.py:235
+#, python-format
+msgid "Ensure road ahead is clear"
+msgstr "確保前方道路暢通"
+
+#: selfdrive/selfdrived/events.py:239
+#, python-format
+msgid "System Initializing"
+msgstr "系統初始化"
+
+#: selfdrive/selfdrived/events.py:239
+#, python-format
+msgid "Be ready to take over at any time"
+msgstr "隨時準備好接管"
+
+#: selfdrive/selfdrived/events.py:251
+#: selfdrive/selfdrived/events.py:252
+#: selfdrive/selfdrived/events.py:260
+#: selfdrive/selfdrived/events.py:266
+#, python-format
+msgid "Dashcam mode"
+msgstr "行車記錄器模式"
+
+#: selfdrive/selfdrived/events.py:256
+#, python-format
+msgid "Dashcam mode for unsupported car"
+msgstr "行車記錄器模式，不支援的車輛"
+
+#: selfdrive/selfdrived/events.py:261
+#, python-format
+msgid "Security Key Not Available"
+msgstr "安全密鑰不可用"
+
+#: selfdrive/selfdrived/events.py:284
+#, python-format
+msgid "Car Unrecognized"
+msgstr "車輛無法識別"
+
+#: selfdrive/selfdrived/events.py:290
+#: selfdrive/selfdrived/events.py:299
+#: selfdrive/selfdrived/events.py:308
+#, python-format
+msgid "BRAKE!"
+msgstr "煞車！"
+
+#: selfdrive/selfdrived/events.py:291
+#, python-format
+msgid "Emergency Braking: Risk of Collision"
+msgstr "緊急煞車：碰撞風險"
+
+#: selfdrive/selfdrived/events.py:294
+#, python-format
+msgid "AEB: Risk of Collision"
+msgstr "AEB：碰撞風險"
+
+#: selfdrive/selfdrived/events.py:300
+#: selfdrive/selfdrived/events.py:303
+#, python-format
+msgid "Stock AEB: Risk of Collision"
+msgstr "原廠 AEB：碰撞風險"
+
+#: selfdrive/selfdrived/events.py:309
+#, python-format
+msgid "Risk of Collision"
+msgstr "碰撞風險"
+
+#: selfdrive/selfdrived/events.py:316
+#, python-format
+msgid "Lane Departure Detected"
+msgstr "偵測到車道偏離"
+
+#: selfdrive/selfdrived/events.py:326
+#: selfdrive/selfdrived/events.py:572
+#, python-format
+msgid "Steering Assist Temporarily Unavailable"
+msgstr "轉向輔助使用暫時無法使用"
+
+#: selfdrive/selfdrived/events.py:334
+#: selfdrive/selfdrived/events.py:342
+#, python-format
+msgid "Pay Attention"
+msgstr "注意"
+
+#: selfdrive/selfdrived/events.py:342
+#: selfdrive/selfdrived/events.py:351
+#, python-format
+msgid "Driver Distracted"
+msgstr "駕駛注意力不集中"
+
+#: selfdrive/selfdrived/events.py:350
+#: selfdrive/selfdrived/events.py:374
+#, python-format
+msgid "DISENGAGE IMMEDIATELY"
+msgstr "立即脫離"
+
+#: selfdrive/selfdrived/events.py:358
+#, python-format
+msgid "Touch Steering Wheel: No Face Detected"
+msgstr "立即脫觸控方向盤：不支援人臉偵測"
+
+#: selfdrive/selfdrived/events.py:366
+#, python-format
+msgid "Touch Steering Wheel"
+msgstr "觸碰方向盤"
+
+#: selfdrive/selfdrived/events.py:367
+#: selfdrive/selfdrived/events.py:375
+#, python-format
+msgid "Driver Unresponsive"
+msgstr "車輛 無回應"
+
+#: selfdrive/selfdrived/events.py:383
+#, python-format
+msgid "Resume Driving Manually"
+msgstr "恢復手動駕駛"
+
+#: selfdrive/selfdrived/events.py:390
+#, python-format
+msgid "Press Resume to Exit Standstill"
+msgstr "按下「res」鍵退出靜止狀態"
+
+#: selfdrive/selfdrived/events.py:402
+#, python-format
+msgid "Steer Left to Start Lane Change Once Safe"
+msgstr "安全後向左轉向開始變換車道。"
+
+#: selfdrive/selfdrived/events.py:410
+#, python-format
+msgid "Steer Right to Start Lane Change Once Safe"
+msgstr "安全後，向右轉開始變換車道。"
+
+#: selfdrive/selfdrived/events.py:418
+#, python-format
+msgid "Car Detected in Blindspot"
+msgstr "盲點內偵測到車輛"
+
+#: selfdrive/selfdrived/events.py:426
+#, python-format
+msgid "Changing Lanes"
+msgstr "切換車道"
+
+#: selfdrive/selfdrived/events.py:434
+#, python-format
+msgid "Take Control"
+msgstr "立即接管"
+
+#: selfdrive/selfdrived/events.py:435
+#, python-format
+msgid "Turn Exceeds Steering Limit"
+msgstr "轉彎超出轉向限制"
+
+#: selfdrive/selfdrived/events.py:442
+#, python-format
+msgid "Fan Malfunction"
+msgstr "風扇故障"
+
+#: selfdrive/selfdrived/events.py:442
+#, python-format
+msgid "Likely Hardware Issue"
+msgstr "可能是硬體問題"
+
+#: selfdrive/selfdrived/events.py:449
+#, python-format
+msgid "Camera Malfunction: Reboot Your Device"
+msgstr "相機故障：請重新啟動設備"
+
+#: selfdrive/selfdrived/events.py:453
+#, python-format
+msgid "Camera Frame Rate Low"
+msgstr "相機低幀率"
+
+#: selfdrive/selfdrived/events.py:453
+#, python-format
+msgid "Reboot your Device"
+msgstr "重新啟動設備"
+
+#: selfdrive/selfdrived/events.py:453
+#, python-format
+msgid "Camera Frame Rate Low: Reboot Your Device"
+msgstr "相機幀率低：請重新啟動設備"
+
+#: selfdrive/selfdrived/events.py:461
+#: selfdrive/selfdrived/events.py:462
+#, python-format
+msgid "locationd Temporary Error"
+msgstr "定位臨時錯誤"
+
+#: selfdrive/selfdrived/events.py:466
+#: selfdrive/selfdrived/events.py:467
+#: selfdrive/selfdrived/events.py:468
+#, python-format
+msgid "locationd Permanent Error"
+msgstr "位置永久錯誤"
+
+#: selfdrive/selfdrived/events.py:485
+#: selfdrive/selfdrived/events.py:486
+#: selfdrive/selfdrived/events.py:487
+#, python-format
+msgid "paramsd Permanent Error"
+msgstr "paramsd 永久錯誤"
+
+#: selfdrive/selfdrived/events.py:506
+#, python-format
+msgid "Cancel Pressed"
+msgstr "按下取消按鈕"
+
+#: selfdrive/selfdrived/events.py:511
+#, python-format
+msgid "Press Resume to Exit Brake Hold"
+msgstr "按下「res」鍵退出煞車保持狀態"
+
+#: selfdrive/selfdrived/events.py:519
+#, python-format
+msgid "Parking Brake Engaged"
+msgstr "駐車煞車已啟用"
+
+#: selfdrive/selfdrived/events.py:524
+#, python-format
+msgid "Pedal Pressed"
+msgstr "油門已踏下"
+
+#: selfdrive/selfdrived/events.py:530
+#, python-format
+msgid "Steering Pressed"
+msgstr "轉向已碰觸"
+
+#: selfdrive/selfdrived/events.py:535
+#, python-format
+msgid "Release Brake to Engage"
+msgstr "鬆開煞車即可啟用"
+
+#: selfdrive/selfdrived/events.py:563
+#, python-format
+msgid "Press Set to Engage"
+msgstr "準備就緒"
+
+#: selfdrive/selfdrived/events.py:568
+#, python-format
+msgid "Adaptive Cruise Disabled"
+msgstr "自適應巡航功能已停用"
+
+#: selfdrive/selfdrived/events.py:573
+#, python-format
+msgid "Steering Temporarily Unavailable"
+msgstr "轉向功能暫時無法使用"
+
+#: selfdrive/selfdrived/events.py:577
+#, python-format
+msgid "Vehicle Steering Time Limit"
+msgstr "車輛轉向時間限制"
+
+#: selfdrive/selfdrived/events.py:583
+#, python-format
+msgid "Out of Storage"
+msgstr "儲存空間不足"
+
+#: selfdrive/selfdrived/events.py:592
+#: selfdrive/selfdrived/events.py:596
+#: selfdrive/selfdrived/events.py:597
+#, python-format
+msgid "Sensor Data Invalid"
+msgstr "感測器資料無效"
+
+#: selfdrive/selfdrived/events.py:593
+#, python-format
+msgid "Possible Hardware Issue"
+msgstr "可能有硬體問題"
+
+#: selfdrive/selfdrived/events.py:604
+#, python-format
+msgid "Distraction Level Too High"
+msgstr "注意力分散程度過高"
+
+#: selfdrive/selfdrived/events.py:608
+#, python-format
+msgid "Excessive Actuation"
+msgstr "過度驅動"
+
+#: selfdrive/selfdrived/events.py:619
+#, python-format
+msgid "Gear not D"
+msgstr "檔位 不在 Dˇ檔"
+
+#: selfdrive/selfdrived/events.py:630
+#: selfdrive/selfdrived/events.py:631
+#, python-format
+msgid "Calibration Invalid: Remount Device & Recalibrate"
+msgstr "校正無效：重新安裝設備並重新校正"
+
+#: selfdrive/selfdrived/events.py:636
+#, python-format
+msgid "Calibration Incomplete"
+msgstr "校正未完成"
+
+#: selfdrive/selfdrived/events.py:637
+#, python-format
+msgid "Calibration in Progress"
+msgstr "校正進行中"
+
+#: selfdrive/selfdrived/events.py:642
+#: selfdrive/selfdrived/events.py:643
+#, python-format
+msgid "Device Remount Detected: Recalibrating"
+msgstr "偵測到設備重新安裝：正在重新校正"
+
+#: selfdrive/selfdrived/events.py:647
+#: selfdrive/selfdrived/events.py:647
+#, python-format
+msgid "Door Open"
+msgstr "車門開啟"
+
+#: selfdrive/selfdrived/events.py:652
+#: selfdrive/selfdrived/events.py:653
+#, python-format
+msgid "Seatbelt Unlatched"
+msgstr "安全帶未繫好"
+
+#: selfdrive/selfdrived/events.py:657
+#: selfdrive/selfdrived/events.py:658
+#, python-format
+msgid "Electronic Stability Control Disabled"
+msgstr "電子穩定控制系統已停用"
+
+#: selfdrive/selfdrived/events.py:662
+#: selfdrive/selfdrived/events.py:663
+#, python-format
+msgid "Low Battery"
+msgstr "電量過低"
+
+#: 從這裡接續
+#: selfdrive/selfdrived/events.py:671
+
 
 #: selfdrive/ui/layouts/sidebar.py:71 selfdrive/ui/layouts/sidebar.py:125
 #: selfdrive/ui/layouts/sidebar.py:127 selfdrive/ui/layouts/sidebar.py:129
@@ -1083,10 +1535,10 @@ msgstr "現在"
 msgid "openpilot Longitudinal Control (Alpha)"
 msgstr "openpilot 縱向控制（Alpha）"
 
-#: selfdrive/ui/onroad/alert_renderer.py:51
+#: selfdrive/ui/layouts/settings/developer.py:71
 #, python-format
-msgid "openpilot Unavailable"
-msgstr "openpilot 無法使用"
+msgid "sunnypilot Longitudinal Control (Alpha)"
+msgstr "sunnypilot 縱向控制（Alpha）"
 
 #: selfdrive/ui/layouts/settings/toggles.py:158
 #, python-format
@@ -1106,6 +1558,28 @@ msgstr ""
 "openpilot 預設以安穩模式行駛。實驗模式啟用尚未準備好進入安穩模式的 Alpha 等級"
 "功能。實驗功能如下：<br><h4>端到端縱向控制</h4><br>讓駕駛模型控制油門與煞車。"
 "openpilot 會如同人類駕駛般行駛，包括在紅燈與停車標誌前停車。由於駕駛模型決定"
+"行駛速度，設定速度僅作為上限。此為 Alpha 品質功能；預期會有失誤。<br><h4>全新"
+"駕駛視覺化</h4><br>在低速時，駕駛視覺化將切換至面向道路的廣角鏡頭以更好呈現部"
+"分轉彎。右上角亦會顯示實驗模式圖示。"
+
+#: selfdrive/ui/layouts/settings/toggles.py:158
+#, python-format
+msgid ""
+"sunnypilot defaults to driving in chill mode. Experimental mode enables alpha-"
+"level features that aren't ready for chill mode. Experimental features are "
+"listed below:<br><h4>End-to-End Longitudinal Control</h4><br>Let the driving "
+"model control the gas and brakes. sunnypilot will drive as it thinks a human "
+"would, including stopping for red lights and stop signs. Since the driving "
+"model decides the speed to drive, the set speed will only act as an upper "
+"bound. This is an alpha quality feature; mistakes should be expected."
+"<br><h4>New Driving Visualization</h4><br>The driving visualization will "
+"transition to the road-facing wide-angle camera at low speeds to better show "
+"some turns. The Experimental mode logo will also be shown in the top right "
+"corner."
+msgstr ""
+"sunnypilot 預設以安穩模式行駛。實驗模式啟用尚未準備好進入安穩模式的 Alpha 等級"
+"功能。實驗功能如下：<br><h4>端到端縱向控制</h4><br>讓駕駛模型控制油門與煞車。"
+"sunnypilot 會如同人類駕駛般行駛，包括在紅燈與停車標誌前停車。由於駕駛模型決定"
 "行駛速度，設定速度僅作為上限。此為 Alpha 品質功能；預期會有失誤。<br><h4>全新"
 "駕駛視覺化</h4><br>在低速時，駕駛視覺化將切換至面向道路的廣角鏡頭以更好呈現部"
 "分轉彎。右上角亦會顯示實驗模式圖示。"
