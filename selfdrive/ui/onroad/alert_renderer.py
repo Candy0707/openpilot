@@ -111,8 +111,6 @@ class AlertRenderer(Widget):
     # Don't get old alert
     if recv_frame < ui_state.started_frame:
       return None
-    text1 = tr(ss.alertText1.replace("openpilot", "sunnypilot"))
-    text2 = tr(ss.alertText2.replace("openpilot", "sunnypilot"))
     # Return current alert
     return Alert(text1, text2, size=ss.alertSize.raw, status=ss.alertStatus.raw)
 
