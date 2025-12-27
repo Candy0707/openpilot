@@ -71,7 +71,7 @@ class RadarData():
 
     return self.Points
 
-  def radar_point_color(dRel: float, yRel: float) -> rl.Color:
+  def radar_point_color(self, dRel: float, yRel: float) -> rl.Color:
       abs_y = abs(yRel)
 
       # --------------------------------------------------
