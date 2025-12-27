@@ -72,18 +72,18 @@ class RadarUiRenderer(Widget):
       x = int(rect.x + point.scale_x)
       y = int(rect.y + point.scale_y)
 
-      # 顯示資訊：ID, dRel, yRel, vRel
-      text = (
-        f"ID:{point.trackId}\n" +
-        f"d:{point.dRel:.1f} m\n" +
-        f"y:{point.yRel:.1f} m\n" +
-        f"v:{point.vRel * conversion:.1f} {unit}"
-      )
-
       if self.radar_ui_mode > 0 :
         rl.draw_circle(x, y, 6, point.color)
 
       if self.radar_ui_mode > 1:
+        # 顯示資訊：ID, dRel, yRel, vRel
+        text = (
+          f"ID:{point.trackId}\n" +
+          f"d:{point.dRel:.1f} m\n" +
+          f"y:{point.yRel:.1f} m\n" +
+          f"v:{point.vRel * conversion:.1f} {unit}"
+        )
+
         size = measure_text_cached(self._font_bold, text, self.label_size, 0)
         text_width = size.x  # 寬度
         text_height = size.y  # 高度
@@ -94,17 +94,7 @@ class RadarUiRenderer(Widget):
 
         # 畫背景
         rl.draw_rectangle_rounded(
-          rl.Rectangle(text_x, text_y, text_width + 4, text_height + 4), 0.2, 8, rl.Color(0, 0, 0, 153)
+          rl.Rectangle(text_x, text_y, text_width + 4, text_height + 4), 0.2, 8, point.color
         )
         # draw_font_ex 需要傳入 font、文字、位置、大小、顏色
         rl.draw_text_ex(self._font_bold, text, rl.Vector2(text_x, text_y), self.label_size, 0, rl.WHITE)
-
-
-
-
-
-
-
-
-
-
