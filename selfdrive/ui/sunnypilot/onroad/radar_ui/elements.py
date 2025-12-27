@@ -17,10 +17,6 @@ class RadarElement:
 
   color: rl.Color
 
-  # ===== Screen Space =====
-  scale_x: int
-  scale_y: int
-
 class RadarData():
   def __init__(self):
     self.Points: list[RadarElement] = []
