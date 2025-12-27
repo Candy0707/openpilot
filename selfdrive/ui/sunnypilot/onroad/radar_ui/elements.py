@@ -1,6 +1,9 @@
+from openpilot.common.swaglog import cloudlog
 from dataclasses import dataclass
-from cereal import car
 import pyray as rl
+
+from cereal import car
+
 
 @dataclass
 class RadarElement:
@@ -17,11 +20,18 @@ class RadarElement:
 
   color: rl.Color
 
+  # ===== Screen Space =====
+  scale_x: int
+  scale_y: int
+
 class RadarData():
   def __init__(self):
     self.Points: list[RadarElement] = []
 
-  def update(self, radar: 'car.RadarData.RadarPoint') -> list[RadarElement]:
+  def update(self, model, radar: 'car.RadarData.RadarPoint') -> list[RadarElement]:
+    if model is None or radar is None:
+      return []
+
     self.Points = []
 
     # 已經放置的點，用於避免重疊 (x,y tuples)
@@ -35,6 +45,10 @@ class RadarData():
       if coord_key in placed_coords:
         continue  # 忽略重疊點
 
+     #轉換成螢幕座標
+      screen_pt = model.map(point.dRel, point.yRel)
+      if screen_pt is None:
+        continue
 
       # 根據距離決定顏色
       if point.dRel < 10:
@@ -48,12 +62,14 @@ class RadarData():
       radar_element = RadarElement(
         trackId=point.trackId,
         dRel=point.dRel,
-        yRel=point.yRel,
+        yRel=-point.yRel,
         vRel=point.vRel,
         aRel=point.aRel,
         yvRel=point.yvRel,
         measured=point.measured,
         color=color,
+        scale_x=int(screen_pt[0]),
+        scale_y=int(screen_pt[1]),
       )
 
       self.Points.append(radar_element)
