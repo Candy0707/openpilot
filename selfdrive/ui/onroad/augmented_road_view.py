@@ -52,6 +52,8 @@ class AugmentedRoadView(CameraView):
 
     self.model_renderer = ModelRenderer()
     self._hud_renderer = HudRenderer()
+    if gui_app.sunnypilot_ui():
+      self._hud_renderer.set_model_renderer(self.model_renderer)
     self.alert_renderer = AlertRenderer()
     self.driver_state_renderer = DriverStateRenderer()
 

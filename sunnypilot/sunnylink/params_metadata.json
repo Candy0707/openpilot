@@ -860,6 +860,24 @@
     "title": "Quiet Mode",
     "description": ""
   },
+  "RadarUIInfo": {
+    "title": "Radar UI Info",
+    "description": "",
+    "options": [
+      {
+        "value": 0,
+        "label": "OFF"
+      },
+      {
+        "value": 1,
+        "label": "Point"
+      },
+      {
+        "value": 2,
+        "label": "Point and Info"
+      }
+    ]
+  },
   "RainbowMode": {
     "title": "Rainbow Mode",
     "description": ""
