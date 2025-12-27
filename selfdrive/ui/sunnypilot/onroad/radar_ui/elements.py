@@ -1,4 +1,3 @@
-from openpilot.common.swaglog import cloudlog
 from dataclasses import dataclass
 import pyray as rl
 
