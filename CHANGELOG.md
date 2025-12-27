@@ -1,5 +1,6 @@
-sunnypilot Version 2025.18.25 (2025-12-26)
-* 降低 LTA 命令速率
+sunnypilot Version 2025.13.20 (2025-12-27)
+* 當使用者介入時 LTA 指令給當前角度
+* 新增雷達顯示
 ========================
 
 sunnypilot Version 2025.003.000 (20xx-xx-xx)

@@ -62,11 +62,12 @@ class RadarUiRenderer(Widget):
         return
 
     for point in self.radar.Points:
-        point = self.model.map(point.dRel, point.yRel)
-        x = point[0]
-        y = point[1]
+      # 取得螢幕座標
+      screen_pt = self.model.map(point.dRel, point.yRel)
+      x = int(screen_pt[0])
+      y = int(screen_pt[1])
 
-        rl.draw_circle(x, y, 3, point.color)
+      rl.draw_circle(x, y, 3, point.color)
 
   def _draw_radar_ui_info(self, rect: rl.Rectangle) -> None:
     if not self.radar.Points:
@@ -77,18 +78,27 @@ class RadarUiRenderer(Widget):
     conversion = CV.MS_TO_KPH if self.is_metric else CV.MS_TO_MPH
 
     for point in self.radar.Points:
-        # 將 dRel/yRel 映射到整個 rect
-        point = self.model.map(point.dRel, point.yRel)
-        x = point[0]
-        y = point[1]
+      # 取得螢幕座標
+      screen_pt = self.model.map(point.dRel, point.yRel)
+      x = int(screen_pt[0])
+      y = int(screen_pt[1])
 
-        # 顯示資訊：ID, dRel, yRel, vRel
-        text = (
-            f"ID:{point.trackId}"
-            f"d:{point.dRel:.1f}"
-            f"y:{point.yRel:.1f}"
-            f"v:{point.vRel * conversion:.1f} {unit}"
-        )
-        rl.draw_text(text, x + 5, y - 5, 12, rl.WHITE)
-    return
+      # 顯示資訊：ID, dRel, yRel, vRel
+      text = (
+        f"ID:{point.trackId} " +
+        f"d:{point.dRel:.1f} " +
+        f"y:{point.yRel:.1f} " +
+        f"v:{point.vRel * conversion:.1f} {unit}"
+      )
+
+
+      # draw_font_ex 需要傳入 font、文字、位置、大小、顏色
+      rl.draw_font_ex(
+        self._font_bold,  # font
+        text,
+        x + 5,  # pos_x
+        y - 5,  # pos_y
+        12,     # font_size
+        rl.WHITE  # color
+      )
 
