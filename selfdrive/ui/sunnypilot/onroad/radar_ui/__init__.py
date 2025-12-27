@@ -14,7 +14,7 @@ class RadarModelWrapper:
         return screen_pt
 
     def map(self, x, y, z=0.0):
-       offset = self._model.path_offset_z
+       offset = self._model._path_offset_z
        return self._model._map_to_screen(x, -y, z + offset)
 
 class RadarUiRenderer(Widget):
