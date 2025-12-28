@@ -111,13 +111,13 @@ class ToyotaSettings(BrandSettings):
   def update_settings(self):
 
     if self.CP.flags & ToyotaFlags.TSS2.value:
-      self.enable_angle_control.set_visible(True)
-    else:
       self.enable_angle_control.set_visible(False)
+    else:
+      self.enable_angle_control.set_visible(True)
 
     if self.CP.flags & ToyotaFlags.TSS2.value and \
         not self.CP.flags & ToyotaFlags.RADAR_ACC.value and \
         not self.CP.flags & ToyotaFlags.SECOC.value:
-      self.enable_auto_hold.set_visible(True)
-    else:
       self.enable_auto_hold.set_visible(False)
+    else:
+      self.enable_auto_hold.set_visible(True)
