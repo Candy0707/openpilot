@@ -45,7 +45,7 @@ class RadarData():
         continue  # 忽略重疊點
 
      #轉換成螢幕座標
-      screen_pt = model.map(point.dRel, point.yRel)
+      screen_pt = model.map(point.dRel, -point.yRel)
       if screen_pt is None:
         continue
 
@@ -56,7 +56,7 @@ class RadarData():
       radar_element = RadarElement(
         trackId=point.trackId,
         dRel=point.dRel,
-        yRel=-point.yRel,
+        yRel=point.yRel,
         vRel=point.vRel,
         aRel=point.aRel,
         yvRel=point.yvRel,
