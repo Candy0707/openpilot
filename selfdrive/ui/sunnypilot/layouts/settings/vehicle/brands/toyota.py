@@ -15,12 +15,18 @@ from openpilot.system.ui.sunnypilot.widgets.list_view import multiple_button_ite
 from opendbc.car.toyota.values import ToyotaFlags
 from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
 
-
-
 DESCRIPTIONS = {
   'enforce_stock_longitudinal': tr_noop(
     'sunnypilot will not take over control of gas and brakes. Factory Toyota longitudinal control will be used.'
   ),
+  'ToyotaEnableAngleControl': tr_noop(
+    'Enable Using Angle Control'
+  ),
+  "ToyotaEnableAutoHold": tr_noop(
+    "<h1>For use on vehicles without auto braking.</h1><br>" +
+    "ON：Start when the vehicle is in Drive (D) gear.<br>" +
+    "SPEED：Start when the vehicle speed is greater than 5 m/s"
+  )
 }
 
 
@@ -38,7 +44,7 @@ class ToyotaSettings(BrandSettings):
 
     self.enable_angle_control = toggle_item_sp(
       lambda: tr("Enable Angle Control (TSS2)"),
-      description=lambda: tr("Enable Using Angle Control"),
+      description=lambda: tr(DESCRIPTIONS["ToyotaEnableAngleControl"]),
       initial_state=self.params.get_bool("ToyotaEnableAngleControl"),
       callback=self._on_enable_angle_control,
       enabled=lambda: not self.engaged,
@@ -46,23 +52,18 @@ class ToyotaSettings(BrandSettings):
 
     self.enable_auto_hold = multiple_button_item_sp(
       lambda: tr("Enable AUTO HOLD (TSS2)"),
-      lambda: tr("For use on vehicles without auto braking.<br>" +
-                 "ON：Start when the vehicle is in Drive (D) gear.<br>" +
-                 "SPEED：Start when the vehicle speed is greater than 5 m/s"),
+      description=lambda: tr(DESCRIPTIONS["ToyotaEnableAutoHold"]),
       buttons=[lambda: tr("OFF"), lambda: tr("ON"), lambda: tr("SPEED")],
       button_width=300,
       callback=self._set_enable_auto_hold,
       selected_index=self.params.get("ToyotaEnableAutoHold", return_default=True),
     )
 
-    self.items = []
-    self.items.append(self.enforce_stock_longitudinal)
-    if self.CP.flags & ToyotaFlags.TSS2.value:
-      self.items.append(self.enable_angle_control)
-    if self.CP.flags & ToyotaFlags.TSS2.value and \
-        not self.CP.flags & ToyotaFlags.RADAR_ACC.value and \
-        not self.CP.flags & ToyotaFlags.SECOC.value:
-      self.items.append(self.enable_auto_hold)
+    self.items = [
+    self.enforce_stock_longitudinal,
+    self.enable_angle_control,
+    self.enable_auto_hold,
+    ]
 
   def _on_enable_enforce_stock_longitudinal(self, state: bool):
     if state:
@@ -105,15 +106,18 @@ class ToyotaSettings(BrandSettings):
       self.params.put_bool("OnroadCycleRequested", True)
 
   def _set_enable_auto_hold(self, selected_index: int):
-      def confirm_callback(result: int):
-        if result == DialogResult.CONFIRM:
-          self.params.put("ToyotaEnableAutoHold", selected_index)
-
-      content = (f"<h1>{self.enable_auto_hold.title}</h1><br>" +
-                 f"<p>{self.enable_auto_hold.description}</p>")
-
-      dlg = ConfirmDialog(content, tr("Enable"), rich=True)
-      gui_app.set_modal_overlay(dlg, callback=confirm_callback)
+    self.params.put("ToyotaEnableAutoHold", selected_index)
 
   def update_settings(self):
-    pass
+
+    if self.CP.flags & ToyotaFlags.TSS2.value:
+      self.enable_angle_control.set_visible(True)
+    else:
+      self.enable_angle_control.set_visible(False)
+
+    if self.CP.flags & ToyotaFlags.TSS2.value and \
+        not self.CP.flags & ToyotaFlags.RADAR_ACC.value and \
+        not self.CP.flags & ToyotaFlags.SECOC.value:
+      self.enable_auto_hold.set_visible(True)
+    else:
+      self.enable_auto_hold.set_visible(False)

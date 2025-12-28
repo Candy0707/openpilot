@@ -57,6 +57,7 @@ class VehicleLayout(Widget):
   def _update_state(self):
     self._update_brand_settings()
     if self._brand_settings:
+      self._brand_settings.update_state()
       self._brand_settings.update_settings()
     self._platform_selector.refresh()
 

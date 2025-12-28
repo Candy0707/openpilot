@@ -15,11 +15,19 @@ class BrandSettings(abc.ABC):
   def __init__(self):
     self.items = []
     self.ui_state = ui_state
+    self.sm = self.ui_state.sm
     self.params = ui_state.params
     self.engaged = ui_state.engaged
     self.cloudlog = cloudlog
-    self.CP: structs.carParams = self.ui_state.sm['carParams']
-    self.CP_SP: custom.CarParamsSP = self.ui_state.sm['carParamsSP']
+    self.CP: structs.carParams = self.sm['carParams']
+    self.CP_SP: custom.CarParamsSP = self.sm['carParamsSP']
+
+  def update_state(self) -> None:
+    if self.sm.updated['carParams']:
+      self.CP: structs.carParams = self.sm['carParams']
+
+    if self.sm.updated['carParamsSP']:
+      self.CP_SP: custom.CarParamsSP = self.sm['carParamsSP']
 
   @abc.abstractmethod
   def update_settings(self) -> None:
