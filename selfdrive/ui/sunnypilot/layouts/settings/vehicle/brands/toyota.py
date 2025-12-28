@@ -108,8 +108,6 @@ class ToyotaSettings(BrandSettings):
       def confirm_callback(result: int):
         if result == DialogResult.CONFIRM:
           self.params.put("ToyotaEnableAutoHold", selected_index)
-        else:
-          self.enable_auto_hold.action_item.set_state(False)
 
       content = (f"<h1>{self.enable_auto_hold.title}</h1><br>" +
                  f"<p>{self.enable_auto_hold.description}</p>")
