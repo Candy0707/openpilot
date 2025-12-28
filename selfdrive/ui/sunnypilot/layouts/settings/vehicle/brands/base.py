@@ -23,11 +23,8 @@ class BrandSettings(abc.ABC):
     self.CP_SP: custom.CarParamsSP = self.sm['carParamsSP']
 
   def update_state(self) -> None:
-    if self.sm.updated['carParams']:
-      self.CP: structs.carParams = self.sm['carParams']
-
-    if self.sm.updated['carParamsSP']:
-      self.CP_SP: custom.CarParamsSP = self.sm['carParamsSP']
+    self.CP = self.sm['carParams']
+    self.CP_SP = self.sm['carParamsSP']
 
   @abc.abstractmethod
   def update_settings(self) -> None:
