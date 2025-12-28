@@ -110,8 +110,6 @@ class ToyotaSettings(BrandSettings):
 
   def update_settings(self):
 
-    self.cloudlog.warning(f'TSS2={self.CP.flags & ToyotaFlags.TSS2.value} flags={self.CP.flags}')
-
     if self.CP.flags & ToyotaFlags.TSS2.value:
       self.enable_angle_control.set_visible(True)
     else:
