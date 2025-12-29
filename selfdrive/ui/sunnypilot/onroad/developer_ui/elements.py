@@ -8,7 +8,7 @@ import pyray as rl
 from dataclasses import dataclass
 
 from openpilot.common.constants import CV
-
+from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
 
 @dataclass
 class UiElement:
@@ -316,6 +316,8 @@ class steerControlTypeElement:
   def update(self, sm, is_metric: bool) -> UiElement:
     #if sm.updated['carParams']:
     steerControlType = sm['carParams'].steerControlType
+    flags = sm['carParamsSP'].flags
+    self.unit = "ON" if bool(flags & ToyotaFlagsSP.USING_ANGLE_CONTROL) else "OFF"
     self.value = self.STEER_CONTROL_TYPE_STR.get(steerControlType, "-")
     return UiElement(self.value, "LTA", self.unit, rl.WHITE)
 
