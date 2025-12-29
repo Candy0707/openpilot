@@ -10,7 +10,7 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.developer_ui.elements import (
   UiElement, RelDistElement, RelSpeedElement, SteeringAngleElement,
   DesiredLateralAccelElement, ActualLateralAccelElement, DesiredSteeringAngleElement,
   AEgoElement, LeadSpeedElement, FrictionCoefficientElement, LatAccelFactorElement,
-  SteeringTorqueEpsElement, BearingDegElement, AltitudeElement
+  SteeringTorqueEpsElement, BearingDegElement, AltitudeElement, steerControlTypeElement, longControlStateElement
 )
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.text_measure import measure_text_cached
@@ -42,6 +42,8 @@ class DeveloperUiRenderer(Widget):
     self.steering_torque_elem = SteeringTorqueEpsElement()
     self.bearing_elem = BearingDegElement()
     self.altitude_elem = AltitudeElement()
+    self.steerControlType = steerControlTypeElement()
+    self.longControlState = longControlStateElement()
 
   def _update_state(self) -> None:
     self.dev_ui_mode = ui_state.developer_ui
@@ -136,12 +138,16 @@ class DeveloperUiRenderer(Widget):
       # Non-torque: show steering torque and GPS data
       elements.append(self.steering_torque_elem.update(sm, ui_state.is_metric))
 
-      if sm.valid['gpsLocationExternal'] or sm.valid['gpsLocation']:
-        elements.append(self.bearing_elem.update(sm, ui_state.is_metric))
+    #  if sm.valid['gpsLocationExternal'] or sm.valid['gpsLocation']:
+    #    elements.append(self.bearing_elem.update(sm, ui_state.is_metric))
 
     # Add altitude if GPS available
-    if sm.valid['gpsLocationExternal'] or sm.valid['gpsLocation']:
-      elements.append(self.altitude_elem.update(sm, ui_state.is_metric))
+    #if sm.valid['gpsLocationExternal'] or sm.valid['gpsLocation']:
+    #  elements.append(self.altitude_elem.update(sm, ui_state.is_metric))
+
+    elements.append(self.steerControlType.update(sm, ui_state.is_metric))
+    elements.append(self.longControlState.update(sm, ui_state.is_metric))
+
 
     current_x = int(rect.x + 90)
     center_y = y + bar_height // 2

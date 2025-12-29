@@ -301,3 +301,37 @@ class AltitudeElement(GpsInfoElement):
 
     value = f"{altitude:.1f}" if gps_accuracy != 0.0 else "-"
     return UiElement(value, "ALT.", self.unit, rl.WHITE)
+
+class steerControlTypeElement:
+  def __init__(self):
+    self.unit = ""
+    self.value = "-"
+
+
+    self.STEER_CONTROL_TYPE_STR = {
+      0: "torque",
+      1: "angle",
+    }
+
+  def update(self, sm, is_metric: bool) -> UiElement:
+    #if sm.updated['carParams']:
+    steerControlType = sm['carParams'].steerControlType
+    self.value = self.STEER_CONTROL_TYPE_STR.get(steerControlType, "-")
+    return UiElement(self.value, "LTA", self.unit, rl.WHITE)
+
+class longControlStateElement:
+  def __init__(self):
+    self.unit = ""
+    self.value = "-"
+
+    self.LONG_CONTROL_STATE_STR = {
+      0: "off",
+      1: "pid",
+      2: "stopping",
+      3: "starting",
+    }
+  def update(self, sm, is_metric: bool) -> UiElement:
+    if sm.updated['carControl']:
+      longControlState = sm['carControl'].actuators.longControlState
+      self.value = self.LONG_CONTROL_STATE_STR.get(longControlState, "-")
+    return UiElement(self.value, "L.C", self.unit, rl.WHITE)

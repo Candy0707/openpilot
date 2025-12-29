@@ -107,6 +107,8 @@ class ToyotaSettings(BrandSettings):
 
   def _set_enable_auto_hold(self, selected_index: int):
     self.params.put("ToyotaEnableAutoHold", selected_index)
+    self.params.put_bool("OnroadCycleRequested", True)
+
 
   def update_settings(self):
 
