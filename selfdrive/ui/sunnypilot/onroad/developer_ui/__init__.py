@@ -144,7 +144,7 @@ class DeveloperUiRenderer(Widget):
     # Add altitude if GPS available
     #if sm.valid['gpsLocationExternal'] or sm.valid['gpsLocation']:
     #  elements.append(self.altitude_elem.update(sm, ui_state.is_metric))
-
+    elements.append(self.steering_torque_elem.update(sm, ui_state.is_metric))
     elements.append(self.steerControlType.update(sm, ui_state.is_metric))
     elements.append(self.longControlState.update(sm, ui_state.is_metric))
 

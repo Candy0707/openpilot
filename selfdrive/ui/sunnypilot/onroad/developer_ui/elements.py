@@ -307,12 +307,6 @@ class steerControlTypeElement:
     self.unit = ""
     self.value = "-"
 
-
-    self.STEER_CONTROL_TYPE_STR = {
-      0: "torque",
-      1: "angle",
-    }
-
   def update(self, sm, is_metric: bool) -> UiElement:
     #if sm.updated['carParams']:
     steerControlType = sm['carParams'].steerControlType
@@ -326,13 +320,18 @@ class longControlStateElement:
     self.unit = ""
     self.value = "-"
 
-    self.LONG_CONTROL_STATE_STR = {
-      0: "off",
-      1: "pid",
-      2: "stopping",
-      3: "starting",
-    }
   def update(self, sm, is_metric: bool) -> UiElement:
     longControlState = sm['carControl'].actuators.longControlState
     self.value = f'{longControlState}'
-    return UiElement(self.value, "L.C", self.unit, rl.WHITE)
+
+    color = rl.Color(145, 155, 149, 255)
+    if self.value == 'off':
+     color = rl.Color(145, 155, 149, 255)
+    if self.value == 'pid':
+     color = rl.Color(0, 255, 0, 255)
+    if self.value == 'stopping':
+     color = rl.Color(255, 0, 0, 255)
+    if self.value == 'starting':
+     color = rl.Color(0, 0, 255, 255)
+
+    return UiElement(self.value, "L.C", self.unit, color)
