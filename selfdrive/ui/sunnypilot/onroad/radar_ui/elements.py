@@ -33,16 +33,29 @@ class RadarData():
 
     self.Points = []
 
-    # 已經放置的點，用於避免重疊 (x,y tuples)
-    placed_coords = set()
-    MIN_DIST = 2  # 不重疊範圍，2x2m
+    STOP_SPEED = 0.3   # m/s，靜止門檻
+    MIN_DIST = 2     # 2x2 m 防重疊格
+    placed = {}
 
+    radar = sorted(radar, key=lambda p: (p.dRel, abs(p.yRel), -p.vRel))
     for point in radar:
 
-      # 防重疊
-      coord_key = (int(point.dRel / MIN_DIST), int(point.yRel / MIN_DIST))
-      if coord_key in placed_coords:
-        continue  # 忽略重疊點
+      # 靜止物件不要
+      if abs(point.vRel) < STOP_SPEED:
+        continue
+
+      # 防重疊格子
+      coord_key = (
+        int(point.dRel / MIN_DIST),
+        int(point.yRel / MIN_DIST),
+      )
+
+      # 若該格已有更好的點 → continue
+      if coord_key in placed:
+        continue
+
+      # 記錄此格目前最好的點
+      placed[coord_key] = point
 
      #轉換成螢幕座標
       screen_pt = model.map(point.dRel, -point.yRel)

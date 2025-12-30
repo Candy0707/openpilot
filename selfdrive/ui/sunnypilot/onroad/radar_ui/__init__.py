@@ -1,6 +1,3 @@
-import random
-from cereal import car
-
 import pyray as rl
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.widgets import Widget
@@ -33,7 +30,7 @@ class RadarUiRenderer(Widget):
     super().__init__()
     self.is_metric = False
     self.radar_ui_mode = 0
-    self.label_size = 30
+    self.label_size = 40
     self._font_bold: rl.Font = gui_app.font(FontWeight.BOLD)
     self._font_semi_bold: rl.Font = gui_app.font(FontWeight.SEMI_BOLD)
 
@@ -73,7 +70,7 @@ class RadarUiRenderer(Widget):
       y = int(rect.y + point.scale_y)
 
       if self.radar_ui_mode > 0 :
-        rl.draw_circle(x, y, 6, point.color)
+        rl.draw_circle(x, y, self.label_size / 2, point.color)
 
       if self.radar_ui_mode > 1:
         # 顯示資訊：ID, dRel, yRel, vRel
@@ -90,7 +87,7 @@ class RadarUiRenderer(Widget):
 
         # 偏移到圓點正下方、水平置中
         text_x = x - text_width // 2
-        text_y = y + 6  # 6 是圓點半徑
+        text_y = y + self.label_size / 2  # 6 是圓點半徑
 
         # 畫背景
         rl.draw_rectangle_rounded(
