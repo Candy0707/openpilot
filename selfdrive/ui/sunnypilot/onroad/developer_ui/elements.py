@@ -318,7 +318,7 @@ class steerControlTypeElement:
     steerControlType = sm['carParams'].steerControlType
     flags = sm['carParamsSP'].flags
     self.unit = "ON" if bool(flags & ToyotaFlagsSP.USING_ANGLE_CONTROL) else "OFF"
-    self.value = self.STEER_CONTROL_TYPE_STR.get(steerControlType, "-")
+    self.value = f'{self.STEER_CONTROL_TYPE_STR.get(steerControlType, "-")}:{steerControlType}'
     return UiElement(self.value, "LTA", self.unit, rl.WHITE)
 
 class longControlStateElement:
@@ -333,7 +333,6 @@ class longControlStateElement:
       3: "starting",
     }
   def update(self, sm, is_metric: bool) -> UiElement:
-    if sm.updated['carControl']:
-      longControlState = sm['carControl'].actuators.longControlState
-      self.value = self.LONG_CONTROL_STATE_STR.get(longControlState, "-")
+    longControlState = sm['carControl'].actuators.longControlState
+    self.value = f'{self.LONG_CONTROL_STATE_STR.get(longControlState, "-")}:{longControlState}'
     return UiElement(self.value, "L.C", self.unit, rl.WHITE)
