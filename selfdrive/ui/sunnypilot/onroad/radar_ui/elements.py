@@ -34,9 +34,10 @@ class RadarData():
     self.Points = []
 
     STOP_SPEED = 0.3   # m/s，靜止門檻
-    MIN_DIST = 2.0     # 2x2 m 防重疊格
+    MIN_DIST = 2     # 2x2 m 防重疊格
     placed = {}
 
+    radar = sorted(radar, key=lambda p: (p.dRel, abs(p.yRel), -p.vRel))
     for point in radar:
 
       # 靜止物件不要
@@ -51,9 +52,7 @@ class RadarData():
 
       # 若該格已有更好的點 → continue
       if coord_key in placed:
-        best = placed[coord_key]
-        if not is_better(point, best):
-          continue
+        continue
 
       # 記錄此格目前最好的點
       placed[coord_key] = point
@@ -120,19 +119,3 @@ class RadarData():
       alpha = int(255 * (0.8 - (d / 50.0) * 0.4))
 
       return rl.Color(r, g, b, alpha)
-
-def is_better(a, b):
-  """
-  回傳 True 代表 a 比 b 更值得顯示
-  優先順序：
-    1. |vRel| 大（高速）
-    2. |yRel| 小（前方）
-    3. dRel 小（距離近）
-  """
-  if abs(a.vRel) != abs(b.vRel):
-    return abs(a.vRel) > abs(b.vRel)
-
-  if abs(a.yRel) != abs(b.yRel):
-    return abs(a.yRel) < abs(b.yRel)
-
-  return a.dRel < b.dRel
