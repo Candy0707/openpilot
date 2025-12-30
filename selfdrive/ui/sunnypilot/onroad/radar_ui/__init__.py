@@ -33,7 +33,7 @@ class RadarUiRenderer(Widget):
     super().__init__()
     self.is_metric = False
     self.radar_ui_mode = 0
-    self.label_size = 28
+    self.label_size = 30
     self._font_bold: rl.Font = gui_app.font(FontWeight.BOLD)
     self._font_semi_bold: rl.Font = gui_app.font(FontWeight.SEMI_BOLD)
 

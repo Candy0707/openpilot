@@ -128,15 +128,15 @@ class DeveloperUiRenderer(Widget):
     ]
 
     # Add torque-specific elements if using torque control
-    if sm['controlsState'].lateralControlState.which() == 'torqueState':
-      if sm.valid['liveTorqueParameters']:
-        elements.extend([
-          self.friction_elem.update(sm, ui_state.is_metric),
-          self.lat_accel_factor_elem.update(sm, ui_state.is_metric),
-        ])
-    else:
-      # Non-torque: show steering torque and GPS data
-      elements.append(self.steering_torque_elem.update(sm, ui_state.is_metric))
+    #if sm['controlsState'].lateralControlState.which() == 'torqueState':
+    #  if sm.valid['liveTorqueParameters']:
+    #    elements.extend([
+    #      self.friction_elem.update(sm, ui_state.is_metric),
+    #      self.lat_accel_factor_elem.update(sm, ui_state.is_metric),
+    #    ])
+    #else:
+    #  Non-torque: show steering torque and GPS data
+    #  elements.append(self.steering_torque_elem.update(sm, ui_state.is_metric))
 
     #  if sm.valid['gpsLocationExternal'] or sm.valid['gpsLocation']:
     #    elements.append(self.bearing_elem.update(sm, ui_state.is_metric))
