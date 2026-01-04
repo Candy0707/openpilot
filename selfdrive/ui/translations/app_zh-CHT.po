@@ -994,7 +994,7 @@ msgstr "錄製音訊回饋"
 #: selfdrive/selfdrived/events.py:118
 #, python-format
 msgid "Posenet Speed Invalid"
-msgstr "Posenet 速度無效"
+msgstr "Posenet 速度 無效"
 
 #: selfdrive/selfdrived/events.py:124
 #, python-format
@@ -1637,6 +1637,161 @@ msgstr "校正中"
 #, python-format
 msgid "Reverse"
 msgstr "倒車"
+
+#: sunnypilot/selfdrive/selfdrived/events_base.py:208
+#, python-format
+msgid "openpilot will disengage"
+msgstr "openpilot 將 解除連接"
+
+#: sunnypilot/selfdrive/selfdrived/events_base.py:208
+#, python-format
+msgid "sunnypilot will disengage"
+msgstr "sunnypilot 將 解除連接"
+
+#: sunnypilot/selfdrive/selfdrived/events_base.py:238
+#, python-format
+msgid "Always keep hands on wheel and eyes on road"
+msgstr "始終雙手放在方向盤上，雙眼注視道路。"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:85
+#, python-format
+msgid "Automatic Lane Centering is OFF"
+msgstr "自動車道置中功能已關閉"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:86
+#, python-format
+msgid "Manual Steering Required"
+msgstr "需要手動轉向"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:93
+#, python-format
+msgid "Smart/Adaptive Cruise Control: OFF"
+msgstr "智慧/自適應巡航控制：已關閉"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:94
+#, python-format
+msgid "Manual Speed Control Required"
+msgstr "需要手動速度控制"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:109
+#, python-format
+msgid "Brake Hold Active"
+msgstr "煞車保持功能已啟動"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:162
+#, python-format
+msgid "Controls Mismatch: Lateral"
+msgstr "控制不匹配：橫向"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:167
+#, python-format
+msgid "Experimental Mode Switched"
+msgstr "實驗模式切換"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:180
+#, python-format
+msgid "Turning Left"
+msgstr "左轉"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:188
+#, python-format
+msgid "Turning Right"
+msgstr "右轉"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:196
+#, python-format
+msgid "Automatically adjusting to the posted speed limit"
+msgstr "自動調整至道路限速"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:204
+#, python-format
+msgid "Set speed changed"
+msgstr "設定速度已更改"
+
+#: sunnypilot/selfdrive/selfdrived/events.py:216
+#, python-format
+msgid "Automatically adjusting to the last speed limit"
+msgstr "自動調整至上次限速狀態"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:38
+#, python-format
+msgid "Select vehicle to force fingerprint manually."
+msgstr "選擇需要手動強制選擇的車輛。"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:40
+#, python-format
+msgid "Colors represent vehicle fingerprint status:"
+msgstr "顏色代表車輛辨識狀態："
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:44
+#, python-format
+msgid "Fingerprinted automatically"
+msgstr "自動辨識指紋"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:45
+#, python-format
+msgid "Manually selected fingerprint"
+msgstr "手動選擇的指紋"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:46
+#, python-format
+msgid "Not fingerprinted or manually selected"
+msgstr "無法辨識指紋請手動選擇"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:95
+#, python-format
+msgid "This setting will take effect immediately."
+msgstr "此設定將立即生效。"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:96
+#, python-format
+msgid "This setting will take effect once the device enters offroad state."
+msgstr "此設定將在設備進入 offroad 狀態後生效。"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:98
+#, python-format
+msgid "Confirm"
+msgstr "確認"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:115
+#, python-format
+msgid "Select a vehicle"
+msgstr "選擇車輛"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:117
+#, python-format
+msgid "Search your vehicle"
+msgstr "搜尋您的車輛"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:118
+#, python-format
+msgid "Enter model year (e.g., 2021) and model (Toyota Corolla):"
+msgstr "請輸入車型年份（例如，2021）和車型（Toyota Corolla）："
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:127
+#, python-format
+msgid "Unrecognized Vehicle"
+msgstr "未識別車輛"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/platform_selector.py:128
+#, python-format
+msgid "No vehicle selected"
+msgstr "未選擇車輛"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/brands/toyota.py:38
+#, python-format
+msgid "Enforce Factory Longitudinal Control"
+msgstr "強制使用原廠縱向控制"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/brands/toyota.py:46
+#, python-format
+msgid "Enable Angle Control (TSS2)"
+msgstr "啟用角度控制（TSS2）"
+
+#: selfdrive/ui/sunnypilot/layouts/settings/vehicle/brands/toyota.py:54
+#, python-format
+msgid "Enable AUTO HOLD BRAKE (TSS2)"
+msgstr "啟用自動保持煞車 (TSS2)"
 
 #: selfdrive/ui/layouts/sidebar.py:71 selfdrive/ui/layouts/sidebar.py:125
 #: selfdrive/ui/layouts/sidebar.py:127 selfdrive/ui/layouts/sidebar.py:129

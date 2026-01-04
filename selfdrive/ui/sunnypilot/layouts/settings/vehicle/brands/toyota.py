@@ -25,7 +25,7 @@ DESCRIPTIONS = {
   "ToyotaEnableAutoHold": tr_noop(
     "<h1>For use on vehicles without auto braking.</h1><br>" +
     "ON：Start when the vehicle is in Drive (D) gear.<br>" +
-    "SPEED：Start when the vehicle speed is greater than 5 m/s"
+    "SPEED：Start when the vehicle speed is greater than 5 m/s (18km/h)"
   )
 }
 
@@ -51,7 +51,7 @@ class ToyotaSettings(BrandSettings):
     )
 
     self.enable_auto_hold = multiple_button_item_sp(
-      lambda: tr("Enable AUTO HOLD (TSS2)"),
+      lambda: tr("Enable AUTO HOLD BRAKE (TSS2)"),
       description=lambda: tr(DESCRIPTIONS["ToyotaEnableAutoHold"]),
       buttons=[lambda: tr("OFF"), lambda: tr("ON"), lambda: tr("SPEED")],
       button_width=300,
