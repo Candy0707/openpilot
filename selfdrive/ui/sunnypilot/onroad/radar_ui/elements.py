@@ -40,8 +40,12 @@ class RadarData():
     radar = sorted(radar, key=lambda p: (p.dRel, abs(p.yRel), -p.vRel))
     for point in radar:
 
+      # 雷達的測量結果
+      if not point.measured:
+        continue
+
       # 靜止物件不要
-      if vego + point.vRel < STOP_SPEED:
+      if point.vRel + vego < STOP_SPEED:
         continue
 
       # 防重疊格子
