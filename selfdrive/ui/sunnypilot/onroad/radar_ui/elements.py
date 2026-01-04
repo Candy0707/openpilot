@@ -27,7 +27,7 @@ class RadarData():
   def __init__(self):
     self.Points: list[RadarElement] = []
 
-  def update(self, model, radar: 'car.RadarData.RadarPoint') -> list[RadarElement]:
+  def update(self, model, vego, radar: 'car.RadarData.RadarPoint') -> list[RadarElement]:
     if model is None or radar is None:
       return []
 
@@ -41,7 +41,7 @@ class RadarData():
     for point in radar:
 
       # 靜止物件不要
-      if abs(point.vRel) < STOP_SPEED:
+      if vego + point.vRel < STOP_SPEED:
         continue
 
       # 防重疊格子

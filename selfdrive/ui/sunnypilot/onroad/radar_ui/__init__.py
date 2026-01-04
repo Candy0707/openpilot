@@ -45,7 +45,8 @@ class RadarUiRenderer(Widget):
     sm = ui_state.sm
     if sm.updated['liveTracks']:
       radarpoint = sm['liveTracks'].points
-      self.radar.Points = self.radar.update(self.model, radarpoint)
+      vego = sm['carState'].vEgo
+      self.radar.Points = self.radar.update(self.model, vego, radarpoint)
 
   def _render(self, rect: rl.Rectangle) -> None:
     # Draw OFF
