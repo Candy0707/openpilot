@@ -14,27 +14,27 @@ AccelPersonality = custom.LongitudinalPlanSP.AccelerationPersonality
 
 # Acceleration Profiles
 MAX_ACCEL_PROFILES = {
-  AccelPersonality.eco:       [1.00, 0.20, 0.80, 1.00,  1.20, 1.00, 0.80, 0.40,  0.40, 0.20, 0.12, 0.08],  # eco
-  AccelPersonality.normal:    [1.50, 0.40, 1.00, 1.20,  1.40, 1.20, 1.00, 0.60,  0.50, 0.30, 0.24, 0.10],   # normal
+  AccelPersonality.eco:       [1.00, 0.40, 0.80, 1.00,  1.20, 1.00, 0.80, 0.40,  0.40, 0.20, 0.12, 0.08],  # eco
+  AccelPersonality.normal:    [1.50, 0.60, 1.00, 1.20,  1.40, 1.20, 1.00, 0.60,  0.50, 0.30, 0.24, 0.10],   # normal
   AccelPersonality.sport:     [2.00, 0.80, 1.20, 1.40,  1.60, 1.40, 1.20, 0.80,  0.60, 0.40, 0.36, 0.12],   # sport
 }
 MAX_ACCEL_BREAKPOINTS =       [0.,   1.,   2.,   4.,    6.,   9.,   11.,  16.,   20.,  25.,  30.,  55.]
 
 # Braking Profiles
 MIN_ACCEL_PROFILES = {
-  AccelPersonality.eco:    [-0.78, -1.30],
-  AccelPersonality.normal: [-0.88, -1.40],
-  AccelPersonality.sport:  [-0.98, -1.50],
+  AccelPersonality.eco:    [-0.23, -0.24, -0.33, -0.40, -1.00, -1.00, -1.00, -1.10,],  # gentler braking
+  AccelPersonality.normal: [-0.24, -0.25, -0.35, -0.50, -1.15, -1.15, -1.15, -1.15,],  # normal braking
+  AccelPersonality.sport:  [-0.25, -0.26, -0.37, -0.60, -1.20, -1.20, -1.20, -1.20,],  # more aggressive braking
 }
-MIN_ACCEL_BREAKPOINTS =    [5.5,    11.1]
+MIN_ACCEL_BREAKPOINTS =    [0.,    1.,    2.,    6.,    11.,   20.,   30.,   50.]
 
 
-DECEL_SMOOTH_ALPHA = 0.55  # Very aggressive smoothing for decel (lower = smoother)
+DECEL_SMOOTH_ALPHA = 0.45 #0.15  # Very aggressive smoothing for decel (lower = smoother)
 ACCEL_SMOOTH_ALPHA = 0.65  # Less aggressive for accel (higher = more responsive)
 
 # Asymmetric rate limiting
-MAX_DECEL_INCREASE_RATE = 1.5  # When braking harder (m/s² per second)
-MAX_DECEL_DECREASE_RATE = 0.5  # When releasing brake (m/s² per second)
+MAX_DECEL_INCREASE_RATE = 0.80 #1.5  # When braking harder (m/s² per second)
+MAX_DECEL_DECREASE_RATE = 0.60 #0.5  # When releasing brake (m/s² per second)
 
 class AccelPersonalityController:
   def __init__(self):
