@@ -5,6 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 from openpilot.selfdrive.ui.sunnypilot.layouts.settings.vehicle.brands.base import BrandSettings
+from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr, tr_noop
 from openpilot.system.ui.widgets import DialogResult
@@ -37,17 +38,17 @@ class ToyotaSettings(BrandSettings):
     self.enforce_stock_longitudinal = toggle_item_sp(
       lambda: tr("Enforce Factory Longitudinal Control"),
       description=lambda: tr(DESCRIPTIONS["enforce_stock_longitudinal"]),
-      initial_state=self.params.get_bool("ToyotaEnforceStockLongitudinal"),
+      initial_state=ui_state.params.get_bool("ToyotaEnforceStockLongitudinal"),
       callback=self._on_enable_enforce_stock_longitudinal,
-      enabled=lambda: not self.engaged,
+      enabled=lambda: not ui_state.started,
     )
 
     self.enable_angle_control = toggle_item_sp(
       lambda: tr("Enable Angle Control (TSS2)"),
       description=lambda: tr(DESCRIPTIONS["ToyotaEnableAngleControl"]),
-      initial_state=self.params.get_bool("ToyotaEnableAngleControl"),
+      initial_state=ui_state.params.get_bool("ToyotaEnableAngleControl"),
       callback=self._on_enable_angle_control,
-      enabled=lambda: not self.engaged,
+      enabled=lambda: not ui_state.started,
     )
 
     self.enable_auto_hold = multiple_button_item_sp(
@@ -56,7 +57,7 @@ class ToyotaSettings(BrandSettings):
       buttons=[lambda: tr("OFF"), lambda: tr("ON"), lambda: tr("SPEED")],
       button_width=300,
       callback=self._set_enable_auto_hold,
-      selected_index=self.params.get("ToyotaEnableAutoHold", return_default=True),
+      selected_index=ui_state.params.get("ToyotaEnableAutoHold", return_default=True),
     )
 
     self.items = [
@@ -69,10 +70,10 @@ class ToyotaSettings(BrandSettings):
     if state:
       def confirm_callback(result: int):
         if result == DialogResult.CONFIRM:
-          self.params.put_bool("ToyotaEnforceStockLongitudinal", True)
-          if self.params.get_bool("AlphaLongitudinalEnabled"):
-            self.params.put_bool("AlphaLongitudinalEnabled", False)
-          self.params.put_bool("OnroadCycleRequested", True)
+          ui_state.params.put_bool("ToyotaEnforceStockLongitudinal", True)
+          if ui_state.params.get_bool("AlphaLongitudinalEnabled"):
+            ui_state.params.put_bool("AlphaLongitudinalEnabled", False)
+          ui_state.params.put_bool("OnroadCycleRequested", True)
         else:
           self.enforce_stock_longitudinal.action_item.set_state(False)
 
@@ -83,15 +84,15 @@ class ToyotaSettings(BrandSettings):
       gui_app.set_modal_overlay(dlg, callback=confirm_callback)
 
     else:
-      self.params.put_bool("ToyotaEnforceStockLongitudinal", False)
-      self.params.put_bool("OnroadCycleRequested", True)
+      ui_state.params.put_bool("ToyotaEnforceStockLongitudinal", False)
+      ui_state.params.put_bool("OnroadCycleRequested", True)
 
   def _on_enable_angle_control(self, state: bool):
     if state:
       def confirm_callback(result: int):
         if result == DialogResult.CONFIRM:
-          self.params.put_bool("ToyotaEnableAngleControl", True)
-          self.params.put_bool("OnroadCycleRequested", True)
+          ui_state.params.put_bool("ToyotaEnableAngleControl", True)
+          ui_state.params.put_bool("OnroadCycleRequested", True)
         else:
           self.enable_angle_control.action_item.set_state(False)
 
@@ -102,24 +103,13 @@ class ToyotaSettings(BrandSettings):
       gui_app.set_modal_overlay(dlg, callback=confirm_callback)
 
     else:
-      self.params.put_bool("ToyotaEnableAngleControl", False)
-      self.params.put_bool("OnroadCycleRequested", True)
+      ui_state.params.put_bool("ToyotaEnableAngleControl", False)
+      ui_state.params.put_bool("OnroadCycleRequested", True)
 
   def _set_enable_auto_hold(self, selected_index: int):
-    self.params.put("ToyotaEnableAutoHold", selected_index)
-    self.params.put_bool("OnroadCycleRequested", True)
+    ui_state.params.put("ToyotaEnableAutoHold", selected_index)
+    ui_state.params.put_bool("OnroadCycleRequested", True)
 
 
   def update_settings(self):
-
-    if self.CP.flags & ToyotaFlags.TSS2.value:
-      self.enable_angle_control.set_visible(True)
-    else:
-      self.enable_angle_control.set_visible(False)
-
-    if self.CP.flags & ToyotaFlags.TSS2.value and \
-        not self.CP.flags & ToyotaFlags.RADAR_ACC.value and \
-        not self.CP.flags & ToyotaFlags.SECOC.value:
-      self.enable_auto_hold.set_visible(True)
-    else:
-      self.enable_auto_hold.set_visible(False)
+    pass
