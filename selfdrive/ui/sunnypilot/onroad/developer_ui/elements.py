@@ -359,16 +359,15 @@ class longControlStateElement:
 
 class longControlAccelElement:
   def __init__(self):
-    self.unit = ""
+    self.unit = "m/s^2"
     self.value = "-"
 
   def update(self, sm, is_metric: bool) -> UiElement:
     longControlAccel = sm['carControl'].actuators.accel
     color = rl.Color(255, 255, 255, 255)
-    if self.value > 0.0:
-     color = rl.Color(145, 155, 149, 255)
-    if self.value < 0.0:
+    if longControlAccel > 0.0:
      color = rl.Color(0, 255, 0, 255)
-
-    self.value = f'{longControlAccel:.1f}'
-    return UiElement(self.value, "L.A", self.unit, color)
+    if longControlAccel < 0.0:
+     color = rl.Color(255, 0, 0, 255)
+    self.value = f"{longControlAccel:.1f}"
+    return UiElement(self.value, "C.ACC.", self.unit, color)
