@@ -1,4 +1,9 @@
-sunnypilot Version 2025.14.50 (2025-12-28)
+unnypilot Version 2026.01.10 (0810)
+* 測試 ACC 煞車時 不使用馬達煞車，使用 PCM煞車(Hybrid)
+* 更新 DBC
+========================
+
+unnypilot Version 2025.14.50 (2025-12-28)
 * 更改 AutoHold 狀態機
 * 測試 ACC 煞車時 不使用馬達煞車，使用 PCM煞車(Hybrid)
 ========================
