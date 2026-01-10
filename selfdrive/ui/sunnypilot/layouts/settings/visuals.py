@@ -5,9 +5,14 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 from openpilot.common.params import Params
+from openpilot.system.ui.lib.multilang import tr, tr_noop
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 from openpilot.system.ui.widgets import Widget
+from openpilot.system.ui.widgets.list_view import multiple_button_item
 
+DESCRIPTIONS = {
+  "DeveloperUI": tr_noop("Developer UI")
+}
 
 class VisualsLayout(Widget):
   def __init__(self):
@@ -18,8 +23,17 @@ class VisualsLayout(Widget):
     self._scroller = Scroller(items, line_separator=True, spacing=0)
 
   def _initialize_items(self):
+    self._long_personality_setting = multiple_button_item(
+      lambda: tr("Developer UI"),
+      lambda: tr(DESCRIPTIONS["DeveloperUI"]),
+      buttons=[lambda: tr("OFF"), lambda: tr("RIGHT"), lambda: tr("BOTTOM"), lambda: tr("BOTH")],
+      button_width=240,
+      callback=self._set_developer_ui,
+      selected_index=self._params.get("DevUIInfo", return_default=True),
+      icon="speed_limit.png"
+    )
     items = [
-
+      self._long_personality_setting
     ]
     return items
 
@@ -28,3 +42,6 @@ class VisualsLayout(Widget):
 
   def show_event(self):
     self._scroller.show_event()
+
+  def _set_developer_ui(self, button_index: int):
+    self._params.put("DevUIInfo", button_index)
