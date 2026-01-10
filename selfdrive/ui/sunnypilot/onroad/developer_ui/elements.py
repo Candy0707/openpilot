@@ -326,7 +326,7 @@ class AltitudeElement(GpsInfoElement):
 class steerControlTypeElement:
   def __init__(self):
     self.unit = ""
-    self.value = "-"
+    self.value = 0.0
 
   def update(self, sm, is_metric: bool) -> UiElement:
     #if sm.updated['carParams']:
@@ -356,3 +356,19 @@ class longControlStateElement:
      color = rl.Color(0, 0, 255, 255)
 
     return UiElement(self.value, "L.C", self.unit, color)
+
+class longControlAccelElement:
+  def __init__(self):
+    self.unit = ""
+    self.value = "-"
+
+  def update(self, sm, is_metric: bool) -> UiElement:
+    longControlAccel = sm['carControl'].actuators.accel
+    color = rl.Color(255, 255, 255, 255)
+    if self.value > 0.0:
+     color = rl.Color(145, 155, 149, 255)
+    if self.value < 0.0:
+     color = rl.Color(0, 255, 0, 255)
+
+    self.value = f'{longControlAccel:.1f}'
+    return UiElement(self.value, "L.A", self.unit, color)
