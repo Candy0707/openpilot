@@ -11,8 +11,6 @@ from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.shader_polygon import draw_polygon, Gradient
 from openpilot.system.ui.widgets import Widget
 
-from openpilot.selfdrive.ui.sunnypilot.onroad.model_renderer import ChevronMetrics, ModelRendererSP
-
 CLIP_MARGIN = 500
 MIN_DRAW_DISTANCE = 10.0
 MAX_DRAW_DISTANCE = 100.0
@@ -43,11 +41,9 @@ class LeadVehicle:
   fill_alpha: int = 0
 
 
-class ModelRenderer(Widget, ChevronMetrics, ModelRendererSP):
+class ModelRenderer(Widget):
   def __init__(self):
     Widget.__init__(self)
-    ChevronMetrics.__init__(self)
-    ModelRendererSP.__init__(self)
     self._longitudinal_control = False
     self._experimental_mode = False
     self._blend_filter = FirstOrderFilter(1.0, 0.25, 1 / gui_app.target_fps)
@@ -271,8 +267,7 @@ class ModelRenderer(Widget, ChevronMetrics, ModelRendererSP):
       if lane_line.projected_points.size == 0:
         continue
 
-      alpha = np.clip(self._lane_line_probs[i], 0.0, 0.7)
-      color = rl.Color(255, 255, 255, int(alpha * 255))
+      color = self.get_lane_line_color(i)
       draw_polygon(self._rect, lane_line.projected_points, color)
 
     for i, road_edge in enumerate(self._road_edges):
