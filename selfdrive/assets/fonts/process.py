@@ -11,7 +11,7 @@ LANGUAGES_FILE = TRANSLATIONS_DIR / "languages.json"
 
 GLYPH_PADDING = 6
 EXTRA_CHARS = "–‑✓×°§•X⚙✕◀▶✔⌫⇧␣○●↳çêüñ–‑✓×°§•€£¥·²"
-UNIFONT_LANGUAGES = {"ar", "th", "zh-CHS", "ko", "ja"}
+UNIFONT_LANGUAGES = {"ar", "th", "zh-CHT", "zh-CHS", "ko", "ja"}
 
 
 def _languages():
@@ -32,7 +32,8 @@ def _char_sets():
       chars = set(po_path.read_text(encoding="utf-8"))
     except FileNotFoundError:
       continue
-    (unifont if code in UNIFONT_LANGUAGES else base).update(chars)
+    unifont.update(chars)
+    # (unifont if code in UNIFONT_LANGUAGES else base).update(chars)
 
   return tuple(sorted(ord(c) for c in base)), tuple(sorted(ord(c) for c in unifont))
 
@@ -127,8 +128,9 @@ def main():
   for font in fonts:
     if "emoji" in font.name.lower():
       continue
-    glyphs = unifont_cp if font.stem.lower().startswith("NotoSansTC") else base_cp
-    _process_font(font, glyphs)
+    #glyphs = unifont_cp if font.stem.lower().startswith("NotoSansTC") else base_cp
+    #_process_font(font, glyphs)
+    _process_font(font, unifont_cp)
   return 0
 
 
