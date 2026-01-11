@@ -33,7 +33,7 @@ def _char_sets():
     except FileNotFoundError:
       continue
     unifont.update(chars)
-    #(unifont if code in UNIFONT_LANGUAGES else base).update(chars)
+    # (unifont if code in UNIFONT_LANGUAGES else base).update(chars)
 
   return tuple(sorted(ord(c) for c in base)), tuple(sorted(ord(c) for c in unifont))
 
@@ -128,8 +128,9 @@ def main():
   for font in fonts:
     if "emoji" in font.name.lower():
       continue
-    glyphs = unifont_cp if font.stem.lower().startswith("unifont") else base_cp
-    _process_font(font, glyphs)
+    # glyphs = unifont_cp if font.stem.lower().startswith("unifont") else base_cp
+    # _process_font(font, glyphs)
+    _process_font(font, unifont_cp)
   return 0
 
 
