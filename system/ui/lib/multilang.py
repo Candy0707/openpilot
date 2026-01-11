@@ -40,7 +40,8 @@ class Multilang:
 
   def requires_unifont(self) -> bool:
     """Certain languages require unifont to render their glyphs."""
-    return self._language in UNIFONT_LANGUAGES
+    # return self._language in UNIFONT_LANGUAGES
+    return False
 
   def setup(self):
     try:
