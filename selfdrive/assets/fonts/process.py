@@ -92,76 +92,34 @@ def _write_bmfont(path: Path, font_size: int, face: str, atlas_name: str, line_h
 
 
 def _process_font(font_path: Path, codepoints: tuple[int, ...]):
-    print(f"Processing {font_path.name}...")
+  print(f"Processing {font_path.name}...")
 
-    # 字體大小設定
-    font_size = {
-        "unifont.otf": 16,  # unifont 特殊尺寸
-    }.get(font_path.name, 200)
+  font_size = {
+    "unifont.otf": 16,  # unifont is only 16x8 or 16x16 pixels per glyph
+  }.get(font_path.name, 200)
 
-    # 讀入 TTF / OTF
-    data = font_path.read_bytes()
-    file_buf = rl.ffi.new("unsigned char[]", data)
+  data = font_path.read_bytes()
+  file_buf = rl.ffi.new("unsigned char[]", data)
+  cp_buffer = rl.ffi.new("int[]", codepoints)
+  cp_ptr = rl.ffi.cast("int *", cp_buffer)
+  glyphs = rl.load_font_data(rl.ffi.cast("unsigned char *", file_buf), len(data), font_size, cp_ptr, len(codepoints), rl.FontType.FONT_DEFAULT)
+  if glyphs == rl.ffi.NULL:
+    raise RuntimeError("raylib failed to load font data")
 
-    # 根據字體類型自動過濾 safe glyph
-    if "noto" in font_path.name.lower() or font_path.suffix.lower() in [".otf"]:
-        # NotoSansTC 或 CJK 字體，保留 ASCII + CJK
-        safe_codepoints = [cp for cp in codepoints if 0x20 <= cp <= 0x7E or 0x4E00 <= cp <= 0x9FFF]
-    else:
-        # 西文字體 / ASCII-only 字體
-        safe_codepoints = [cp for cp in codepoints if 0x20 <= cp <= 0x7E]
+  rects_ptr = rl.ffi.new("Rectangle **")
+  image = rl.gen_image_font_atlas(glyphs, rects_ptr, len(codepoints), font_size, GLYPH_PADDING, 0)
+  if image.width == 0 or image.height == 0:
+    raise RuntimeError("raylib returned an empty atlas")
 
-    skipped = set(codepoints) - set(safe_codepoints)
-    if skipped:
-        print(f"[FONT DEBUG] {font_path.name} skipped {len(skipped)} unsupported glyphs:")
-        for cp in list(skipped)[:20]:
-            try:
-                ch = chr(cp)
-            except:
-                ch = "<?>"
-            print(f"  U+{cp:04X} '{ch}'")
-        if len(skipped) > 20:
-            print(f"  ... and {len(skipped) - 20} more")
+  rects = rects_ptr[0]
+  atlas_name = f"{font_path.stem}.png"
+  atlas_path = FONT_DIR / atlas_name
+  entries, line_height, base = _glyph_metrics(glyphs, rects, codepoints)
 
-    if not safe_codepoints:
-        print(f"[FONT DEBUG] {font_path.name} has no supported glyphs, skipping")
-        return
+  if not rl.export_image(image, atlas_path.as_posix()):
+    raise RuntimeError("Failed to export atlas image")
 
-    # 分批載入 glyph 避免 crash（每批 256 glyph）
-    batch_size = 256
-    all_glyphs = []
-    all_rects = []
-    for i in range(0, len(safe_codepoints), batch_size):
-        batch = safe_codepoints[i:i+batch_size]
-        cp_buffer = rl.ffi.new("int[]", batch)
-        cp_ptr = rl.ffi.cast("int *", cp_buffer)
-
-        glyphs = rl.load_font_data(rl.ffi.cast("unsigned char *", file_buf), len(data), font_size, cp_ptr, len(batch), rl.FontType.FONT_DEFAULT)
-        if glyphs == rl.ffi.NULL:
-            raise RuntimeError(f"raylib failed to load font data for {font_path.name} (batch {i // batch_size})")
-
-        rects_ptr = rl.ffi.new("Rectangle **")
-        image = rl.gen_image_font_atlas(glyphs, rects_ptr, len(batch), font_size, GLYPH_PADDING, 0)
-        if image.width == 0 or image.height == 0:
-            raise RuntimeError(f"raylib returned an empty atlas for {font_path.name} (batch {i // batch_size})")
-
-        rects = rects_ptr[0]
-        all_glyphs.extend(glyphs[0:len(batch)])
-        all_rects.extend(rects[0:len(batch)])
-
-    # 生成 atlas 路徑
-    atlas_name = f"{font_path.stem}.png"
-    atlas_path = FONT_DIR / atlas_name
-
-    # 計算 glyph metrics
-    entries, line_height, base = _glyph_metrics(all_glyphs, all_rects, safe_codepoints)
-
-    # 輸出 atlas
-    if not rl.export_image(image, atlas_path.as_posix()):
-        raise RuntimeError(f"Failed to export atlas image for {font_path.name}")
-
-    # 寫入 bmfont
-    _write_bmfont(FONT_DIR / f"{font_path.stem}.fnt", font_size, font_path.stem, atlas_name, line_height, base, (image.width, image.height), entries)
+  _write_bmfont(FONT_DIR / f"{font_path.stem}.fnt", font_size, font_path.stem, atlas_name, line_height, base, (image.width, image.height), entries)
 
 
 def main():
@@ -170,9 +128,8 @@ def main():
   for font in fonts:
     if "emoji" in font.name.lower():
       continue
-    # glyphs = unifont_cp if font.stem.lower().startswith("unifont") else base_cp
-    # _process_font(font, glyphs)
-    _process_font(font, unifont_cp)
+    glyphs = unifont_cp if font.stem.lower().startswith("NotoSansTC") else base_cp
+    _process_font(font, glyphs)
   return 0
 
 
