@@ -14,6 +14,16 @@ class LiveMapRenderer(Widget):
     self._font_bold: rl.Font = gui_app.font(FontWeight.BOLD)
     self._font_semi_bold: rl.Font = gui_app.font(FontWeight.SEMI_BOLD)
 
+    self.speedLimitValid = bool
+    self.speedLimit = 0.0
+
+    self.speedLimitAheadValid = bool
+    self.speedLimitAhead = 0.0
+    self.speedLimitAheadDistance = 0.0
+
+    self.roadName = None
+
+
   def _update_state(self) -> None:
     sm = ui_state.sm
     is_metric = ui_state.is_metric
