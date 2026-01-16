@@ -4,6 +4,7 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+
 from cereal import messaging, log, custom
 from openpilot.common.params import Params
 from openpilot.sunnypilot.sunnylink.sunnylink_state import SunnylinkState
@@ -16,9 +17,17 @@ class UIStateSP:
   def __init__(self):
     self.params = Params()
     self.sm_services_ext = [
-      "modelManagerSP", "selfdriveStateSP", "longitudinalPlanSP", "backupManagerSP",
-      "gpsLocation", "liveTorqueParameters", "carStateSP", "liveMapDataSP", "carParamsSP", "liveDelay",
-      "liveTracks"
+      "modelManagerSP",
+      "selfdriveStateSP",
+      "longitudinalPlanSP",
+      "backupManagerSP",
+      "gpsLocation",
+      "liveTorqueParameters",
+      "carStateSP",
+      "liveMapDataSP",
+      "carParamsSP",
+      "liveDelay",
+      "liveTracks",
     ]
 
     self.sunnylink_state = SunnylinkState()
@@ -75,6 +84,7 @@ class UIStateSP:
     self.sunnylink_enabled = self.params.get_bool("SunnylinkEnabled")
     self.developer_ui = self.params.get("DevUIInfo")
     self.radar_ui = self.params.get("RadarUIInfo")
+    self.road_name = self.params.get("RoadNameToggle")
     self.rainbow_path = self.params.get_bool("RainbowMode")
     self.chevron_metrics = self.params.get("ChevronInfo")
     self.active_bundle = self.params.get("ModelManager_ActiveBundle")

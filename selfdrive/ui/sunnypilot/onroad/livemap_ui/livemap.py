@@ -23,7 +23,6 @@ class LiveMapRenderer(Widget):
 
     self.roadName = None
 
-
   def _update_state(self) -> None:
     sm = ui_state.sm
     is_metric = ui_state.is_metric
@@ -38,7 +37,8 @@ class LiveMapRenderer(Widget):
       self.roadName = sm['liveMapDataSP'].roadName
 
   def _render(self, rect: rl.Rectangle) -> None:
-    self._draw_road_name(rect)
+    if ui_state.road_name:
+      self._draw_road_name(rect)
     self._draw_speed_limit(rect)
 
   def _draw_road_name(self, rect: rl.Rectangle):
@@ -48,18 +48,16 @@ class LiveMapRenderer(Widget):
     text = self.roadName
     font_size = 36
 
-    # padding（刻意大一點）
-    pad_x = 30
-
     # 螢幕中心
     center_x = rect.x + rect.width / 2
 
     # 量文字寬（用 ex，比 measure_text 準）
-    size = rl.measure_text_ex(self._font_bold, text, font_size, 0)
-    text_w = size.x
+    measure_text = measure_text_cached(self._font_bold, text, font_size)
+    text_w = measure_text.x
+    text_h = measure_text.y
 
-    bg_w = text_w * 1.6
-    bg_h = font_size * 1.2
+    bg_w = text_w * 1.05
+    bg_h = text_h * 1.05
     bg_x = text_x = center_x - bg_w / 2
     bg_y = rect.y
 
@@ -112,11 +110,12 @@ class LiveMapRenderer(Widget):
     # 畫文字置中
     # ----------------------
     speed_text = str(int(self.speedLimit))
-    font_size = 90
-    text_width = rl.measure_text(speed_text, font_size)
-    text_height = font_size
+    font_size = 80
+    measure_text = measure_text_cached(self._font_bold, speed_text, font_size)
+    text_width = measure_text.x
+    text_height = measure_text.y
 
     text_x = center_x - text_width / 2
-    text_y = (center_y - text_height / 2) - 16
+    text_y = center_y - text_height / 2
 
     rl.draw_text_ex(self._font_bold, speed_text, rl.Vector2(text_x, text_y), font_size, 0, text_color)
