@@ -12,6 +12,7 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.developer_ui import DeveloperUiRen
 from openpilot.selfdrive.ui.sunnypilot.onroad.radar_ui import RadarUiRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.trend_ui import TrendRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.livemap_ui import LiveMapRenderer
+from openpilot.selfdrive.ui.sunnypilot.onroad.smartcruisecontrol_ui import SmartCruiseControlRenderer
 
 
 class HudRendererSP(HudRenderer):
@@ -20,6 +21,7 @@ class HudRendererSP(HudRenderer):
     self.developer_ui = DeveloperUiRenderer()
     self.trend_ui = TrendRenderer()
     self.livemap_ui = LiveMapRenderer()
+    self.smartcruisecontrol_ui = SmartCruiseControlRenderer()
 
   def _render(self, rect: rl.Rectangle) -> None:
     super()._render(rect)
@@ -27,6 +29,7 @@ class HudRendererSP(HudRenderer):
     self.RadarUiRenderer.render(rect)
     self.trend_ui.render(rect)
     self.livemap_ui.render(rect)
+    self.smartcruisecontrol_ui.render(rect)
 
   def set_model_renderer(self, model_renderer):
     self.model_renderer = model_renderer
