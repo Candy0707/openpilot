@@ -11,7 +11,7 @@ from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.ui_state import ui_state
 
 HISTORY_SEC = 10.0  # ← 可調整的時間窗（秒）
-MAX_POINTS = 2000  # 保險用（避免爆記憶體）
+MAX_POINTS = 500  # 保險用（避免爆記憶體）
 
 
 class TrendRenderer(Widget):
@@ -31,14 +31,22 @@ class TrendRenderer(Widget):
   def _update_state(self) -> None:
     sm = ui_state.sm
     # 更新 latest value（有更新才換）
+    updated = False
     if sm.updated['carState']:
       self.last_a_ego = sm['carState'].aEgo
+      updated = True
 
     if sm.updated['carControl']:
       self.last_accel_cmd = sm['carControl'].actuators.accel
+      updated = True
 
     if sm.updated['carOutput']:
       self.last_accel_out = sm['carOutput'].actuatorsOutput.accel
+      updated = True
+
+    # 這一幀什麼都不做
+    if not updated:
+      return
 
     now = time.monotonic()
     # 同步 append
