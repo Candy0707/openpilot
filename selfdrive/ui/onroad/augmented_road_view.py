@@ -18,6 +18,7 @@ if gui_app.sunnypilot_ui():
   from openpilot.selfdrive.ui.sunnypilot.onroad.augmented_road_view import BORDER_COLORS_SP
   from openpilot.selfdrive.ui.sunnypilot.onroad.driver_state import DriverStateRendererSP as DriverStateRenderer
   from openpilot.selfdrive.ui.sunnypilot.onroad.hud_renderer import HudRendererSP as HudRenderer
+  from openpilot.selfdrive.ui.sunnypilot.onroad.model_renderer import ModelRendererSP as ModelRenderer
   from openpilot.selfdrive.ui.sunnypilot.ui_state import OnroadTimerStatus
 
 OpState = log.SelfdriveState.OpenpilotState
@@ -53,6 +54,8 @@ class AugmentedRoadView(CameraView):
 
     self.model_renderer = ModelRenderer()
     self._hud_renderer = HudRenderer()
+    if gui_app.sunnypilot_ui():
+      self._hud_renderer.set_model_renderer(self.model_renderer)
     self.alert_renderer = AlertRenderer()
     self.driver_state_renderer = DriverStateRenderer()
 
@@ -80,12 +83,7 @@ class AugmentedRoadView(CameraView):
 
     # Enable scissor mode to clip all rendering within content rectangle boundaries
     # This creates a rendering viewport that prevents graphics from drawing outside the border
-    rl.begin_scissor_mode(
-      int(self._content_rect.x),
-      int(self._content_rect.y),
-      int(self._content_rect.width),
-      int(self._content_rect.height)
-    )
+    rl.begin_scissor_mode(int(self._content_rect.x), int(self._content_rect.y), int(self._content_rect.width), int(self._content_rect.height))
 
     # Render the base camera view
     super()._render(rect)
@@ -122,8 +120,7 @@ class AugmentedRoadView(CameraView):
     rl.draw_rectangle_lines_ex(rect, UI_BORDER_SIZE, rl.BLACK)
     border_roundness = 0.12
     border_color = BORDER_COLORS.get(ui_state.status, BORDER_COLORS[UIStatus.DISENGAGED])
-    border_rect = rl.Rectangle(rect.x + UI_BORDER_SIZE, rect.y + UI_BORDER_SIZE,
-                               rect.width - 2 * UI_BORDER_SIZE, rect.height - 2 * UI_BORDER_SIZE)
+    border_rect = rl.Rectangle(rect.x + UI_BORDER_SIZE, rect.y + UI_BORDER_SIZE, rect.width - 2 * UI_BORDER_SIZE, rect.height - 2 * UI_BORDER_SIZE)
     rl.draw_rectangle_rounded_lines_ex(border_rect, border_roundness, 10, UI_BORDER_SIZE, border_color)
 
   def _switch_stream_if_needed(self, sm):
@@ -167,12 +164,7 @@ class AugmentedRoadView(CameraView):
 
   def _calc_frame_matrix(self, rect: rl.Rectangle) -> np.ndarray:
     # Check if we can use cached matrix
-    cache_key = (
-      ui_state.sm.recv_frame['liveCalibration'],
-      self._content_rect.width,
-      self._content_rect.height,
-      self.stream_type
-    )
+    cache_key = (ui_state.sm.recv_frame['liveCalibration'], self._content_rect.width, self._content_rect.height, self.stream_type)
     if cache_key == self._matrix_cache_key and self._cached_matrix is not None:
       return self._cached_matrix
 
@@ -209,17 +201,9 @@ class AugmentedRoadView(CameraView):
 
     # Cache the computed transformation matrix to avoid recalculations
     self._matrix_cache_key = cache_key
-    self._cached_matrix = np.array([
-      [zoom * 2 * cx / w, 0, -x_offset / w * 2],
-      [0, zoom * 2 * cy / h, -y_offset / h * 2],
-      [0, 0, 1.0]
-    ])
+    self._cached_matrix = np.array([[zoom * 2 * cx / w, 0, -x_offset / w * 2], [0, zoom * 2 * cy / h, -y_offset / h * 2], [0, 0, 1.0]])
 
-    video_transform = np.array([
-      [zoom, 0.0, (w / 2 + x - x_offset) - (cx * zoom)],
-      [0.0, zoom, (h / 2 + y - y_offset) - (cy * zoom)],
-      [0.0, 0.0, 1.0]
-    ])
+    video_transform = np.array([[zoom, 0.0, (w / 2 + x - x_offset) - (cx * zoom)], [0.0, zoom, (h / 2 + y - y_offset) - (cy * zoom)], [0.0, 0.0, 1.0]])
     self.model_renderer.set_transform(video_transform @ calib_transform)
 
     return self._cached_matrix

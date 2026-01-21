@@ -26,11 +26,11 @@ class HudRendererSP(HudRenderer):
   def _render(self, rect: rl.Rectangle) -> None:
     super()._render(rect)
     self.developer_ui.render(rect)
-    self.RadarUiRenderer.render(rect)
+    self.radar_ui.render(rect)
     self.trend_ui.render(rect)
     self.livemap_ui.render(rect)
     self.smartcruisecontrol_ui.render(rect)
 
   def set_model_renderer(self, model_renderer):
     self.model_renderer = model_renderer
-    self.RadarUiRenderer = RadarUiRenderer(model_renderer)
+    self.radar_ui = RadarUiRenderer(model_renderer)

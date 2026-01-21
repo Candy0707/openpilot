@@ -4,6 +4,7 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+
 from enum import Enum
 
 from cereal import messaging, log, custom
@@ -73,8 +74,11 @@ class UIStateSP:
     if timer_status == OnroadTimerStatus.PAUSE and self.onroad_brightness_timer != ONROAD_BRIGHTNESS_TIMER_PAUSED:
       self.onroad_brightness_timer = ONROAD_BRIGHTNESS_TIMER_PAUSED
     # Toggling from a previously inactive state or resetting an active timer
-    elif (self.onroad_brightness_timer_param >= 0 and self.onroad_brightness != OnroadBrightness.AUTO and
-          self.onroad_brightness_timer != ONROAD_BRIGHTNESS_TIMER_PAUSED) or timer_status == OnroadTimerStatus.RESUME:
+    elif (
+      self.onroad_brightness_timer_param >= 0
+      and self.onroad_brightness != OnroadBrightness.AUTO
+      and self.onroad_brightness_timer != ONROAD_BRIGHTNESS_TIMER_PAUSED
+    ) or timer_status == OnroadTimerStatus.RESUME:
       if self.onroad_brightness == OnroadBrightness.AUTO_DARK:
         self.onroad_brightness_timer = 15 * gui_app.target_fps
       else:
