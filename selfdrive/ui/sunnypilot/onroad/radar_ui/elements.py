@@ -33,33 +33,7 @@ class RadarData():
 
     self.Points = []
 
-    STOP_SPEED = 0.02   # m/s，靜止門檻
-    MIN_DIST = 2     # 2x2 m 防重疊格
-    placed = {}
-
-    radar = sorted(radar, key=lambda p: (p.dRel, abs(p.yRel), -p.vRel))
     for point in radar:
-
-      # 雷達的測量結果
-      if not point.measured:
-        continue
-
-      # 靜止物件不要
-      if point.vRel + vego < STOP_SPEED:
-        continue
-
-      # 防重疊格子
-      coord_key = (
-        int(point.dRel / MIN_DIST),
-        int(point.yRel / MIN_DIST),
-      )
-
-      # 若該格已有更好的點 → continue
-      if coord_key in placed:
-        continue
-
-      # 記錄此格目前最好的點
-      placed[coord_key] = point
 
      #轉換成螢幕座標
       screen_pt = model.map(point.dRel, -point.yRel)
