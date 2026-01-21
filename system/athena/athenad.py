@@ -369,7 +369,7 @@ def getVersion() -> dict[str, str]:
 
 
 @dispatcher.add_method
-def setNavDestination(latitude: int = 0, longitude: int = 0, place_name: str = None, place_details: str = None) -> dict[str, int]:
+def setNavDestination(latitude: int = 0, longitude: int = 0, place_name: str | None = None, place_details: str | None = None) -> dict[str, int]:
   destination = {
     "latitude": latitude,
     "longitude": longitude,

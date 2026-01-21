@@ -56,7 +56,7 @@ function run_tests() {
 
   if [[ -z "$FAST" ]]; then
     run "ty" ty check
-    run "codespell" codespell $ALL_FILES
+    run "codespell" codespell $ALL_FILES --ignore-words=$ROOT/.codespellignore
   fi
 
   return $FAILED
