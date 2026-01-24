@@ -50,6 +50,9 @@ class RadarUiRenderer(Widget):
       self.radar.Points = self.radar.update(self.model, vego, radarpoint)
 
   def _render(self, rect: rl.Rectangle) -> None:
+    if not self.radar_ui_mode:
+      return
+
     # Draw OFF
     if self.radar_ui_mode == 0:
       return
