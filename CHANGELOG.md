@@ -1,7 +1,6 @@
-CandyPilot Version 2026.01.14 (1230)
-* 更改字體縮放比例
-* 更改道路顯示，置中、是否顯示
-* 更改速限顯示，置中
+CandyPilot Version 2026.01.24 (1230)
+* 同步上游
+* Fix Bug
 ========================
 
 sunnypilot Version 2026.01.10 (0810)
