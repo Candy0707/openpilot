@@ -15,6 +15,7 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.trend_ui import TrendRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.smartcruisecontrol_ui import SmartCruiseControlRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.road_name import RoadNameRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.rocket_fuel import RocketFuel
+from openpilot.selfdrive.ui.sunnypilot.onroad.speed_limit import SpeedLimitRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.turn_signal import TurnSignalController
 
 
@@ -26,11 +27,13 @@ class HudRendererSP(HudRenderer):
     self.smartcruisecontrol_ui = SmartCruiseControlRenderer()
     self.road_name_renderer = RoadNameRenderer()
     self.rocket_fuel = RocketFuel()
+    self.speed_limit_renderer = SpeedLimitRenderer()
     self.turn_signal_controller = TurnSignalController()
 
   def _update_state(self) -> None:
     super()._update_state()
     self.road_name_renderer.update()
+    self.speed_limit_renderer.update()
     self.turn_signal_controller.update()
 
   def _render(self, rect: rl.Rectangle) -> None:
@@ -40,6 +43,7 @@ class HudRendererSP(HudRenderer):
     self.trend_ui.render(rect)
     self.smartcruisecontrol_ui.render(rect)
     self.road_name_renderer.render(rect)
+    self.speed_limit_renderer.render(rect)
     self.turn_signal_controller.render(rect)
 
     if ui_state.rocket_fuel:
@@ -48,5 +52,3 @@ class HudRendererSP(HudRenderer):
   def set_model_renderer(self, model_renderer):
     self.model_renderer = model_renderer
     self.radar_ui = RadarUiRenderer(model_renderer)
-
-
