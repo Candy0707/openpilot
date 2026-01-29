@@ -106,8 +106,8 @@ class AlertRenderer(Widget):
     # No alert if size is none
     if ss.alertSize == 0:
       return None
-    text1=tr(ss.alertText1.replace('openpilot', 'sunnypilot'))
-    text2=tr(ss.alertText2.replace('openpilot', 'sunnypilot'))
+    text1=tr(ss.alertText1)
+    text2=tr(ss.alertText2)
     # Don't get old alert
     if recv_frame < ui_state.started_frame:
       return None

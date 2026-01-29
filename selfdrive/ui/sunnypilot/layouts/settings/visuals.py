@@ -47,7 +47,7 @@ class VisualsLayout(Widget):
     self._ChevronUI_Setting = multiple_button_item(
       lambda: tr("Chevron UI"),
       lambda: tr(DESCRIPTIONS["ChevronUI"]),
-      buttons=[lambda: tr("OFF"), lambda: tr("DISTANCE_ONLY"), lambda: tr("SPEED_ONLY"), lambda: tr("TTC_ONLY"), lambda: tr("ALL")],
+      buttons=[lambda: tr("OFF"), lambda: tr("DISTANCE"), lambda: tr("SPEED"), lambda: tr("TTC"), lambda: tr("ALL")],
       button_width=240,
       callback=self._set_chevron_ui,
       selected_index=self._params.get("ChevronInfo", return_default=True),

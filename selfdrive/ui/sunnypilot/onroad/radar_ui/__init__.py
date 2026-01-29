@@ -46,8 +46,8 @@ class RadarUiRenderer(Widget):
     sm = ui_state.sm
     if sm.updated['liveTracks']:
       radarpoint = sm['liveTracks'].points
-      vego = sm['carState'].vEgo
-      self.radar.Points = self.radar.update(self.model, vego, radarpoint)
+      vEgo = sm['carState'].vEgo
+      self.radar.Points = self.radar.update(radarpoint)
 
   def _render(self, rect: rl.Rectangle) -> None:
     if not self.radar_ui_mode:
@@ -62,24 +62,25 @@ class RadarUiRenderer(Widget):
       self._draw_radar_ui_point(rect)
 
   def _draw_radar_ui_point(self, rect: rl.Rectangle) -> None:
-    if not self.radar.Points:
+    if self.model is None or not self.radar.Points:
       return
 
-    # 單位與轉換
-    unit = "km/h" if self.is_metric else "mph"
-    conversion = CV.MS_TO_KPH if self.is_metric else CV.MS_TO_MPH
-
     for point in self.radar.Points:
+      # 轉換成螢幕座標
+      screen_pt = self.model.map(point.dRel, point.yRel)
+      if screen_pt is None:
+        continue
+
       # 取得螢幕座標
-      x = int(rect.x + point.scale_x)
-      y = int(rect.y + point.scale_y)
+      x = int(screen_pt[0])
+      y = int(screen_pt[1])
 
       if self.radar_ui_mode > 0:
         rl.draw_circle(x, y, self.label_size / 2, point.color)
 
       if self.radar_ui_mode > 1:
         # 顯示資訊：ID, dRel, yRel, vRel
-        text = f"ID:{point.trackId}\n" + f"d:{point.dRel:.1f} m\n" + f"y:{point.yRel:.1f} m\n" + f"v:{point.vRel * conversion:.1f} {unit}"
+        text = f"ID:{point.trackId}\n" + f"d:{point.dRel:.1f} m\n" + f"y:{point.yRel:.1f} m\n" + f"v:{point.vRel:.1f} m/s"
 
         size = measure_text_cached(self._font_bold, text, self.label_size, 0)
         text_width = size.x  # 寬度
@@ -90,6 +91,6 @@ class RadarUiRenderer(Widget):
         text_y = y + self.label_size / 2  # 6 是圓點半徑
 
         # 畫背景
-        rl.draw_rectangle_rounded(rl.Rectangle(text_x, text_y, text_width + 4, text_height + 4), 0.2, 8, point.color)
+        # rl.draw_rectangle_rounded(rl.Rectangle(text_x, text_y, text_width + 4, text_height + 4), 0.2, 8, point.color)
         # draw_font_ex 需要傳入 font、文字、位置、大小、顏色
         rl.draw_text_ex(self._font_bold, text, rl.Vector2(text_x, text_y), self.label_size, 0, rl.WHITE)
