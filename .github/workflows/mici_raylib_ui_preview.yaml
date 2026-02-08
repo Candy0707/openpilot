@@ -1,16 +1,12 @@
 name: "mici raylib ui preview"
 on:
   push:
-    branches:
-      - master
   pull_request_target:
     types: [assigned, opened, synchronize, reopened, edited]
-    branches:
-      - 'master'
     paths:
-      - 'selfdrive/assets/**'
-      - 'selfdrive/ui/**'
-      - 'system/ui/**'
+      - "selfdrive/assets/**"
+      - "selfdrive/ui/**"
+      - "system/ui/**"
   workflow_dispatch:
 
 env:
@@ -24,7 +20,7 @@ env:
 
 jobs:
   preview:
-    if: github.repository == 'sunnypilot/sunnypilot'
+    if: github.repository == 'Candy0707/openpilot'
     name: preview
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -51,7 +47,7 @@ jobs:
         run: |
           echo "run_id=$(curl https://api.github.com/repos/${{ github.repository }}/commits/${{ env.SHA }}/check-runs | jq -r '.check_runs[] | select(.name == "${{ env.UI_JOB_NAME }}") | .html_url | capture("(?<number>[0-9]+)") | .number')" >> $GITHUB_OUTPUT
 
-      - name: Getting proposed ui  # filename: pr_ui/mici_ui_replay.mp4
+      - name: Getting proposed ui # filename: pr_ui/mici_ui_replay.mp4
         id: download-artifact
         uses: dawidd6/action-download-artifact@v6
         with:
@@ -61,7 +57,7 @@ jobs:
           name: mici-raylib-report-1-${{ env.REPORT_NAME }}
           path: ${{ github.workspace }}/pr_ui
 
-      - name: Getting master ui  # filename: master_ui_raylib/mici_ui_replay.mp4
+      - name: Getting master ui # filename: master_ui_raylib/mici_ui_replay.mp4
         uses: actions/checkout@v4
         with:
           repository: sunnypilot/ci-artifacts
