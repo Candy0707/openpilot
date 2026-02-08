@@ -1,11 +1,11 @@
 name: weekly CI test report
 on:
   schedule:
-    - cron: '37 9 * * 1' # 9:37AM UTC -> 2:37AM PST every monday
+    - cron: "37 9 * * 1" # 9:37AM UTC -> 2:37AM PST every monday
   workflow_dispatch:
     inputs:
       ci_runs:
-        description: 'The amount of runs to trigger in CI test report'
+        description: "The amount of runs to trigger in CI test report"
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -15,7 +15,7 @@ env:
 
 jobs:
   setup:
-    if: github.repository == 'sunnypilot/sunnypilot'
+    if: github.repository == 'Candy0707/openpilot'
     runs-on: ubuntu-latest
     outputs:
       ci_runs: ${{ steps.ci_runs_setup.outputs.matrix }}
@@ -27,7 +27,7 @@ jobs:
           echo "matrix=$matrix" >> $GITHUB_OUTPUT
 
   ci_matrix_run:
-    needs: [ setup ]
+    needs: [setup]
     strategy:
       fail-fast: false
       matrix: ${{fromJSON(needs.setup.outputs.ci_runs)}}
