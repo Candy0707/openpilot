@@ -138,13 +138,6 @@ class UIStateSP:
     if CP_SP_bytes is not None:
       self.CP_SP = messaging.log_from_bytes(CP_SP_bytes, custom.CarParamsSP)
       self.has_icbm = self.CP_SP.intelligentCruiseButtonManagementAvailable and self.params.get_bool("IntelligentCruiseButtonManagement")
-    self.sunnylink_enabled = self.params.get_bool("SunnylinkEnabled")
-    self.developer_ui = self.params.get("DevUIInfo")
-    self.radar_ui = self.params.get("RadarUIInfo")
-    self.road_name = self.params.get("RoadNameToggle")
-    self.rocket_fuel = self.params.get_bool("RocketFuel")
-    self.rainbow_path = self.params.get_bool("RainbowMode")
-    self.chevron_metrics = self.params.get("ChevronInfo")
     self.active_bundle = self.params.get("ModelManager_ActiveBundle")
     self.blindspot = self.params.get_bool("BlindSpot")
     self.chevron_metrics = self.params.get("ChevronInfo")
@@ -163,6 +156,8 @@ class UIStateSP:
     self.true_v_ego_ui = self.params.get_bool("TrueVEgoUI")
     self.turn_signals = self.params.get_bool("ShowTurnSignals")
     self.boot_offroad_mode = self.params.get("DeviceBootMode", return_default=True)
+    self.radar_ui = self.params.get("RadarUIInfo")
+
 
 
 class DeviceSP:

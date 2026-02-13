@@ -11,7 +11,7 @@ LANGUAGES_FILE = TRANSLATIONS_DIR / "languages.json"
 
 GLYPH_PADDING = 6
 EXTRA_CHARS = "–‑✓×°§•X⚙✕◀▶✔⌫⇧␣○●↳çêüñ–‑✓×°§•€£¥·²"
-UNIFONT_LANGUAGES = {"ar", "th", "zh-CHT", "zh-CHS", "ko", "ja"}
+UNIFONT_LANGUAGES = {"th", "zh-CHT", "zh-CHS", "ko", "ja"}
 
 
 def _languages():
@@ -49,18 +49,16 @@ def _glyph_metrics(glyphs, rects, codepoints):
     offset_y = int(round(glyph.offsetY))
     min_offset_y = offset_y if min_offset_y is None else min(min_offset_y, offset_y)
     max_extent = max(max_extent, offset_y + height)
-    entries.append(
-      {
-        "id": codepoint,
-        "x": int(round(rect.x)),
-        "y": int(round(rect.y)),
-        "width": width,
-        "height": height,
-        "xoffset": int(round(glyph.offsetX)),
-        "yoffset": offset_y,
-        "xadvance": int(round(glyph.advanceX)),
-      }
-    )
+    entries.append({
+      "id": codepoint,
+      "x": int(round(rect.x)),
+      "y": int(round(rect.y)),
+      "width": width,
+      "height": height,
+      "xoffset": int(round(glyph.offsetX)),
+      "yoffset": offset_y,
+      "xadvance": int(round(glyph.advanceX)),
+    })
 
   if min_offset_y is None:
     raise RuntimeError("No glyphs were generated")
@@ -83,10 +81,8 @@ def _write_bmfont(path: Path, font_size: int, face: str, atlas_name: str, line_h
   ]
   for entry in entries:
     lines.append(
-      (
-        "char id={id:<4} x={x:<5} y={y:<5} width={width:<5} height={height:<5} "
-        + "xoffset={xoffset:<5} yoffset={yoffset:<5} xadvance={xadvance:<5} page=0  chnl=15"
-      ).format(**entry)
+      ("char id={id:<4} x={x:<5} y={y:<5} width={width:<5} height={height:<5} " +
+       "xoffset={xoffset:<5} yoffset={yoffset:<5} xadvance={xadvance:<5} page=0  chnl=15").format(**entry)
     )
   path.write_text("\n".join(lines) + "\n")
 
@@ -128,9 +124,8 @@ def main():
   for font in fonts:
     if "emoji" in font.name.lower():
       continue
-    #glyphs = unifont_cp if font.stem.lower().startswith("NotoSansTC") else base_cp
-    #_process_font(font, glyphs)
-    _process_font(font, unifont_cp)
+    glyphs = unifont_cp if font.stem.lower().startswith("NotoSansTC") else base_cp
+    _process_font(font, glyphs)
   return 0
 
 
