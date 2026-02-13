@@ -8,7 +8,7 @@ import pyray as rl
 from dataclasses import dataclass
 
 from openpilot.common.constants import CV
-from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
+
 
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 
@@ -347,52 +347,3 @@ class AltitudeElement(GpsInfoElement):
 
     value = f"{altitude:.1f}" if gps_accuracy != 0.0 else "-"
     return UiElement(value, "ALT.", self.unit, rl.WHITE)
-
-class steerControlTypeElement:
-  def __init__(self):
-    self.unit = ""
-    self.value = 0.0
-
-  def update(self, sm, is_metric: bool) -> UiElement:
-    #if sm.updated['carParams']:
-    steerControlType = sm['carParams'].steerControlType
-    flags = sm['carParamsSP'].flags
-    self.unit = "ON" if bool(flags & ToyotaFlagsSP.USING_ANGLE_CONTROL) else "OFF"
-    self.value = f'{steerControlType}'
-    return UiElement(self.value, "LTA", self.unit, rl.WHITE)
-
-class longControlStateElement:
-  def __init__(self):
-    self.unit = ""
-    self.value = "-"
-
-  def update(self, sm, is_metric: bool) -> UiElement:
-    longControlState = sm['carControl'].actuators.longControlState
-    self.value = f'{longControlState}'
-
-    color = rl.Color(145, 155, 149, 255)
-    if self.value == 'off':
-     color = rl.Color(145, 155, 149, 255)
-    if self.value == 'pid':
-     color = rl.Color(0, 255, 0, 255)
-    if self.value == 'stopping':
-     color = rl.Color(255, 0, 0, 255)
-    if self.value == 'starting':
-     color = rl.Color(0, 0, 255, 255)
-
-    return UiElement(self.value, "L.C", self.unit, color)
-
-class longControlAccelElement:
-  def __init__(self):
-    self.unit = "m/s^2"
-    self.value = "-"
-
-  def update(self, sm, is_metric: bool) -> UiElement:
-    longControlAccel = sm['carControl'].actuators.accel
-    color = rl.Color(255, 255, 255, 255)
-    if longControlAccel > 0.0:
-     color = rl.Color(0, 255, 0, 255)
-    if longControlAccel < 0.0:
-     color = rl.Color(255, 0, 0, 255)
-    self.value = f"{longControlAccel:.1f}"
-    return UiElement(self.value, "C.ACC.", self.unit, color)
