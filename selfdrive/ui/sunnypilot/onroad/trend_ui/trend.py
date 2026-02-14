@@ -68,7 +68,7 @@ class TrendRenderer(Widget):
     is_wide = rect.width >= 2000
     draw_w = min(rect.width, 600) if is_wide else min(rect.width, 460)
     draw_h = min(rect.height, 210)
-    draw_x = int(rect.x + 260)
+    draw_x = int(rect.width / 2 + 240)
     draw_y = int(rect.y + 40)
     draw_w = min(draw_w, rect.width - (draw_x - rect.x))
     draw_h = min(draw_h, rect.height - (draw_y - rect.y))

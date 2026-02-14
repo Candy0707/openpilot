@@ -1,1 +1,0 @@
-from openpilot.selfdrive.ui.sunnypilot.onroad.smartcruisecontrol_ui.smartcruisecontrol import SmartCruiseControlRenderer

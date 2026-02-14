@@ -12,15 +12,15 @@ jobs:
       issues: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
+    - uses: actions/checkout@v6
+      with:
+        submodules: false
 
-      # Label PRs
-      - uses: actions/labeler@v5.0.0
-        with:
-          dot: true
-          configuration-path: .github/labeler.yaml
+    # Label PRs
+    - uses: actions/labeler@v6
+      with:
+        dot: true
+        configuration-path: .github/labeler.yaml
 
       # Check PR target branch
       - name: check branch

@@ -29,7 +29,7 @@ jobs:
       pull-requests: write
       actions: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           submodules: true
 
@@ -57,8 +57,8 @@ jobs:
           name: mici-raylib-report-1-${{ env.REPORT_NAME }}
           path: ${{ github.workspace }}/pr_ui
 
-      - name: Getting master ui # filename: master_ui_raylib/mici_ui_replay.mp4
-        uses: actions/checkout@v4
+      - name: Getting master ui  # filename: master_ui_raylib/mici_ui_replay.mp4
+        uses: actions/checkout@v6
         with:
           repository: sunnypilot/ci-artifacts
           ssh-key: ${{ secrets.CI_ARTIFACTS_DEPLOY_KEY }}
