@@ -17,6 +17,10 @@ from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolve
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
+from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
+from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
+from opendbc.car.interfaces import ACCEL_MIN
+
 DecState = custom.LongitudinalPlanSP.DynamicExperimentalControl.DynamicExperimentalControlState
 LongitudinalPlanSource = custom.LongitudinalPlanSP.LongitudinalPlanSource
 
@@ -26,6 +30,8 @@ class LongitudinalPlannerSP:
     self.events_sp = EventsSP()
     self.resolver = SpeedLimitResolver()
     self.dec = DynamicExperimentalController(CP, mpc)
+    self.accel_controller = AccelPersonalityController()
+    self.dynamic_follow = FollowDistanceController()
     self.scc = SmartCruiseControl()
     self.resolver = SpeedLimitResolver()
     self.sla = SpeedLimitAssist(CP, CP_SP)
@@ -33,8 +39,19 @@ class LongitudinalPlannerSP:
     self.source = LongitudinalPlanSource.cruise
     self.e2e_alerts_helper = E2EAlertsHelper()
 
-    self.output_v_target = 0.
-    self.output_a_target = 0.
+    self.output_v_target = 0.0
+    self.output_a_target = 0.0
+
+  @property
+  def mlsim(self) -> bool:
+    # If we don't have a generation set, we assume it's default model. Which as of today are mlsim.
+    return bool(self.generation is None or self.generation >= 11)
+
+  def get_mpc_mode(self) -> str | None:
+    if not self.dec.active():
+      return None
+
+    return self.dec.mode()
 
   def is_e2e(self, sm: messaging.SubMaster) -> bool:
     experimental_mode = sm['selfdriveState'].experimentalMode
@@ -42,6 +59,21 @@ class LongitudinalPlannerSP:
       return experimental_mode
 
     return experimental_mode and self.dec.mode() == "blended"
+
+  def get_accel_clip(self, v_ego: float, mode: str) -> list[float] | None:
+    if mode == 'acc' and self.accel_controller.is_enabled():
+      return [ACCEL_MIN, self.accel_controller.get_max_accel(v_ego)]
+    return None
+
+  def get_cruise_min_accel(self, v_ego: float) -> float | None:
+    if self.accel_controller.is_enabled():
+      return self.accel_controller.get_min_accel(v_ego)
+    return None
+
+  def get_t_follow(self, v_ego: float) -> float | None:
+    if self.dynamic_follow.is_enabled():
+      return self.dynamic_follow.get_follow_distance_multiplier(v_ego)
+    return None
 
   def update_targets(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float) -> tuple[float, float]:
     CS = sm['carState']
@@ -59,8 +91,18 @@ class LongitudinalPlannerSP:
 
     # Speed Limit Assist
     has_speed_limit = self.resolver.speed_limit_valid or self.resolver.speed_limit_last_valid
-    self.sla.update(long_enabled, long_override, v_ego, a_ego, v_cruise_cluster, self.resolver.speed_limit,
-                    self.resolver.speed_limit_final_last, has_speed_limit, self.resolver.distance, self.events_sp)
+    self.sla.update(
+      long_enabled,
+      long_override,
+      v_ego,
+      a_ego,
+      v_cruise_cluster,
+      self.resolver.speed_limit,
+      self.resolver.speed_limit_final_last,
+      has_speed_limit,
+      self.resolver.distance,
+      self.events_sp,
+    )
 
     targets = {
       LongitudinalPlanSource.cruise: (v_cruise, a_ego),
