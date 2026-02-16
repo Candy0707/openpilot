@@ -9,7 +9,7 @@ from enum import IntEnum
 from openpilot.selfdrive.ui.sunnypilot.layouts.settings.cruise_sub_layouts.speed_limit_settings import SpeedLimitSettingsLayout
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.multilang import tr, tr_noop
-from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, option_item_sp, simple_button_item_sp
+from openpilot.system.ui.sunnypilot.widgets.list_view import multiple_button_item_sp, toggle_item_sp, option_item_sp, simple_button_item_sp
 from openpilot.system.ui.widgets import Widget
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 
@@ -87,6 +87,24 @@ class CruiseLayout(Widget):
       description=tr("Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal."),
       param="DynamicExperimentalControl")
 
+    self.accelpersonality_toggle = toggle_item_sp(
+      title=tr("Enable AccelPersonality Control"),
+      description=tr(""),
+      param="AccelPersonalityEnabled")
+
+    self.accelpersonality_mode = multiple_button_item_sp(
+      title=lambda: tr("Accel Personality"),
+      description=tr(""),
+      buttons=[tr("Sport"), tr("Normal"), tr("ECO")],
+      param="AccelPersonality",
+      button_width=380,
+    )
+
+    self.dynamicfollow_toggle = toggle_item_sp(
+      title=tr("Enable Dynamic Follow"),
+      description=tr(""),
+      param="DynamicFollow")
+
     items = [
       self.icbm_toggle,
       self.dec_toggle,
@@ -96,6 +114,9 @@ class CruiseLayout(Widget):
       self.custom_acc_short_increment,
       self.custom_acc_long_increment,
       self.sla_settings_button,
+      self.accelpersonality_toggle,
+      self.accelpersonality_mode,
+      self.dynamicfollow_toggle
     ]
     return items
 
