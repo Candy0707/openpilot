@@ -96,7 +96,7 @@ DEFAULT_TEXT_COLOR = rl.Color(255, 255, 255, int(255 * 0.9))
 # Qt draws fonts accounting for ascent/descent differently, so compensate to match old styles
 # The real scales for the fonts below range from 1.212 to 1.266
 # 字體比例
-FONT_SCALE = 1.6 if BIG_UI else 1.16
+FONT_SCALE = 1.35 if BIG_UI else 1.16
 
 ASSETS_DIR = files("openpilot.selfdrive").joinpath("assets")
 FONT_DIR = ASSETS_DIR.joinpath("fonts")
@@ -301,24 +301,35 @@ class GuiApplication(GuiApplicationExt):
         output_fps = fps * RECORD_SPEED
         ffmpeg_args = [
           'ffmpeg',
-          '-v', 'warning',          # Reduce ffmpeg log spam
-          '-nostats',               # Suppress encoding progress
-          '-f', 'rawvideo',         # Input format
-          '-pix_fmt', 'rgba',       # Input pixel format
-          '-s', f'{self._width}x{self._height}',  # Input resolution
-          '-r', str(fps),           # Input frame rate
-          '-i', 'pipe:0',           # Input from stdin
-          '-vf', 'vflip,format=yuv420p',  # Flip vertically and convert to yuv420p
-          '-r', str(output_fps),    # Output frame rate (for speed multiplier)
-          '-c:v', 'libx264',
-          '-preset', 'ultrafast',
+          '-v',
+          'warning',  # Reduce ffmpeg log spam
+          '-nostats',  # Suppress encoding progress
+          '-f',
+          'rawvideo',  # Input format
+          '-pix_fmt',
+          'rgba',  # Input pixel format
+          '-s',
+          f'{self._width}x{self._height}',  # Input resolution
+          '-r',
+          str(fps),  # Input frame rate
+          '-i',
+          'pipe:0',  # Input from stdin
+          '-vf',
+          'vflip,format=yuv420p',  # Flip vertically and convert to yuv420p
+          '-r',
+          str(output_fps),  # Output frame rate (for speed multiplier)
+          '-c:v',
+          'libx264',
+          '-preset',
+          'ultrafast',
         ]
         if RECORD_BITRATE:
           ffmpeg_args += ['-b:v', RECORD_BITRATE, '-maxrate', RECORD_BITRATE, '-bufsize', RECORD_BITRATE]
         ffmpeg_args += [
-          '-y',                     # Overwrite existing file
-          '-f', 'mp4',              # Output format
-          RECORD_OUTPUT,            # Output file path
+          '-y',  # Overwrite existing file
+          '-f',
+          'mp4',  # Output format
+          RECORD_OUTPUT,  # Output file path
         ]
         self._ffmpeg_proc = subprocess.Popen(ffmpeg_args, stdin=subprocess.PIPE)
         self._ffmpeg_queue = queue.Queue(maxsize=60)  # Buffer up to 60 frames
