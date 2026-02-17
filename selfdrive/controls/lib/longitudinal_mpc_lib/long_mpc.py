@@ -55,9 +55,9 @@ FCW_IDXS = T_IDXS < 5.0
 T_DIFFS = np.diff(T_IDXS, prepend=[0.])
 # MPC 假設「舒服煞車」只能 2.5m/s²
 # 2.5m/s²->3.5m/s²
-COMFORT_BRAKE = 3.5
+COMFORT_BRAKE = 2.5
 # 保守距離
-STOP_DISTANCE = 4.0
+STOP_DISTANCE = 6.0
 CRUISE_MIN_ACCEL = -1.2
 CRUISE_MAX_ACCEL = 1.6
 MIN_X_LEAD_FACTOR = 0.5
