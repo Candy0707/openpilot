@@ -4,6 +4,7 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+
 import time
 
 import cereal.messaging as messaging
@@ -36,10 +37,12 @@ class ControlsExt(ModelStateBase):
 
   def initialize_lateral_control(self, lac, CI, dt):
     # --- 攔截並注入 TSS2 動態熱備援控制器 ---
-    if self.CP.carName == "toyota":
+    if self.CP.brand == "toyota":
       from opendbc.car.toyota.values import TSS2_CAR
+
       if self.CP.carFingerprint in TSS2_CAR and len(self.CP.lateralTuning.torque.as_builder().to_dict()) > 0:
         from openpilot.selfdrive.controls.lib.latcontrol_dynamic import LatControlDynamic
+
         return LatControlDynamic(self.CP, self.CP_SP, CI, dt)
     # ----------------------------------------
 
