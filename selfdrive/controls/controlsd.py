@@ -143,6 +143,20 @@ class Controls(ControlsExt):
     steer, steeringAngleDeg, lac_log = self.LaC.update(CC.latActive, CS, self.VM, lp,
                                                        self.steer_limited_by_safety, self.desired_curvature,
                                                        self.calibrated_pose, curvature_limited, lat_delay)
+
+    # --- 讀取大腦內部決定並寫入 Enum ---
+    if hasattr(self.LaC, 'use_angle'):
+      if self.LaC.use_angle:
+        actuators.steerControlType = car.CarControl.Actuators.SteerControlType.angle
+      else:
+        actuators.steerControlType = car.CarControl.Actuators.SteerControlType.torque
+    else:
+      if self.CP.steerControlType == car.CarParams.SteerControlType.angle:
+        actuators.steerControlType = car.CarControl.Actuators.SteerControlType.angle
+      else:
+        actuators.steerControlType = car.CarControl.Actuators.SteerControlType.torque
+    # -----------------------------------
+
     actuators.torque = float(steer)
     actuators.steeringAngleDeg = float(steeringAngleDeg)
     # Ensure no NaNs/Infs
@@ -215,13 +229,21 @@ class Controls(ControlsExt):
     cs.forceDecel = bool((self.sm['driverMonitoringState'].awarenessStatus < 0.) or
                          (self.sm['selfdriveState'].state == State.softDisabling))
 
-    lat_tuning = self.CP.lateralTuning.which()
-    if self.CP.steerControlType == car.CarParams.SteerControlType.angle:
-      cs.lateralControlState.angleState = lac_log
-    elif lat_tuning == 'pid':
-      cs.lateralControlState.pidState = lac_log
-    elif lat_tuning == 'torque':
-      cs.lateralControlState.torqueState = lac_log
+    # --- 防崩潰 Log 紀錄區塊 ---
+    if hasattr(self.LaC, 'use_angle'):
+      if self.LaC.use_angle:
+        cs.lateralControlState.angleState = lac_log
+      else:
+        cs.lateralControlState.torqueState = lac_log
+    else:
+      lat_tuning = self.CP.lateralTuning.which()
+      if self.CP.steerControlType == car.CarParams.SteerControlType.angle:
+        cs.lateralControlState.angleState = lac_log
+      elif lat_tuning == 'pid':
+        cs.lateralControlState.pidState = lac_log
+      elif lat_tuning == 'torque':
+        cs.lateralControlState.torqueState = lac_log
+    # ---------------------------
 
     self.pm.send('controlsState', dat)
 

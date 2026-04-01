@@ -35,6 +35,14 @@ class ControlsExt(ModelStateBase):
     self.pm_services_ext = ['carControlSP']
 
   def initialize_lateral_control(self, lac, CI, dt):
+    # --- 攔截並注入 TSS2 動態熱備援控制器 ---
+    if self.CP.carName == "toyota":
+      from opendbc.car.toyota.values import TSS2_CAR
+      if self.CP.carFingerprint in TSS2_CAR and len(self.CP.lateralTuning.torque.as_builder().to_dict()) > 0:
+        from openpilot.selfdrive.controls.lib.latcontrol_dynamic import LatControlDynamic
+        return LatControlDynamic(self.CP, self.CP_SP, CI, dt)
+    # ----------------------------------------
+
     enforce_torque_control = self.params.get_bool("EnforceTorqueControl")
     torque_versions = self.params.get("TorqueControlTune")
     if not enforce_torque_control:
