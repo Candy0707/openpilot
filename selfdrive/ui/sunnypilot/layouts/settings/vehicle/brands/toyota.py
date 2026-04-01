@@ -13,12 +13,17 @@ from openpilot.system.ui.widgets.confirm_dialog import ConfirmDialog
 from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp
 from openpilot.system.ui.sunnypilot.widgets.list_view import multiple_button_item_sp
 
-from opendbc.car.toyota.values import ToyotaFlags
-from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
+
+ONROAD_ONLY_DESCRIPTION = tr_noop("Start the vehicle to check vehicle compatibility.")
+SNG_HACK_UNAVAILABLE = tr_noop("sunnypilot Longitudinal Control must be available and enabled for your vehicle to use this feature.")
 
 DESCRIPTIONS = {
   'enforce_stock_longitudinal': tr_noop(
     'sunnypilot will not take over control of gas and brakes. Factory Toyota longitudinal control will be used.'
+  ),
+  'stop_and_go_hack': tr_noop(
+    'sunnypilot will allow some Toyota/Lexus cars to auto resume during stop and go traffic. ' +
+    'This feature is only applicable to certain models that are able to use longitudinal control. This is an alpha feature. Use at your own risk.'
   ),
   'ToyotaEnableAngleControl': tr_noop(
     'Enable Using Angle Control'
@@ -40,7 +45,15 @@ class ToyotaSettings(BrandSettings):
       description=lambda: tr(DESCRIPTIONS["enforce_stock_longitudinal"]),
       initial_state=ui_state.params.get_bool("ToyotaEnforceStockLongitudinal"),
       callback=self._on_enable_enforce_stock_longitudinal,
-      enabled=lambda: not ui_state.started,
+      enabled=lambda: not ui_state.engaged,
+    )
+
+    self.stop_and_go_hack = toggle_item_sp(
+      lambda: tr("Stop and Go Hack (Alpha)"),
+      description=lambda: tr(DESCRIPTIONS["stop_and_go_hack"]),
+      initial_state=ui_state.params.get_bool("ToyotaStopAndGoHack"),
+      callback=self._on_enable_stop_and_go_hack,
+      enabled=lambda: not ui_state.engaged,
     )
 
     self.enable_angle_control = toggle_item_sp(
@@ -61,9 +74,10 @@ class ToyotaSettings(BrandSettings):
     )
 
     self.items = [
-    self.enforce_stock_longitudinal,
-    self.enable_angle_control,
-    self.enable_auto_hold,
+      self.enforce_stock_longitudinal,
+      self.stop_and_go_hack,
+      self.enable_angle_control,
+      self.enable_auto_hold
     ]
 
   def _on_enable_enforce_stock_longitudinal(self, state: bool):
@@ -73,6 +87,8 @@ class ToyotaSettings(BrandSettings):
           ui_state.params.put_bool("ToyotaEnforceStockLongitudinal", True)
           if ui_state.params.get_bool("AlphaLongitudinalEnabled"):
             ui_state.params.put_bool("AlphaLongitudinalEnabled", False)
+          ui_state.params.put_bool("ToyotaStopAndGoHack", False)
+          self.stop_and_go_hack.action_item.set_state(False)
           ui_state.params.put_bool("OnroadCycleRequested", True)
         else:
           self.enforce_stock_longitudinal.action_item.set_state(False)
@@ -80,11 +96,30 @@ class ToyotaSettings(BrandSettings):
       content = (f"<h1>{self.enforce_stock_longitudinal.title}</h1><br>" +
                  f"<p>{self.enforce_stock_longitudinal.description}</p>")
 
-      dlg = ConfirmDialog(content, tr("Enable"), rich=True)
-      gui_app.set_modal_overlay(dlg, callback=confirm_callback)
+      dlg = ConfirmDialog(content, tr("Enable"), rich=True, callback=confirm_callback)
+      gui_app.push_widget(dlg)
 
     else:
       ui_state.params.put_bool("ToyotaEnforceStockLongitudinal", False)
+      ui_state.params.put_bool("OnroadCycleRequested", True)
+
+  def _on_enable_stop_and_go_hack(self, state: bool):
+    if state:
+      def confirm_callback(result: int):
+        if result == DialogResult.CONFIRM:
+          ui_state.params.put_bool("ToyotaStopAndGoHack", True)
+          ui_state.params.put_bool("OnroadCycleRequested", True)
+        else:
+          self.stop_and_go_hack.action_item.set_state(False)
+
+      content = (f"<h1>{self.stop_and_go_hack.title}</h1><br>" +
+                 f"<p>{self.stop_and_go_hack.description}</p>")
+
+      dlg = ConfirmDialog(content, tr("Enable"), rich=True, callback=confirm_callback)
+      gui_app.push_widget(dlg)
+
+    else:
+      ui_state.params.put_bool("ToyotaStopAndGoHack", False)
       ui_state.params.put_bool("OnroadCycleRequested", True)
 
   def _on_enable_angle_control(self, state: bool):
@@ -99,8 +134,8 @@ class ToyotaSettings(BrandSettings):
       content = (f"<h1>{self.enable_angle_control.title}</h1><br>" +
                  f"<p>{self.enable_angle_control.description}</p>")
 
-      dlg = ConfirmDialog(content, tr("Enable"), rich=True)
-      gui_app.set_modal_overlay(dlg, callback=confirm_callback)
+      dlg = ConfirmDialog(content, tr("Enable"), rich=True, callback=confirm_callback)
+      gui_app.push_widget(dlg)
 
     else:
       ui_state.params.put_bool("ToyotaEnableAngleControl", False)
@@ -112,4 +147,27 @@ class ToyotaSettings(BrandSettings):
 
 
   def update_settings(self):
-    pass
+    if ui_state.CP is not None:
+      longitudinal = ui_state.CP.openpilotLongitudinalControl
+      enforce_stock = self.enforce_stock_longitudinal.action_item.get_state()
+
+      if longitudinal and not enforce_stock:
+        self.stop_and_go_hack.action_item.set_enabled(not ui_state.engaged)
+        new_desc = tr(DESCRIPTIONS["stop_and_go_hack"])
+        show_desc = False
+      else:
+        self.stop_and_go_hack.action_item.set_enabled(False)
+        self.stop_and_go_hack.action_item.set_state(False)
+        new_desc = "<b>" + tr(SNG_HACK_UNAVAILABLE) + "</b>\n\n" + tr(DESCRIPTIONS["stop_and_go_hack"])
+        show_desc = True
+
+      if self.stop_and_go_hack.description != new_desc:
+        self.stop_and_go_hack.set_description(new_desc)
+        if show_desc:
+          self.stop_and_go_hack.show_description(True)
+    else:
+      self.stop_and_go_hack.action_item.set_enabled(False)
+      new_desc = "<b>" + tr(ONROAD_ONLY_DESCRIPTION) + "</b>\n\n" + tr(DESCRIPTIONS["stop_and_go_hack"])
+      if self.stop_and_go_hack.description != new_desc:
+        self.stop_and_go_hack.set_description(new_desc)
+        self.stop_and_go_hack.show_description(True)
