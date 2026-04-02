@@ -43,7 +43,7 @@ class ControlsExt(ModelStateBase):
       # 確認是 torque 後，才能安全讀取裡面的參數長度
       if len(self.CP.lateralTuning.torque.as_builder().to_dict()) > 0:
         # ⚠️ 請注意：這裡的 import 路徑必須完全正確。如果寫錯，開機就會直接報錯！
-        from openpilot.selfdrive.controls.lib.latcontrol_dynamic import LatControlDynamic
+        from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_dynamic import LatControlDynamic
         return LatControlDynamic(self.CP, self.CP_SP, CI, dt)
     # ----------------------------------------
 
