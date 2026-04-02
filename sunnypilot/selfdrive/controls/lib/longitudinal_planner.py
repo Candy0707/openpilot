@@ -115,6 +115,9 @@ class LongitudinalPlannerSP:
     self.output_v_target, self.output_a_target = targets[self.source]
     return self.output_v_target, self.output_a_target
 
+  def update_a_desired_trajectory(self, a_desired_trajectory: list[float]):
+    return a_desired_trajectory
+
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
     self.dec.update(sm)
