@@ -1,1 +1,0 @@
-from openpilot.selfdrive.ui.sunnypilot.onroad.trend_ui.trend import TrendRenderer
