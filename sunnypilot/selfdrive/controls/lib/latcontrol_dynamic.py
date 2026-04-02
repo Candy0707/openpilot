@@ -32,11 +32,11 @@ class LatControlDynamic(LatControl):
     is_safe_to_switch = abs(CS.steeringAngleDeg) < 10.0 and abs(CS.steeringRateDeg) < 5.0
 
     # 1. 判斷主控權與遲滯區間，並且鎖死過彎時的切換
-    if CS.vEgo > 12.0 and not self.use_angle and is_safe_to_switch:
+    if CS.vEgo > 22.0 and not self.use_angle and is_safe_to_switch:
       self.use_angle = True
       self.angle_ctrl.reset()  # 確保角度控制器狀態乾淨
       
-    elif CS.vEgo < 6.0 and self.use_angle and is_safe_to_switch:
+    elif CS.vEgo < 16.0 and self.use_angle and is_safe_to_switch:
       self.use_angle = False
       self.torque_ctrl.reset() # 確保扭矩控制器狀態乾淨
       if hasattr(self.torque_ctrl, 'pid'):
