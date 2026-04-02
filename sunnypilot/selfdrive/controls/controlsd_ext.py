@@ -18,6 +18,9 @@ from openpilot.sunnypilot.modeld_v2.modeld_base import ModelStateBase
 from openpilot.sunnypilot.selfdrive.controls.lib.blinker_pause_lateral import BlinkerPauseLateral
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_v0 import LatControlTorque as LatControlTorqueV0
 
+# 導入 HTD 模組
+from openpilot.sunnypilot.selfdrive.controls.lib.human_turn_detection import HumanTurnDetection, HTDState
+
 
 class ControlsExt(ModelStateBase):
   def __init__(self, CP: structs.CarParams, params: Params):
@@ -26,6 +29,11 @@ class ControlsExt(ModelStateBase):
     self.params = params
     self._param_update_time: float = 0.0
     self.blinker_pause_lateral = BlinkerPauseLateral()
+
+    # --- 初始化 HTD ---
+    self.htd = HumanTurnDetection()
+    self.htd_state = HTDState.INACTIVE
+    # ------------------
 
     cloudlog.info("controlsd_ext is waiting for CarParamsSP")
     self.CP_SP = messaging.log_from_bytes(params.get("CarParamsSP", block=True), custom.CarParamsSP)
@@ -37,7 +45,7 @@ class ControlsExt(ModelStateBase):
   def initialize_lateral_control(self, lac, CI, dt):
     # --- 攔截並注入 TSS2 動態熱備援控制器 (移除 try-except，錯誤直接報出) ---
     from opendbc.car.toyota.values import TSS2_CAR
-    
+
     # 🌟 必須先用 .which() 判斷當前活躍的 Union 是不是 'torque'，避免 Cap'n Proto 底層報錯
     if self.CP.carFingerprint in TSS2_CAR and self.CP.lateralTuning.which() == 'torque':
       # 確認是 torque 後，才能安全讀取裡面的參數長度
@@ -67,15 +75,37 @@ class ControlsExt(ModelStateBase):
       self._param_update_time = time.monotonic()
 
   def get_lat_active(self, sm: messaging.SubMaster) -> bool:
-    if self.blinker_pause_lateral.update(sm['carState']):
-      return False
+    CS = sm['carState']
+    _lat_active = False
 
-    ss_sp = sm['selfdriveStateSP']
-    if ss_sp.mads.available:
-      return bool(ss_sp.mads.active)
+    # 先判斷方向燈是否暫停橫向控制，或者依據 MADS 狀態決定 _lat_active
+    if self.blinker_pause_lateral.update(CS):
+      _lat_active = False
+    else:
+      ss_sp = sm['selfdriveStateSP']
+      if ss_sp.mads.available:
+        _lat_active = bool(ss_sp.mads.active)
+      else:
+        # MADS not available, use stock state to engage
+        _lat_active = bool(sm['selfdriveState'].active)
 
-    # MADS not available, use stock state to engage
-    return bool(sm['selfdriveState'].active)
+    # --- 防呆開關判斷 (HTD) ---
+    # 1. 不管開關有沒有開，永遠執行 update() 讓系統記錄扭力數據
+    htd_allowed, self.htd_state = self.htd.update(
+        _lat_active,
+        CS.cruiseState.enabled,
+        CS.steeringAngleDeg,
+        CS.steeringTorque,
+        CS.vEgo,
+        CS.steeringPressed
+    )
+
+    # 2. 只有當車主在介面開啟 HTD 功能時，才真正允許 HTD 切斷自動轉向
+    if self.htd._enabled:
+        _lat_active = _lat_active and htd_allowed
+    # -------------------------------------
+
+    return _lat_active
 
   @staticmethod
   def get_lead_data(ld: log.RadarState.LeadData) -> dict:
