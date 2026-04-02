@@ -43,7 +43,7 @@ class ControlsExt(ModelStateBase):
       if self.CP.carFingerprint in TSS2_CAR and self.CP.lateralTuning.which() == 'torque':
         # 確認是 torque 後，才能安全讀取裡面的參數長度
         if len(self.CP.lateralTuning.torque.as_builder().to_dict()) > 0:
-          from openpilot.selfdrive.controls.lib.latcontrol_dynamic import LatControlDynamic
+          from sunnypilot.selfdrive.controls.lib.latcontrol_dynamic import LatControlDynamic
           return LatControlDynamic(self.CP, self.CP_SP, CI, dt)
           
     except Exception as e:
