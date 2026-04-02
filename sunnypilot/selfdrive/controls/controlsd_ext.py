@@ -4,7 +4,6 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-
 import time
 
 import cereal.messaging as messaging
@@ -37,13 +36,20 @@ class ControlsExt(ModelStateBase):
 
   def initialize_lateral_control(self, lac, CI, dt):
     # --- 攔截並注入 TSS2 動態熱備援控制器 ---
-    if self.CP.brand == "toyota":
+    try:
       from opendbc.car.toyota.values import TSS2_CAR
-
-      if self.CP.carFingerprint in TSS2_CAR and len(self.CP.lateralTuning.torque.as_builder().to_dict()) > 0:
-        from openpilot.selfdrive.controls.lib.latcontrol_dynamic import LatControlDynamic
-
-        return LatControlDynamic(self.CP, self.CP_SP, CI, dt)
+      
+      # 🌟 關鍵修正：必須先用 .which() 判斷當前活躍的 Union 是不是 'torque'
+      if self.CP.carFingerprint in TSS2_CAR and self.CP.lateralTuning.which() == 'torque':
+        # 確認是 torque 後，才能安全讀取裡面的參數長度
+        if len(self.CP.lateralTuning.torque.as_builder().to_dict()) > 0:
+          from openpilot.selfdrive.controls.lib.latcontrol_dynamic import LatControlDynamic
+          return LatControlDynamic(self.CP, self.CP_SP, CI, dt)
+          
+    except Exception as e:
+      # 如果發生任何預期外的錯，安靜地退回原廠邏輯，確保車子還能開
+      from openpilot.common.swaglog import cloudlog
+      cloudlog.error(f"動態控制器載入失敗，退回原廠設定: {e}")
     # ----------------------------------------
 
     enforce_torque_control = self.params.get_bool("EnforceTorqueControl")
