@@ -28,15 +28,15 @@ class LongitudinalPlanRenderer(Widget):
       self.source_text = f"Source: {source_val}"
 
   def _render(self, rect: rl.Rectangle) -> None:
-    # 設定顯示位置（例如螢幕左上方或儀表板中心）
-    # 這裡示範畫在螢幕頂部中間
-
+    # 設定顯示位置（跟隨傳入的動態 rect 區塊）
     text_size = measure_text_cached(self._font_bold, self.source_text, self.label_size, 0)
 
     # 預留邊距
     margin = 20
-    x = int(rect.width / 2 - text_size.x / 2)
-    y = int(margin)  # 往下偏移避開上方狀態欄
+
+    # 【關鍵修正】加上 rect.x 與 rect.y 作為起點基準
+    x = int(rect.x + (rect.width / 2) - (text_size.x / 2))
+    y = int(rect.y + margin)
 
     # 畫一個半透明背景框，增加閱讀性
     bg_rect = rl.Rectangle(x - 10, y - 5, text_size.x + 20, text_size.y + 10)

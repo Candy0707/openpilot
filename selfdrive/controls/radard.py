@@ -385,20 +385,72 @@ class RadarD:
           if self.dynamic_prob_threshold < 0.5:
             self.threshold_recovery_timer = 100
 
-    if len(leads_v3) > 1:
-      self.radar_state.leadOne, self.lead_one_locked = get_lead(
-          self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, path_x, path_y,
-          self.CP, self.CP_SP, # 傳入 SP 的參數
-          low_speed_override=True, is_locked=self.lead_one_locked,
-          current_prob_threshold=self.dynamic_prob_threshold
-      )
+    # ==============================================================
+    # [2026 最新融合邏輯] 多目標追蹤與防重複分配 (按信心度優先配對)
+    # ==============================================================
+    num_leads = len(leads_v3)
 
-      self.radar_state.leadTwo, _ = get_lead(
-          self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, path_x, path_y,
-          self.CP, self.CP_SP, # 傳入 SP 的參數
-          low_speed_override=False, is_locked=False,
-          current_prob_threshold=0.5
-      )
+    if num_leads > 0:
+      # 1. 根據模型輸出的視覺目標數量，動態配置 Cap'n Proto 陣列大小
+      self.radar_state.init('lead', num_leads)
+
+      # 2. 貪婪點池：建立可用雷達點，避免同一個硬體點被分配給多台車 (Double Assignment)
+      available_tracks = self.tracks.copy()
+
+      # 3. 建立配對優先權：算出機率由高到低的索引值
+      # 確保最有自信的目標 (機率最高) 優先挑選最完美的雷達訊號
+      sorted_indices = sorted(range(num_leads), key=lambda x: leads_v3[x].prob, reverse=True)
+
+      # 暫存陣列，用來確保最後能依照模型原本的預期順序 (0, 1, 2) 輸出
+      temp_leads = {}
+      temp_locked_states = {}
+
+      # 4. 依照「信心度由高到低」的順序執行融合配對
+      for i in sorted_indices:
+        # 降階門檻與低速盲區鎖定，永遠只綁定模型認為最重要的第 1 順位 (原始 i==0)
+        current_prob = self.dynamic_prob_threshold if i == 0 else 0.5
+        is_locked = self.lead_one_locked if i == 0 else False
+
+        # 執行視覺與雷達融合 (傳入 available_tracks 讓它去尋找對應的雷達點)
+        l_data, new_locked_state = get_lead(
+            self.v_ego, self.ready, available_tracks, leads_v3[i], model_v_ego, path_x, path_y,
+            self.CP, self.CP_SP,
+            low_speed_override=(i == 0),
+            is_locked=is_locked,
+            current_prob_threshold=current_prob
+        )
+
+        # 防重複分配保護：配對成功即從池中剔除
+        if l_data['status'] and l_data.get('radar') and l_data.get('radarTrackId') != -1:
+          used_id = l_data['radarTrackId']
+          if used_id in available_tracks:
+            del available_tracks[used_id]
+
+        # 寫入底層陣列並記錄到暫存區
+        self.radar_state.lead[i] = l_data
+        temp_leads[i] = l_data
+        temp_locked_states[i] = new_locked_state
+
+      # 5. 威脅篩選：把順序強制拉回原廠預期的 0, 1, 2 (配對時講實力，排隊時講規矩)
+      valid_leads = []
+      valid_locked_states = []
+
+      for i in range(num_leads):
+        # 信任神經網路的判斷：只要它認為是有效的目標，就納入跟車名單
+        if temp_leads[i]['status']:
+          valid_leads.append(temp_leads[i])
+          valid_locked_states.append(temp_locked_states[i])
+
+      # 6. 相容性指派：將過濾後的名單交給 OP 後端縱向控制系統 (Planner)
+      if len(valid_leads) > 0:
+        self.radar_state.leadOne = valid_leads[0]
+        self.lead_one_locked = valid_locked_states[0] # 同步第 1 順位的煞車鎖定狀態
+      else:
+        self.lead_one_locked = False # 確保前方無車時完全解除鎖定
+
+      if len(valid_leads) > 1:
+        self.radar_state.leadTwo = valid_leads[1]
+
 
   def publish(self, pm: messaging.PubMaster):
     assert self.radar_state is not None
