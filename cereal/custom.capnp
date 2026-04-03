@@ -294,6 +294,19 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
     sccVision @1;
     sccMap @2;
     speedLimitAssist @3;
+    pdm @4;
+    dtsc @5;
+  }
+
+  struct Target {
+    available @0: Bool;
+    enable @1: Bool;
+    action @2: Bool;
+    braking @3: Bool;
+    vTarget @4 :Float32;
+    aTarget @5 :Float32;
+    outputVtarget @6 :Float32;
+    outputAtarget @7 :Float32;
   }
 
   struct E2eAlerts {

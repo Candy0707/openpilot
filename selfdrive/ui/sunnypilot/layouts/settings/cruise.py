@@ -105,6 +105,17 @@ class CruiseLayout(Widget):
       description=tr(""),
       param="DynamicFollow")
 
+    self.dynamicturnspeedcontroller_toggle = toggle_item_sp(
+      title=tr("Enable Dynamic Turn Speed Controller"),
+      description=tr(""),
+      param="DynamicTurnSpeedController")
+
+    self.pathdeviationmonitor_toggle = toggle_item_sp(
+      title=tr("Enable Path Deviation Monitor"),
+      description=tr(""),
+      param="PathDeviationMonitor")
+
+
     items = [
       self.icbm_toggle,
       self.dec_toggle,
@@ -116,7 +127,9 @@ class CruiseLayout(Widget):
       self.sla_settings_button,
       self.accelpersonality_toggle,
       self.accelpersonality_mode,
-      self.dynamicfollow_toggle
+      self.dynamicfollow_toggle,
+      self.dynamicturnspeedcontroller_toggle,
+      self.pathdeviationmonitor_toggle,
     ]
     return items
 
