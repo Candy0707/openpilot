@@ -13,6 +13,10 @@ from openpilot.common.params import Params
 from openpilot.sunnypilot.mads.helpers import MadsSteeringModeOnBrake, read_steering_mode_param, MADS_NO_ACC_MAIN_BUTTON
 from openpilot.sunnypilot.mads.state import StateMachine, GEARS_ALLOW_PAUSED_SILENT
 
+# --- 導入 HTD 模組 ---
+from openpilot.sunnypilot.selfdrive.controls.lib.human_turn_detection import HumanTurnDetection, HTDState
+# ---------------------
+
 State = custom.ModularAssistiveDrivingSystem.ModularAssistiveDrivingSystemState
 ButtonType = structs.CarState.ButtonEvent.Type
 EventName = log.OnroadEvent.EventName
@@ -56,6 +60,11 @@ class ModularAssistiveDrivingSystem:
     self.steering_mode_on_brake = read_steering_mode_param(self.CP, self.CP_SP, self.params)
     self.unified_engagement_mode = self.params.get_bool("MadsUnifiedEngagementMode")
 
+    # --- 初始化 HTD ---
+    self.htd = HumanTurnDetection()
+    self.htd_state = HTDState.INACTIVE
+    # ------------------
+
   def read_params(self):
     self.main_enabled_toggle = self.params.get_bool("MadsMainCruiseAllowed")
     self.unified_engagement_mode = self.params.get_bool("MadsUnifiedEngagementMode")
@@ -70,6 +79,11 @@ class ModularAssistiveDrivingSystem:
   def should_silent_lkas_enable(self, CS: structs.CarState) -> bool:
     if self.steering_mode_on_brake == MadsSteeringModeOnBrake.PAUSE and self.pedal_pressed_non_gas_pressed(CS):
       return False
+
+    # --- HTD 作動中 (非 INACTIVE)，阻止 MADS 自動恢復 ---
+    if self.htd._enabled and self.htd_state != HTDState.INACTIVE:
+      return False
+    # ----------------------------------------------------
 
     if self.events_sp.contains_in_list(GEARS_ALLOW_PAUSED_SILENT):
       return False
@@ -136,6 +150,12 @@ class ModularAssistiveDrivingSystem:
       self.events.remove(EventName.cruiseDisabled)
       self.events.remove(EventName.manualRestart)
 
+    # --- 依賴 HTD 狀態機觸發手動轉向接管事件 ---
+    # 只要 HTD 狀態不是 INACTIVE，就發送 manualSteeringRequired 讓系統知道人類已接管
+    if self.htd._enabled and self.htd_state != HTDState.INACTIVE:
+      self.events_sp.add(EventNameSP.manualSteeringRequired)
+    # -------------------------------------------
+
     selfdrive_enable_events = self.events.has(EventName.pcmEnable) or self.events.has(EventName.buttonEnable)
     set_speed_btns_enable = any(be.type in SET_SPEED_BUTTONS for be in CS.buttonEvents)
 
@@ -194,6 +214,18 @@ class ModularAssistiveDrivingSystem:
   def update(self, CS: structs.CarState):
     if not self.enabled_toggle:
       return
+
+    # --- 執行 HTD 更新並取得原生的狀態機狀態 ---
+    if not self.CP.passive and self.selfdrive.initialized:
+      _, self.htd_state = self.htd.update(
+        self.active,
+        CS.cruiseState.enabled,
+        CS.steeringAngleDeg,
+        CS.steeringTorque,
+        CS.vEgo,
+        CS.steeringPressed
+      )
+    # -------------------------------------------
 
     self.update_events(CS)
 
