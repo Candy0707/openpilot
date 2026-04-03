@@ -150,11 +150,12 @@ class ModularAssistiveDrivingSystem:
       self.events.remove(EventName.cruiseDisabled)
       self.events.remove(EventName.manualRestart)
 
-    # --- 依賴 HTD 狀態機觸發手動轉向接管事件 ---
-    # 只要 HTD 狀態不是 INACTIVE，就發送 manualSteeringRequired 讓系統知道人類已接管
+    # --- 依賴 HTD 狀態機觸發暫停狀態 ---
+    # 只要 HTD 狀態不是 INACTIVE，就呼叫專屬方法讓 MADS 進入 paused
+    # 這樣系統才會知道這只是「暫停」，並在條件解除後自動恢復
     if self.htd._enabled and self.htd_state != HTDState.INACTIVE:
-      self.events_sp.add(EventNameSP.manualSteeringRequired)
-    # -------------------------------------------
+      self.transition_paused_state()
+    # -----------------------------------
 
     selfdrive_enable_events = self.events.has(EventName.pcmEnable) or self.events.has(EventName.buttonEnable)
     set_speed_btns_enable = any(be.type in SET_SPEED_BUTTONS for be in CS.buttonEvents)
