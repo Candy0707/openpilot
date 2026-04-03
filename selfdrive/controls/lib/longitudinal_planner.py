@@ -51,8 +51,6 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
   def __init__(self, CP, CP_SP, init_v=0.0, init_a=0.0, dt=DT_MDL):
     self.CP = CP
     self.mpc = LongitudinalMpc(dt=dt)
-    # TODO remove mpc modes when TR released
-    self.mpc.mode = 'acc'
     LongitudinalPlannerSP.__init__(self, self.CP, CP_SP, self.mpc)
     self.fcw = False
     self.dt = dt
@@ -67,7 +65,6 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     self.v_desired_trajectory = np.zeros(CONTROL_N)
     self.a_desired_trajectory = np.zeros(CONTROL_N)
     self.j_desired_trajectory = np.zeros(CONTROL_N)
-    self.solverExecutionTime = 0.0
 
   @staticmethod
   def parse_model(model_msg):
@@ -90,14 +87,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     return x, v, a, j, throttle_prob
 
   def update(self, sm):
-    mode = 'blended' if sm['selfdriveState'].experimentalMode else 'acc'
-    if not self.mlsim:
-      self.mpc.mode = mode
     LongitudinalPlannerSP.update(self, sm)
-    if dec_mpc_mode := self.get_mpc_mode():
-      mode = dec_mpc_mode
-      if not self.mlsim:
-        self.mpc.mode = dec_mpc_mode
 
     if len(sm['carControl'].orientationNED) == 3:
       accel_coast = get_coast_accel(sm['carControl'].orientationNED[1])
@@ -120,13 +110,11 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     # No change cost when user is controlling the speed, or when standstill
     prev_accel_constraint = not (reset_state or sm['carState'].standstill)
 
-    if mode == 'acc':
-      if sp_accel_clip := LongitudinalPlannerSP.get_accel_clip(self, v_ego, mode):
-        accel_clip = sp_accel_clip
-      else:
-        accel_clip = [ACCEL_MIN, get_max_accel(v_ego)]
+    if sp_accel_clip := LongitudinalPlannerSP.get_accel_clip(self, v_ego):
+      accel_clip = sp_accel_clip
     else:
-      accel_clip = [ACCEL_MIN, ACCEL_MAX]
+      accel_clip = [ACCEL_MIN, get_max_accel(v_ego)]
+    accel_clip = [ACCEL_MIN, get_max_accel(v_ego)]
     steer_angle_without_offset = sm['carState'].steeringAngleDeg - sm['liveParameters'].angleOffsetDeg
     accel_clip = limit_accel_in_turns(v_ego, steer_angle_without_offset, accel_clip, self.CP)
 

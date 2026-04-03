@@ -60,8 +60,8 @@ class LongitudinalPlannerSP:
 
     return experimental_mode and self.dec.mode() == "blended"
 
-  def get_accel_clip(self, v_ego: float, mode: str) -> list[float] | None:
-    if mode == 'acc' and self.accel_controller.is_enabled():
+  def get_accel_clip(self, v_ego: float) -> list[float] | None:
+    if self.accel_controller.is_enabled():
       return [ACCEL_MIN, self.accel_controller.get_max_accel(v_ego)]
     return None
 
