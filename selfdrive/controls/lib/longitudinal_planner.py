@@ -18,20 +18,23 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.sunnypilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlannerSP
 
 A_CRUISE_MAX_VALS = [1.6, 1.2, 0.8, 0.6]
-A_CRUISE_MAX_BP = [0., 10.0, 25., 40.]
+A_CRUISE_MAX_BP = [0.0, 10.0, 25.0, 40.0]
 CONTROL_N_T_IDX = ModelConstants.T_IDXS[:CONTROL_N]
 ALLOW_THROTTLE_THRESHOLD = 0.4
 MIN_ALLOW_THROTTLE_SPEED = 2.5
 
 # Lookup table for turns
 _A_TOTAL_MAX_V = [1.7, 3.2]
-_A_TOTAL_MAX_BP = [20., 40.]
+_A_TOTAL_MAX_BP = [20.0, 40.0]
+
 
 def get_max_accel(v_ego):
   return np.interp(v_ego, A_CRUISE_MAX_BP, A_CRUISE_MAX_VALS)
 
+
 def get_coast_accel(pitch):
   return np.sin(pitch) * -5.65 - 0.3  # fitted from data using xx/projects/allow_throttle/compute_coast_accel.py
+
 
 def limit_accel_in_turns(v_ego, angle_steers, a_target, CP):
   """
@@ -41,8 +44,8 @@ def limit_accel_in_turns(v_ego, angle_steers, a_target, CP):
   # FIXME: This function to calculate lateral accel is incorrect and should use the VehicleModel
   # The lookup table for turns should also be updated if we do this
   a_total_max = np.interp(v_ego, _A_TOTAL_MAX_BP, _A_TOTAL_MAX_V)
-  a_y = v_ego ** 2 * angle_steers * CV.DEG_TO_RAD / (CP.steerRatio * CP.wheelbase)
-  a_x_allowed = math.sqrt(max(a_total_max ** 2 - a_y ** 2, 0.))
+  a_y = v_ego**2 * angle_steers * CV.DEG_TO_RAD / (CP.steerRatio * CP.wheelbase)
+  a_x_allowed = math.sqrt(max(a_total_max**2 - a_y**2, 0.0))
 
   return [a_target[0], min(a_target[1], a_x_allowed)]
 
@@ -68,9 +71,11 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
 
   @staticmethod
   def parse_model(model_msg):
-    if (len(model_msg.position.x) == ModelConstants.IDX_N and
-      len(model_msg.velocity.x) == ModelConstants.IDX_N and
-      len(model_msg.acceleration.x) == ModelConstants.IDX_N):
+    if (
+      len(model_msg.position.x) == ModelConstants.IDX_N
+      and len(model_msg.velocity.x) == ModelConstants.IDX_N
+      and len(model_msg.acceleration.x) == ModelConstants.IDX_N
+    ):
       x = np.interp(T_IDXS_MPC, ModelConstants.T_IDXS, model_msg.position.x)
       v = np.interp(T_IDXS_MPC, ModelConstants.T_IDXS, model_msg.velocity.x)
       a = np.interp(T_IDXS_MPC, ModelConstants.T_IDXS, model_msg.acceleration.x)
@@ -118,7 +123,6 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     steer_angle_without_offset = sm['carState'].steeringAngleDeg - sm['liveParameters'].angleOffsetDeg
     accel_clip = limit_accel_in_turns(v_ego, steer_angle_without_offset, accel_clip, self.CP)
 
-
     if reset_state:
       self.v_desired_filter.x = v_ego
       # Clip aEgo to cruise limits to prevent large accelerations when becoming active
@@ -132,7 +136,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
 
     if not self.allow_throttle:
       clipped_accel_coast = max(accel_coast, accel_clip[0])
-      clipped_accel_coast_interp = np.interp(v_ego, [MIN_ALLOW_THROTTLE_SPEED, MIN_ALLOW_THROTTLE_SPEED*2], [accel_clip[1], clipped_accel_coast])
+      clipped_accel_coast_interp = np.interp(v_ego, [MIN_ALLOW_THROTTLE_SPEED, MIN_ALLOW_THROTTLE_SPEED * 2], [accel_clip[1], clipped_accel_coast])
       accel_clip[1] = min(accel_clip[1], clipped_accel_coast_interp)
 
     # Get new v_cruise and a_desired from Smart Cruise Control and Speed Limit Assist
@@ -145,14 +149,16 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     self.mpc.set_cur_state(self.v_desired_filter.x, self.a_desired)
     a_cruise_min_override = LongitudinalPlannerSP.get_cruise_min_accel(self, v_ego)
     t_follow_override = LongitudinalPlannerSP.get_t_follow(self, v_ego)
-    self.mpc.update(sm['radarState'], v_cruise, personality=sm['selfdriveState'].personality, a_cruise_min_override=a_cruise_min_override, t_follow_override=t_follow_override)
+    self.mpc.update(
+      sm['radarState'], v_cruise, personality=sm['selfdriveState'].personality, a_cruise_min_override=a_cruise_min_override, t_follow_override=t_follow_override
+    )
 
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)
     self.a_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
     self.j_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC[:-1], self.mpc.j_solution)
 
-    #後處理模組
-    self.a_desired_trajectory = LongitudinalPlannerSP.update_a_desired_trajectory(sm, self.a_desired_trajectory)
+    # 後處理模組
+    self.a_desired_trajectory = LongitudinalPlannerSP.update_a_desired_trajectory(sm, self.a_desired_trajectory, v_ego, t_follow_override)
 
     # TODO counter is only needed because radar is glitchy, remove once radar is gone
     self.fcw = self.mpc.crash_cnt > 2 and not sm['carState'].standstill
@@ -164,9 +170,10 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     self.a_desired = float(np.interp(self.dt, CONTROL_N_T_IDX, self.a_desired_trajectory))
     self.v_desired_filter.x = self.v_desired_filter.x + self.dt * (self.a_desired + a_prev) / 2.0
 
-    action_t =  self.CP.longitudinalActuatorDelay + DT_MDL
-    output_a_target_mpc, output_should_stop_mpc = get_accel_from_plan(self.v_desired_trajectory, self.a_desired_trajectory, CONTROL_N_T_IDX,
-                                                                        action_t=action_t, vEgoStopping=self.CP.vEgoStopping)
+    action_t = self.CP.longitudinalActuatorDelay + DT_MDL
+    output_a_target_mpc, output_should_stop_mpc = get_accel_from_plan(
+      self.v_desired_trajectory, self.a_desired_trajectory, CONTROL_N_T_IDX, action_t=action_t, vEgoStopping=self.CP.vEgoStopping
+    )
     output_a_target_e2e = sm['modelV2'].action.desiredAcceleration
     output_should_stop_e2e = sm['modelV2'].action.shouldStop
 

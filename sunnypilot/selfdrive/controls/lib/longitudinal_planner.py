@@ -5,6 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 
+import numpy as np
 from cereal import messaging, custom
 from opendbc.car import structs
 from openpilot.common.constants import CV
@@ -19,6 +20,7 @@ from openpilot.sunnypilot.models.helpers import get_active_bundle
 
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
+from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_manager import AdaptiveCoastingManager
 from opendbc.car.interfaces import ACCEL_MIN
 
 DecState = custom.LongitudinalPlanSP.DynamicExperimentalControl.DynamicExperimentalControlState
@@ -32,6 +34,7 @@ class LongitudinalPlannerSP:
     self.dec = DynamicExperimentalController(CP, mpc)
     self.accel_controller = AccelPersonalityController()
     self.dynamic_follow = FollowDistanceController()
+    self.acm = AdaptiveCoastingManager()
     self.scc = SmartCruiseControl()
     self.resolver = SpeedLimitResolver()
     self.sla = SpeedLimitAssist(CP, CP_SP)
@@ -115,8 +118,67 @@ class LongitudinalPlannerSP:
     self.output_v_target, self.output_a_target = targets[self.source]
     return self.output_v_target, self.output_a_target
 
-  def update_a_desired_trajectory(self, a_desired_trajectory: list[float]):
-    return a_desired_trajectory
+  def update_a_desired_trajectory(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego, t_follow) -> list[float]:
+    """
+    軌跡仲裁與最後防線：
+    1. 收集並仲裁 (取最低)
+    2. 執行強制安全限制 (0.0 限速)
+    3. 執行物理與 TTC 防撞校驗
+    """
+    radarState = sm['radarState']
+    lead = radarState.leadOne
+
+    a_traj_np = np.array(a_desired_trajectory)
+
+    # ---------------------------------------------------------
+    # 階段 1：多模組仲裁 (取得最小加速度)
+    # ---------------------------------------------------------
+    constraints = [a_traj_np] # 初始為 MPC 軌跡
+
+    # 取得 ACM 的建議限制
+    acm_a = self.acm.update(sm, v_ego, t_follow)
+    if acm_a is not None:
+      constraints.append(acm_a)
+
+    # 執行仲裁：取最保守 (最低) 的加速度
+    final_trajectory = a_traj_np
+    for limit in constraints[1:]:
+      final_trajectory = np.minimum(final_trajectory, limit)
+
+    # ---------------------------------------------------------
+    # 階段 2：狀態限制 (強制 0.0)
+    # ---------------------------------------------------------
+    if lead.status:
+      d_safe = max(4.0, (v_ego * t_follow) * 0.75)
+
+      # 若進入跟車距離，且前車並未加速逃離 (v_rel < 0.5)
+      if lead.dRel < d_safe and lead.vRel < 0.5:
+        # 強制將加速部分 (大於 0 的數值) 削平至 0.0
+        final_trajectory = np.minimum(final_trajectory, 0.0)
+
+    # ---------------------------------------------------------
+    # 階段 3：最終物理與時間防線 (熔斷機制)
+    # ---------------------------------------------------------
+    if lead.status and lead.vRel < -0.1: # 只在顯著接近時校驗
+      # a. TTC 防線：低於 2.0s 立即回傳原始 MPC 軌跡
+      ttc = lead.dRel / abs(lead.vRel)
+      if ttc < 2.0:
+        return a_traj_np.tolist()
+
+      # b. 物理防線：計算所需的減速度
+      s_stop = max(0.2, lead.dRel - 2.0)
+      a_req_physics = -(lead.vRel**2) / (2 * s_stop)
+
+      # 取軌跡中最溫和的煞車值 (max) 來跟物理要求對比
+      min_planned_braking = np.max(final_trajectory)
+
+      # 如果規劃的煞車力道大於物理要求 (例如規劃 -0.5, 但物理需要 -1.5)
+      # 代表目前仲裁結果有碰撞風險，強制回傳原始 MPC
+      if min_planned_braking > a_req_physics:
+        return a_traj_np.tolist()
+
+    # 安全通過所有校驗，回傳仲裁後的軌跡
+    return final_trajectory.tolist()
 
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
