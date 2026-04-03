@@ -26,9 +26,9 @@ SPEED, ACCEL = 0, 1     # Kalman filter states enum
 V_EGO_STATIONARY = 4.   # no stationary object flag below this speed
 
 # ==========================================
-# [自訂參數區] 快速微調雷達邏輯 (移植自 DP)
+# [自訂參數區]
 # ==========================================
-STATIONARY_MAX_DIST = 120.0        # 軌跡偵測車最遠偵測距離 (公尺)
+STATIONARY_MAX_DIST = 120.0         # 縮短靜止車最遠偵測距離，避免隧道微彎誤判
 STATIONARY_MIN_PROB = 0.4          # 靜止車專屬最低信心度門檻 (固定)
 BLIND_SPOT_PRIORITY_DIST = 23.0    # 低速盲區煞停「強制接管並鎖定」的距離 (公尺)
 BLIND_SPOT_HYSTERESIS_DIST = 25.0  # 盲區煞停「解除鎖定」的退場距離 (公尺)
@@ -40,8 +40,6 @@ RADAR_TO_CAMERA = 1.52  # RADAR is ~ 1.5m ahead from center of mesh frame
 
 class KalmanParams:
   def __init__(self, dt: float):
-    # Lead Kalman Filter params, calculating K from A, C, Q, R requires the control library.
-    # hardcoding a lookup table to compute K for values of radar_ts between 0.01s and 0.2s
     assert dt > .01 and dt < .2, "Radar time step must be between .01s and 0.2s"
     self.A = [[1.0, dt], [0.0, 1.0]]
     self.C = [1.0, 0.0]
@@ -114,7 +112,6 @@ class Track:
     }
 
   def potential_low_speed_lead(self, v_ego: float):
-    # 使用 DP 的退場距離設定
     return abs(self.yRel) < 1.0 and (v_ego < V_EGO_STATIONARY) and (0.75 < self.dRel < BLIND_SPOT_HYSTERESIS_DIST)
 
   def is_potential_fcw(self, model_prob: float):
@@ -130,7 +127,7 @@ def laplacian_pdf(x: float, mu: float, b: float):
   return math.exp(-abs(x-mu)/b)
 
 
-def match_vision_to_track(v_ego: float, lead: capnp._DynamicStructReader, tracks: dict[int, Track], path_x: list[float], path_y: list[float], current_prob_threshold: float):
+def match_vision_to_track(v_ego: float, lead: capnp._DynamicStructReader, tracks: dict[int, Track], path_x: list[float], path_y: list[float], lane_data: dict, current_prob_threshold: float):
   offset_vision_dist = lead.x[0] - RADAR_TO_CAMERA
 
   def prob(c):
@@ -142,18 +139,33 @@ def match_vision_to_track(v_ego: float, lead: capnp._DynamicStructReader, tracks
   track = max(tracks.values(), key=prob)
 
   # ==========================================
-  # 目標分類與驗證邏輯 (來自 DP)
+  # 目標分類與驗證邏輯
   # ==========================================
 
-  # 1. 動態車條件：不再固定 0.5，改為使用動態降階門檻
+  # 1. 動態車條件：使用動態降階門檻
   dist_sane = abs(track.dRel - offset_vision_dist) < max([(offset_vision_dist)*.25, 5.0])
   vel_sane = (abs(track.vRel + v_ego - lead.v[0]) < 10) or (v_ego + track.vRel > 3)
   is_dynamic_target = dist_sane and vel_sane and (lead.prob > current_prob_threshold)
 
-  # 2. 靜止車強化邏輯
+  # 2. 靜止車強化邏輯 (車道寬度限制 + 距離加權信心度)
   model_x = track.dRel + RADAR_TO_CAMERA
   expected_yRel = -np.interp(model_x, path_x, path_y)
-  y_sane_on_path = abs(track.yRel - expected_yRel) < 1.2
+
+  # --- 橫向容錯計算 ---
+  # 預設最大橫向容錯為 1.0m
+  y_threshold = 1.0
+  if lane_data['left_prob'] > 0.3 and lane_data['right_prob'] > 0.3 and len(lane_data['x']) > 0:
+    left_y_at_d = np.interp(model_x, lane_data['x'], lane_data['left_y'])
+    right_y_at_d = np.interp(model_x, lane_data['x'], lane_data['right_y'])
+    lane_width = abs(left_y_at_d - right_y_at_d)
+
+    # 取車道半寬的 50% 作為有效範圍 (保證只抓取正中央的車，不摸牆壁)
+    dynamic_threshold = (lane_width / 2.0) * 0.50
+
+    # 限制最高不超過 1.0，最低不小於 0.5
+    y_threshold = max(0.5, min(dynamic_threshold, 1.0))
+
+  y_sane_on_path = abs(track.yRel - expected_yRel) < y_threshold
   v_absolute = track.vRel + v_ego
   is_physically_stationary = abs(v_absolute) < 2.0
 
@@ -207,7 +219,7 @@ def get_custom_yrel(CP: structs.CarParams, CP_SP: structs.CarParamsSP, lead_dict
   return lead_dict
 
 def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capnp._DynamicStructReader,
-             model_v_ego: float, path_x: list[float], path_y: list[float],
+             model_v_ego: float, path_x: list[float], path_y: list[float], lane_data: dict,
              CP: structs.CarParams, CP_SP: structs.CarParamsSP,
              low_speed_override: bool = True, is_locked: bool = False,
              current_prob_threshold: float = 0.5) -> Tuple[dict[str, Any], bool]:
@@ -216,17 +228,17 @@ def get_lead(v_ego: float, ready: bool, tracks: dict[int, Track], lead_msg: capn
   gate_threshold = min(current_prob_threshold, STATIONARY_MIN_PROB)
 
   if len(tracks) > 0 and ready and lead_msg.prob > gate_threshold:
-    best_valid_track = match_vision_to_track(v_ego, lead_msg, tracks, path_x, path_y, current_prob_threshold)
+    best_valid_track = match_vision_to_track(v_ego, lead_msg, tracks, path_x, path_y, lane_data, current_prob_threshold)
   else:
     best_valid_track = None
 
   fused_lead_dict = {'status': False}
   if best_valid_track is not None:
     fused_lead_dict = best_valid_track.get_RadarState(lead_msg.prob)
-    fused_lead_dict = get_custom_yrel(CP, CP_SP, fused_lead_dict, lead_msg) # 保留 SP 專屬修正
-  elif ready and (lead_msg.prob > 0.5): # 純視覺備案固定死守 0.5 門檻
+    fused_lead_dict = get_custom_yrel(CP, CP_SP, fused_lead_dict, lead_msg)
+  elif ready and (lead_msg.prob > 0.5):
     fused_lead_dict = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego)
-    fused_lead_dict = get_custom_yrel(CP, CP_SP, fused_lead_dict, lead_msg) # 保留 SP 專屬修正
+    fused_lead_dict = get_custom_yrel(CP, CP_SP, fused_lead_dict, lead_msg)
 
   # --- Step 2: 盲區雷達強制接管與單向條件鎖定邏輯 ---
   lead_dict = fused_lead_dict
@@ -283,13 +295,10 @@ class RadarD:
     self.lead_one_locked = False
 
     # ==========================================
-    # 純視覺動態信心度參數狀態 (自動降階系統)
+    # 純視覺動態信心度參數狀態 (積分制漏桶)
     # ==========================================
     self.dynamic_prob_threshold = 0.5
-    self.low_prob_frames = 0
-    self.high_prob_frames = 0
-    self.prob_score = 0
-    self.threshold_recovery_timer = 0
+    self.low_prob_score = 0
 
   def update(self, sm: messaging.SubMaster, rr: car.RadarData):
     self.ready = sm.seen['modelV2']
@@ -324,7 +333,7 @@ class RadarD:
     self.radar_state.radarErrors = rr.errors
     self.radar_state.carStateMonoTime = sm.logMonoTime['carState']
 
-    # 取得路徑資料以供靜止車邏輯使用
+    # 擷取預測路徑
     if len(sm['modelV2'].position.x) > 0:
       path_x = list(sm['modelV2'].position.x)
       path_y = list(sm['modelV2'].position.y)
@@ -337,53 +346,50 @@ class RadarD:
     else:
       model_v_ego = self.v_ego
 
+    # 擷取車道線資訊供動態容錯使用
+    ll_x, ll_y_left, ll_y_right = [], [], []
+    ll_prob_left, ll_prob_right = 0.0, 0.0
+
+    if len(sm['modelV2'].laneLines) == 4:
+      ll_x = list(sm['modelV2'].laneLines[1].x)
+      ll_y_left = list(sm['modelV2'].laneLines[1].y)
+      ll_y_right = list(sm['modelV2'].laneLines[2].y)
+      ll_prob_left = sm['modelV2'].laneLineProbs[1]
+      ll_prob_right = sm['modelV2'].laneLineProbs[2]
+
+    lane_data = {
+      'x': ll_x,
+      'left_y': ll_y_left,
+      'right_y': ll_y_right,
+      'left_prob': ll_prob_left,
+      'right_prob': ll_prob_right
+    }
+
     leads_v3 = sm['modelV2'].leadsV3
 
     # ==========================================
-    # 動態信心度門檻調節邏輯
+    # 動態信心度門檻調節邏輯 (彈性積分制漏桶演算法)
     # ==========================================
     if len(leads_v3) > 0:
       lead_prob = leads_v3[0].prob
 
       if 0.15 <= lead_prob < 0.5:
-        self.low_prob_frames += 1
-        self.high_prob_frames = 0
-        if self.low_prob_frames >= 20:
-          self.prob_score += 5
-          self.low_prob_frames = 0
+        # 疑似雨中水花遮擋，緩慢累積 (上限設為 60 分，約 3 秒)
+        self.low_prob_score = min(self.low_prob_score + 1, 60)
 
       elif lead_prob >= 0.5:
-        self.high_prob_frames += 1
-        self.low_prob_frames = 0
-
-        if self.high_prob_frames == 1:
-          self.prob_score += 1
-
-        if self.high_prob_frames >= 20:
-          self.prob_score = max(0, self.prob_score - 5)
-          self.high_prob_frames = 0
+        # 清楚看到真車，快速扣分，加速解除降階狀態
+        self.low_prob_score = max(self.low_prob_score - 2, 0)
 
       else:
-        self.low_prob_frames = 0
-        self.high_prob_frames = 0
-        self.prob_score = 0
-        if self.dynamic_prob_threshold < 0.5:
-          self.threshold_recovery_timer = min(self.threshold_recovery_timer, 20)
+        # 小於 0.15 視為完全遮擋或空曠處雜訊，緩慢冷卻 (允許短暫斷訊)
+        self.low_prob_score = max(self.low_prob_score - 1, 0)
 
-      # 降階觸發 (最低降至 0.35)
-      if self.prob_score >= 20:
-        if self.dynamic_prob_threshold > 0.35:
-          self.dynamic_prob_threshold = round(max(0.35, self.dynamic_prob_threshold - 0.1), 2)
-          self.threshold_recovery_timer = 100
-        self.prob_score = 0
-
-      # 冷卻與自然回升
-      if self.threshold_recovery_timer > 0:
-        self.threshold_recovery_timer -= 1
-        if self.threshold_recovery_timer == 0:
-          self.dynamic_prob_threshold = round(min(0.5, self.dynamic_prob_threshold + 0.1), 2)
-          if self.dynamic_prob_threshold < 0.5:
-            self.threshold_recovery_timer = 100
+      # --- 決定是否降階 ---
+      if self.low_prob_score >= 50:  # 累積達到約 2.5 秒的不穩定狀態才降階
+        self.dynamic_prob_threshold = 0.45
+      elif self.low_prob_score == 0: # 徹底冷卻後恢復原廠門檻
+        self.dynamic_prob_threshold = 0.5
 
     # ==============================================================
     # [2026 最新融合邏輯] 多目標追蹤與防重複分配 (按信心度優先配對)
@@ -411,10 +417,10 @@ class RadarD:
         current_prob = self.dynamic_prob_threshold if i == 0 else 0.5
         is_locked = self.lead_one_locked if i == 0 else False
 
-        # 執行視覺與雷達融合 (傳入 available_tracks 讓它去尋找對應的雷達點)
+        # 執行視覺與雷達融合 (修正：正確傳遞 lane_data 以及保留 CP, CP_SP)
         l_data, new_locked_state = get_lead(
             self.v_ego, self.ready, available_tracks, leads_v3[i], model_v_ego, path_x, path_y,
-            self.CP, self.CP_SP,
+            lane_data, self.CP, self.CP_SP,
             low_speed_override=(i == 0),
             is_locked=is_locked,
             current_prob_threshold=current_prob
@@ -461,28 +467,26 @@ class RadarD:
     pm.send("radarState", radar_msg)
 
 
-# fuses camera and radar data for best lead detection
 def main() -> None:
   config_realtime_process(5, Priority.CTRL_LOW)
 
-  # wait for stats about the car to come in from controls
   cloudlog.info("radard is waiting for CarParams")
   CP = messaging.log_from_bytes(Params().get("CarParams", block=True), car.CarParams)
   cloudlog.info("radard got CarParams")
 
+  # 修正：補回 CP_SP 的讀取，避免 RadarD 初始化失敗
   cloudlog.info("radard is waiting for CarParamsSP")
   CP_SP = messaging.log_from_bytes(Params().get("CarParamsSP", block=True), custom.CarParamsSP)
   cloudlog.info("radard got CarParamsSP")
 
-  # *** setup messaging
   sm = messaging.SubMaster(['modelV2', 'carState', 'liveTracks'], poll='modelV2')
   pm = messaging.PubMaster(['radarState'])
 
+  # 修正：完整傳入 CP 與 CP_SP
   RD = RadarD(CP, CP_SP, CP.radarDelay)
 
   while 1:
     sm.update()
-
     RD.update(sm, sm['liveTracks'])
     RD.publish(pm)
 
