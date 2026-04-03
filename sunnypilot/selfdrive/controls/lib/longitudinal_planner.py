@@ -108,6 +108,9 @@ class LongitudinalPlannerSP:
       self.events_sp,
     )
 
+    self.dtsc.update(sm)
+    self.pdm.update(sm)
+
     targets = {
       LongitudinalPlanSource.cruise: (v_cruise, a_ego),
       LongitudinalPlanSource.sccVision: (self.scc.vision.output_v_target, self.scc.vision.output_a_target),
