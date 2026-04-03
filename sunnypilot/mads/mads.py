@@ -14,7 +14,7 @@ from openpilot.sunnypilot.mads.helpers import MadsSteeringModeOnBrake, read_stee
 from openpilot.sunnypilot.mads.state import StateMachine, GEARS_ALLOW_PAUSED_SILENT
 
 # --- 導入 HTD 模組 ---
-from openpilot.sunnypilot.selfdrive.controls.lib.human_turn_detection import HumanTurnDetection, HTDState
+from openpilot.sunnypilot.selfdrive.controls.lib.human_turn_detection import HumanTurnDetection
 # ---------------------
 
 State = custom.ModularAssistiveDrivingSystem.ModularAssistiveDrivingSystemState
@@ -62,7 +62,7 @@ class ModularAssistiveDrivingSystem:
 
     # --- 初始化 HTD ---
     self.htd = HumanTurnDetection()
-    self.htd_state = HTDState.INACTIVE
+    self.htd_allowed = True  # 預設允許自動轉向
     # ------------------
 
   def read_params(self):
@@ -80,10 +80,10 @@ class ModularAssistiveDrivingSystem:
     if self.steering_mode_on_brake == MadsSteeringModeOnBrake.PAUSE and self.pedal_pressed_non_gas_pressed(CS):
       return False
 
-    # --- HTD 作動中 (非 INACTIVE)，阻止 MADS 自動恢復 ---
-    if self.htd._enabled and self.htd_state != HTDState.INACTIVE:
+    # --- HTD 不允許轉向時，阻止 MADS 自動恢復 ---
+    if not self.htd_allowed:
       return False
-    # ----------------------------------------------------
+    # --------------------------------------------
 
     if self.events_sp.contains_in_list(GEARS_ALLOW_PAUSED_SILENT):
       return False
@@ -150,12 +150,11 @@ class ModularAssistiveDrivingSystem:
       self.events.remove(EventName.cruiseDisabled)
       self.events.remove(EventName.manualRestart)
 
-    # --- 依賴 HTD 狀態機觸發暫停狀態 ---
-    # 只要 HTD 狀態不是 INACTIVE，就呼叫專屬方法讓 MADS 進入 paused
-    # 這樣系統才會知道這只是「暫停」，並在條件解除後自動恢復
-    if self.htd._enabled and self.htd_state != HTDState.INACTIVE:
+    # --- 依賴 htd_allowed 觸發暫停狀態 (紫盤) ---
+    # 只要 HTD 判定不允許轉向，就觸發 transition_paused_state 讓 MADS 進入待命
+    if not self.htd_allowed:
       self.transition_paused_state()
-    # -----------------------------------
+    # --------------------------------------------
 
     selfdrive_enable_events = self.events.has(EventName.pcmEnable) or self.events.has(EventName.buttonEnable)
     set_speed_btns_enable = any(be.type in SET_SPEED_BUTTONS for be in CS.buttonEvents)
@@ -216,9 +215,10 @@ class ModularAssistiveDrivingSystem:
     if not self.enabled_toggle:
       return
 
-    # --- 執行 HTD 更新並取得原生的狀態機狀態 ---
+    # --- 執行 HTD 更新並取得是否允許轉向的布林值 ---
+    # 在執行 update_events 之前先運算，確保後續邏輯拿到最新狀態
     if not self.CP.passive and self.selfdrive.initialized:
-      _, self.htd_state = self.htd.update(
+      self.htd_allowed, _ = self.htd.update(
         self.active,
         CS.cruiseState.enabled,
         CS.steeringAngleDeg,
@@ -226,7 +226,7 @@ class ModularAssistiveDrivingSystem:
         CS.vEgo,
         CS.steeringPressed
       )
-    # -------------------------------------------
+    # -----------------------------------------------
 
     self.update_events(CS)
 
