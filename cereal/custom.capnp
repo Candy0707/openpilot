@@ -189,7 +189,7 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
   longitudinalPlanSource @1 :LongitudinalPlanSource;
   smartCruiseControl @2 :SmartCruiseControl;
   speedLimit @3 :SpeedLimit;
-  targets @4 :List(Target);
+  targets @9 :List(Target);
   vTarget @4 :Float32;
   aTarget @5 :Float32;
   events @6 :List(OnroadEventSP.Event);
