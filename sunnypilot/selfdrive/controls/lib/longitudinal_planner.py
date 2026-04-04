@@ -127,8 +127,22 @@ class LongitudinalPlannerSP:
     return self.output_v_target, self.output_a_target
 
   def update_a_desired_trajectory(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float):
-    # 直接將 33 個點交給 ACM 處理並回傳
-    return self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
+    # 1. 執行 ACM 邏輯 (未來也可以在這裡繼續串接其他模組)
+    processed_trajectory = self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
+
+
+    # 2. 終端軌跡平滑處理 (Trajectory Smoothing)
+    smoothed_trajectory = []
+    ALPHA = 0.75
+
+    for i in range(len(processed_trajectory)):
+        if i == 0:
+            smoothed_trajectory.append(processed_trajectory[i])
+        else:
+            smooth_a = (ALPHA * processed_trajectory[i]) + ((1.0 - ALPHA) * smoothed_trajectory[i-1])
+            smoothed_trajectory.append(smooth_a)
+
+    return smoothed_trajectory
 
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
