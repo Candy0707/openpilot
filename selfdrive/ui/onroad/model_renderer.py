@@ -155,7 +155,7 @@ class ModelRenderer(Widget):
   def _update_leads(self, radar_state, path_x_array):
     """Update positions of lead vehicles"""
     self._lead_vehicles = []
-    leads = radar_state.lead
+    leads = radar_state.leads
 
     for lead_data in leads:
       if lead_data and lead_data.status:

@@ -130,7 +130,7 @@ class ChevronMetrics:
 
   def draw_lead_status(self, sm, radar_state, rect, lead_vehicles):
     # 取得動態長度的 lead 陣列
-    leads = radar_state.lead
+    leads = radar_state.leads
 
     # 檢查是否至少有一台車是有效狀態 (用來觸發 UI 淡入效果)
     has_any_lead = any(lead.status for lead in leads)
