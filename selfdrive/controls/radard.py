@@ -448,7 +448,7 @@ class RadarD:
 
     if num_leads > 0:
       # 1. 根據模型輸出的視覺目標數量，動態配置 Cap'n Proto 陣列大小
-      self.radar_state.init('leadsV3', num_leads)
+      self.radar_state.init('leads', num_leads)
 
       # 2. 貪婪點池：建立可用雷達點，避免同一個硬體點被分配給多台車 (Double Assignment)
       available_tracks = self.tracks.copy()
