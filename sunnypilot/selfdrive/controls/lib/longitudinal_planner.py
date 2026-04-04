@@ -17,6 +17,7 @@ from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolve
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
+from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_manager import AdaptiveCoastingManager
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
@@ -40,6 +41,7 @@ class LongitudinalPlannerSP:
     self.generation = int(model_bundle.generation) if (model_bundle := get_active_bundle()) else None
     self.source = LongitudinalPlanSource.cruise
     self.e2e_alerts_helper = E2EAlertsHelper()
+    self.acm = AdaptiveCoastingManager()
     self.dtsc = DynamicTurnSpeedController(CP, mpc)
     self.pdm = PathDeviationMonitor(CP, mpc)
 
@@ -125,54 +127,8 @@ class LongitudinalPlannerSP:
     return self.output_v_target, self.output_a_target
 
   def update_a_desired_trajectory(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float):
-    """
-    攔截 MPC 輸出的加速度軌跡，根據跟車距離百分比實作主動滑行 (0.0 m/s^2)
-    參數設定：-0.4 (微煞車攔截下限) 與 -1.4 (相對速差安全門檻)
-    """
-    # 1. 取得雷達與前車資訊
-    radar_state = sm['radarState']
-    lead_one = radar_state.leadOne
-
-    # 無前車則不介入，直接回傳原始軌跡
-    if not lead_one.status:
-      return a_desired_trajectory
-
-    # 2. 提取物理數值
-    d_rel = lead_one.dRel  # 與前車的實際距離 (m)
-    v_rel = lead_one.vRel  # 相對速度 (m/s)
-
-    # 3. 計算 MPC 的理想跟車目標距離
-    # 確保 t_follow_override 有效 (若為 None 則給予預設值 1.45s)
-    tf = t_follow_override if t_follow_override is not None else 1.45
-
-    # 計算動態安全距離：基礎距離 + (自車速度 * 跟車秒數)
-    # 加上 4.0m 為最低安全墊片，避免低速塞車時除以過小的數值
-    target_dist = max(v_ego * tf, 4.0)
-
-    # 4. 計算當前距離是理想距離的百分比
-    dist_perc = d_rel / target_dist
-
-    # 5. 滑行判斷參數設定
-    COAST_MIN_ACCEL = -0.4       # 攔截微煞車的範圍 (-0.4 ~ 0.0)
-    SAFE_V_REL_THRESHOLD = -1.4  # 相對速差門檻，防止前車急煞時還在滑行
-
-    # 6. 核心判斷：距離百分比 > 80% 且速差安全
-    # 只要符合這個條件，就算是插入車 (Cut-in) 也會因為距離大於 80% 緩衝而進行柔和滑行
-    is_safe_to_coast = (dist_perc > 0.8) and (v_rel > SAFE_V_REL_THRESHOLD)
-
-    # 7. 執行軌跡覆寫
-    if is_safe_to_coast:
-      # a_desired_trajectory 是一個包含未來多個時間點的陣列
-      for i in range(len(a_desired_trajectory)):
-        # 只有在 MPC 要求「輕微煞車」時才介入改為 0.0 (純滑行)
-        if COAST_MIN_ACCEL <= a_desired_trajectory[i] < 0.0:
-          a_desired_trajectory[i] = 0.0
-        # 如果 MPC 已經要求大於 -0.4 的重煞 (例如 -0.5)，代表模型判斷有風險
-        # 此時提早 break 迴圈，保留 MPC 原生的防撞重煞反應
-        elif a_desired_trajectory[i] < COAST_MIN_ACCEL:
-          break
-
-    return a_desired_trajectory
+    # 直接將 33 個點交給 ACM 處理並回傳
+    return self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
 
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
@@ -182,9 +138,6 @@ class LongitudinalPlannerSP:
     self.dynamic_follow.update()
     self.dtsc.update(sm)
     self.pdm.update(sm)
-
-
-
 
   def publish_longitudinal_plan_sp(self, sm: messaging.SubMaster, pm: messaging.PubMaster) -> None:
     plan_sp_send = messaging.new_message('longitudinalPlanSP')
