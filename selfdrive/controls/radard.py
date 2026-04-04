@@ -491,7 +491,7 @@ class RadarD:
             del available_tracks[used_id]
 
         # 寫入底層陣列並記錄到暫存區
-        self.radar_state.lead[i] = l_data
+        self.radar_state.leads[i] = l_data
         temp_leads[i] = l_data
         temp_locked_states[i] = new_locked_state
 
