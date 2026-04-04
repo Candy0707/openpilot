@@ -15,17 +15,24 @@ MIN_RECOVERY_ACCEL = -0.4   # 🛡️ 最小煞車極限：在 75%~85% 區間，
 MAX_RECOVERY_ACCEL = 0.4    # 🐢 緩加速極限：前車加速時，限制我們的補油門力道，確保提速比前車慢以拉開安全距離
 MPC_FALLBACK_ACCEL = -1.2   # 💣 危險判定閾值：如果預測或計算出需要低於 -1.2 的重煞，代表情況危急，立刻轉交 MPC
 
+# 3. 起步緩衝與意圖預測變數 (Intent Prediction)
+STOPPED_SPEED_MAX = 1.0       # 🛑 靜止判定車速 (約 3.6 km/h)：低於此速度視為「車輛靜止或極低速蠕行中」
+INTENT_POINTS_THRESHOLD = 16  # ⚖️ 意圖判定門檻：MPC 軌跡 33 點中，超過此數量 (約 50%) 即確認意圖 (加速或減速)
+INTENT_ACCEL_VAL = 0.1        # 📈 加速閥值：加速度大於此值才算一個有效的「加速點」(過濾微小雜訊)
+INTENT_DECEL_VAL = -0.1       # 📉 減速閥值：加速度小於此值才算一個有效的「減速點」(過濾微小雜訊)
+
 
 class AdaptiveCoastingManager:
     """
     自適應滑行管理模組 (ACM)
-    負責攔截並優化縱向加速度軌跡，提供 80%~95% 區間的純滑行，
-    以及 70%~80% 區間的平滑退讓，同時具備多重保命防護機制。
+    結合「起步意圖預測」、「純滑行區間」與「平滑退讓防護」的高階縱向控制。
     """
 
     def __init__(self):
-        # 狀態機：記錄目前是否處於 ACM 介入狀態，避免在邊界值反覆橫跳 (抖動)
+        # 狀態機 A：記錄目前是否處於 ACM 介入滑行狀態，避免邊界反覆橫跳
         self.acm_active = False
+        # 狀態機 B：記錄目前是否處於「強烈起步加速意圖」狀態 (起步緩衝專用)
+        self.intent_accelerating = False
 
     def update(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float) -> list[float]:
         # 取得雷達資料
@@ -34,7 +41,7 @@ class AdaptiveCoastingManager:
         # ------------------------------------------
         # 1. 多目標雷達掃描與危險目標鎖定
         # ------------------------------------------
-        # 兼容不同分支的雷達資料結構 (支援 leads 陣列或獨立的 leadOne/leadTwo)
+        # 兼容不同分支的雷達資料結構
         if hasattr(radar_state, 'leads'):
             leads = radar_state.leads
         else:
@@ -47,9 +54,10 @@ class AdaptiveCoastingManager:
                 if lead is None or l.dRel < lead.dRel:
                     lead = l
 
-        # 如果前方完全沒有車輛，關閉 ACM 狀態並直接回傳原始軌跡 (交給定速巡航)
+        # 前方無車輛時，關閉所有狀態並直接回傳原始軌跡
         if not lead:
             self.acm_active = False
+            self.intent_accelerating = False
             return a_desired_trajectory
 
         # 提取前車相對距離 (d_rel) 與相對速度 (v_rel)
@@ -59,90 +67,100 @@ class AdaptiveCoastingManager:
         # ------------------------------------------
         # 2. 基礎數據與距離百分比計算
         # ------------------------------------------
-        # 取得當前的跟車秒數 (若無設定，預設為 1.45 秒)
+        # 取得當前的跟車秒數，並計算理想跟車距離 (強制設定最低下限為 4.0 公尺)
         tf = t_follow_override if t_follow_override is not None else 1.45
-        # 計算 MPC 理想跟車距離 (以目前車速計算，並強制設定最低下限為 4.0 公尺)
         target_dist = max(v_ego * tf, 4.0)
+
         # 算出目前的相對距離百分比 (實際距離 / 理想距離)
         dist_percent = d_rel / target_dist
 
         # ------------------------------------------
-        # 3. 絕對保命防護網 (條件成立即刻退場)
+        # 3. 絕對保命防護網
         # ------------------------------------------
-        # 防護 A：極速接近中 (例如前方靜止車或前車急煞)
-        # 如果相對速差極大 (我們比前車快 1.5 m/s 以上)，立刻交還 MPC 處理重煞
+        # 防護 A：極速接近中 (速差極大，如前方靜止車)
         if v_rel < -1.5:
             self.acm_active = False
+            self.intent_accelerating = False
             return a_desired_trajectory
 
-        # 🌟 防護 B：MPC 原生軌跡危險預判 (掃描未來 33 點預測)
-        # 這是極重要的防線！如果 MPC 預測未來幾秒內【有任何一點】的煞車力道重於 -1.2，
-        # 代表神經網路已經察覺到嚴重危險，ACM 立刻無條件退場，不進行任何壓制
+        # 防護 B：MPC 原生軌跡危險預判
+        # 只要未來有任何一點需要重煞 (-1.2)，立刻交還 MPC 保命
         if any(a < MPC_FALLBACK_ACCEL for a in a_desired_trajectory):
+            self.acm_active = False
+            self.intent_accelerating = False
+            return a_desired_trajectory
+
+        # ------------------------------------------
+        # 🌟 4. 起步緩衝意圖預測 (Intent-Based Startup Buffer)
+        # ------------------------------------------
+        # 計算未來 33 個預測點中，明確的加速點與減速點數量
+        accel_points_count = sum(1 for a in a_desired_trajectory if a > INTENT_ACCEL_VAL)
+        decel_points_count = sum(1 for a in a_desired_trajectory if a < INTENT_DECEL_VAL)
+
+        # 【觸發加速意圖】：車輛處於靜止/極低速，且未來有 50% (16點) 以上在加速
+        if v_ego < STOPPED_SPEED_MAX and accel_points_count >= INTENT_POINTS_THRESHOLD:
+            self.intent_accelerating = True
+
+        # 【解除加速意圖】：偵測到前車減速 (未來有 50% 點數預測減速)，或已經拉開至安全距離
+        elif decel_points_count >= INTENT_POINTS_THRESHOLD or dist_percent >= COAST_START_PERCENT:
+            self.intent_accelerating = False
+
+        # 如果目前處於「起步加速意圖」中，暫停 ACM 壓制，100% 放行原廠 MPC 以確保起步敏捷
+        if self.intent_accelerating:
             self.acm_active = False
             return a_desired_trajectory
 
         # ------------------------------------------
-        # 4. ACM 狀態機進出判定
+        # 5. ACM 狀態機進出判定
         # ------------------------------------------
         if dist_percent >= EXIT_PERCENT:
-            self.acm_active = False   # 距離拉開大於 100%，徹底退出 ACM 介入
+            self.acm_active = False   # 距離拉開大於 100%，退出 ACM
         elif dist_percent <= COAST_START_PERCENT:
-            self.acm_active = True    # 距離壓縮小於 95%，正式啟動 ACM 介入
+            self.acm_active = True    # 距離壓縮小於 95%，正式啟動 ACM
 
-        # 如果狀態機未啟動，直接放行 MPC 原始指令
+        # 狀態機未啟動且無加速意圖，放行原生軌跡
         if not self.acm_active:
             return a_desired_trajectory
 
         # ------------------------------------------
-        # 5. 動態追蹤演算法 (針對 70%~80% 區間計算最佳平滑拉回力道)
+        # 6. 動態追蹤演算法 (PD 控制)
         # ------------------------------------------
-        # 距離誤差 = 目前距離 - 目標距離 (即 80% 警戒線)
-        # 若為負數，代表距離已經跌破 80%，需要煞車拉開距離
+        # 距離誤差 = 目前距離 - 警戒線距離
         distance_error = d_rel - (target_dist * COAST_END_PERCENT)
 
-        # 核心 PD 控制公式：(速差 * 權重 0.5) + (距離誤差 * 權重 0.15)
-        # 完美達成：前車加速時緩慢跟上，前車減速或太近時平緩煞車
+        # 核心公式：依據速差與距離誤差計算平滑拉回力道
         raw_a_calc = (v_rel * 0.5) + (distance_error * 0.15)
 
-        # 防護 C：如果 ACM 自己算出來的動態拉回力道極端重 (低於 -1.2)
-        # 代表這已經不是「平滑微調」能解決的狀況，直接交還給 MPC 保命
+        # 防護 C：若動態拉回力道過大，交還 MPC 保命
         if raw_a_calc < MPC_FALLBACK_ACCEL:
             self.acm_active = False
             return a_desired_trajectory
 
         # ------------------------------------------
-        # 6. 軌跡處理與分區覆寫 (針對未來 33 個預測點)
+        # 7. 軌跡處理與分區覆寫
         # ------------------------------------------
         for i in range(len(a_desired_trajectory)):
             a_target = a_desired_trajectory[i]
 
-            # 【區域 A】80% ~ 100% 滑行享受與遲滯維持區
-            # 只要在 ACM 活躍狀態下，大於 80% 的所有區間，都貫徹滑行邏輯
+            # 【區域 A】85% ~ 100% 滑行享受與遲滯維持區
             if COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
                 if COAST_MAX_BRAKE <= a_target < 0.0:
-                    # 如果 MPC 的煞車力道很輕 (-0.4 到 0.0 之間) -> 抹平為 0.0 純滑行
                     a_target = 0.0
                 elif a_target < COAST_MAX_BRAKE:
-                    # 如果 MPC 煞得比較重 (超過 -0.4) -> 進行數學平移保留煞車力道
+                    # MPC 煞得較重時，進行數學平移以消除頓挫
                     a_target = a_target - COAST_MAX_BRAKE
 
-            # 【區域 B】70% ~ 80% 平滑退讓區 (擴大為 10% 的防護切入緩衝空間)
+            # 【區域 B】75% ~ 85% 平滑退讓區 (10% 防切入緩衝空間)
             elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
-                # 落實設計理念：強制壓制 MPC 的神經質急煞！
-                # 就算 MPC 被切入車嚇到給出極端煞車，只要還在這 10% 緩衝區內，
-                # 我們就只使用剛剛算出的平滑力道 `raw_a_calc`，並嚴格限制在 [-0.4, 0.4] 之間，
-                # 確保車輛以溫柔、不點頭的方式把距離慢慢拉回 80%。
+                # 強制限縮最大煞車力道，溫柔拉回距離
                 a_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
 
-            # 【區域 C】小於 70% 絕對危險區
+            # 【區域 C】小於 75% 絕對危險區
             elif dist_percent < SAFE_DIST_PERCENT:
-                # 距離被極度壓縮，跌破了 70% 的絕對安全底線
-                # 放棄任何覆寫 (pass)，將這 33 個點的控制權 100% 交還給原生 MPC 執行重煞
+                # 距離被極度壓縮，放棄覆寫，交由原生 MPC 執行重煞
                 pass
 
             # 將處理完的數值寫回軌跡陣列
             a_desired_trajectory[i] = a_target
 
-        # 回傳優化後的軌跡，交由外部 Planner 進行終端平滑與執行
         return a_desired_trajectory
