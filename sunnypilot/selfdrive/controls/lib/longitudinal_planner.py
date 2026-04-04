@@ -5,6 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 
+import numpy as np
 from cereal import messaging, custom
 from opendbc.car import structs
 from openpilot.common.constants import CV
@@ -130,7 +131,6 @@ class LongitudinalPlannerSP:
     # 1. 執行 ACM 邏輯 (未來也可以在這裡繼續串接其他模組)
     processed_trajectory = self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
 
-
     # 2. 終端軌跡平滑處理 (Trajectory Smoothing)
     smoothed_trajectory = []
     ALPHA = 0.75
@@ -142,7 +142,8 @@ class LongitudinalPlannerSP:
             smooth_a = (ALPHA * processed_trajectory[i]) + ((1.0 - ALPHA) * smoothed_trajectory[i-1])
             smoothed_trajectory.append(smooth_a)
 
-    return smoothed_trajectory
+    # 將原本的 Python List 轉回 NumPy Array，
+    return np.array(smoothed_trajectory)
 
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
