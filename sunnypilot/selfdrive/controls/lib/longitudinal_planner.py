@@ -179,7 +179,7 @@ class LongitudinalPlannerSP:
     self.dec.update(sm)
     self.e2e_alerts_helper.update(sm, self.events_sp)
     self.accel_controller.update(sm)
-    self.dynamic_follow.update(sm)
+    self.dynamic_follow.update()
     self.dtsc.update(sm)
     self.pdm.update(sm)
 
