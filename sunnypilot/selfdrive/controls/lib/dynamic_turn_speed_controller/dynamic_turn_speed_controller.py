@@ -1,17 +1,20 @@
 """
 ================================================================================
-Dynamic Turn Speed Controller (DTSC) - Apex TTA & Telemetry Edition
-自動駕駛動態彎道速度控制器 (極限值決策 + 零頓挫平滑煞車 + 遙測日誌版) 🚀
+Dynamic Turn Speed Controller (DTSC) - Dual-Mode TTA & Telemetry Edition
+自動駕駛動態彎道速度控制器 (雙模減速切換 + 極限值決策 + 遙測日誌版) 🚀
 ================================================================================
 
 【架構哲學 (Architecture Philosophy)】
 傳統的彎道減速往往依賴靜態地圖或單一曲率閾值，容易造成「幽靈煞車」或「入彎太晚」。
-本系統採用「時空軌跡重疊 (Spatio-Temporal Overlap)」與「運動學反推 (Kinematic Inversion)」：
+本系統採用「時空軌跡重疊 (Spatio-Temporal Overlap)」與「動態運動學 (Dynamic Kinematics)」：
 1. 信心建立：AI 模型必須在時間推移中，持續且穩定地在「同一個物理位置」預測出彎道特徵
    (大曲率或高 G 力)，信心度才會攀升。這有效過濾了模型的瞬間閃爍雜訊。
 2. 極限決策：不看整條軌跡的平均值，而是像賽車手一樣，直接在可信視野內尋找「最刁鑽的彎心 (Apex)」，
    並用該點的極限物理量一次性決定安全車速。
-3. 完美煞車：利用與彎道起點的剩餘距離，套用等加速度運動學公式 (TTA)，確保減速過程絲滑無頓挫。
+3. 雙模煞車 (核心修復)：
+   - 準備入彎 (Dist > 5m)：利用剩餘距離，套用等加速度運動學公式 (TTA) 進行空間煞車。
+   - 彎道中心 (Dist <= 5m)：禁用 TTA 以防止分母過小導致的「撞牆級重煞」，切換為時間
+     比例控制 (P-Controller)，確保彎中動態微調極度絲滑。
 ================================================================================
 """
 
@@ -196,26 +199,36 @@ class DynamicTurnSpeedController(TargetsBase):
       self.action = False  # 靜止或極低速時強制解除系統，避免蠕行頓挫
 
     # ==========================================================
-    # [5. 提前減速 (TTA - Time To Arrival Braking)]
+    # [5. 提前減速 (空間 TTA 與 彎中時間 P-Controller 雙模切換)]
     # ==========================================================
     a_target_tta = 0.0
 
     if self.action and is_curve_ahead:
-      # 🟩 零頓挫平滑演算法：完全信任物理距離，不再人為預扣 1 秒緩衝。
-      # 這能確保分母 S 最大化，讓算出的減速度 a 極度線性柔和。
-      safe_braking_dist = max(dist_to_entry, 1.0)
+      # 計算速度落差 (正值代表需要加速，負值代表需要減速)
+      speed_diff = v_decision_final - v_ego
 
-      # 狀況 A：需要重煞 (當前車速高於目標安全車速 0.5 m/s 以上)
-      if v_ego > v_decision_final + 0.5:
-        # 運動學公式：a = (Vf² - Vi²) / 2S
-        # 目標是在抵達入彎點 (S) 時，車速剛好降至安全時速 (Vf)
-        a_req = (v_decision_final**2 - v_ego**2) / (2.0 * safe_braking_dist)
-        a_target_tta = min(a_req, 0.0) # 此階段僅允許系統踩煞車，嚴禁補油門
+      # --------------------------------------------------------
+      # 狀況 A：準備入彎 (距離彎心 > 5 公尺) -> 啟動 TTA 空間煞車
+      # --------------------------------------------------------
+      if dist_to_entry > 5.0:
+        # 當車速明顯高於目標安全車速 (超速 0.5 m/s 以上)
+        if v_ego > v_decision_final + 0.5:
+          # 運動學公式：a = (Vf² - Vi²) / 2S
+          # 利用剩餘的真實物理距離，算出完美的等加速度
+          a_req = (v_decision_final**2 - v_ego**2) / (2.0 * dist_to_entry)
+          a_target_tta = min(a_req, 0.0) # 準備入彎階段僅允許減速，嚴禁無效補油
+        else:
+          # 速度已提前達標，轉換為極溫和的 P-Controller 貼合
+          a_target_tta = speed_diff / 2.0
 
-      # 狀況 B：彎中巡航或出彎 (已達安全速度)
+      # --------------------------------------------------------
+      # 狀況 B：彎心中 (距離彎心 <= 5 公尺) -> 禁用 TTA，切換時間平滑跟隨
+      # --------------------------------------------------------
       else:
-        # 轉換為溫和的 P-Controller (Proportional Controller)，以 1.5 秒的反應時間平滑貼合目標車速
-        a_target_tta = (v_decision_final - v_ego) / 1.5
+        # ⚠️ 致命邊界防護：彎中絕對禁止使用 TTA！
+        # 若距離 S 趨近於 0，TTA 算出的負加速度會無限大，導致撞牆級重煞 (-3.50)。
+        # 因此，當車輛已在彎中，若 AI 突然下修安全車速，改用 1.5 秒的反應時間 (P-Controller) 平滑過渡。
+        a_target_tta = speed_diff / 1.5
 
     # ==========================================================
     # [6. 輸出控制與 10 幀環形平滑 (Ring Buffer Smoothing)]
@@ -237,6 +250,8 @@ class DynamicTurnSpeedController(TargetsBase):
     else:
       # 待機狀態：持續用當前車速填滿緩衝區，確保下次系統介入的瞬間不會產生車速跳變 (無縫接軌)
       self.v_target_history.fill(v_ego)
+      self.v_target = v_cruise
+      self.a_target = a_ego  # 待機時交還加速度控制權
 
     # ==========================================================
     # [7. UI 視覺渲染與遙測日誌 (Telemetry & Logging)]
