@@ -6,12 +6,12 @@ from cereal import messaging
 # 1. 距離與狀態機閾值 (百分比)
 SAFE_DIST_PERCENT = 0.75    # 🚨 絕對安全底線：跌破 75% 理想距離時，ACM 完全退場，交還給原生 MPC 重煞保命
 COAST_START_PERCENT = 0.95  # 🟢 進入點：距離小於 95% 時，ACM 狀態機啟動，準備介入滑行邏輯
-COAST_END_PERCENT = 0.80    # 🟡 警戒線：距離小於 80% 時結束純滑行，進入「動態微煞車」把距離拉回 80%
+COAST_END_PERCENT = 0.85    # 🟡 警戒線：距離小於 85% 時結束純滑行，進入「動態微煞車」把距離拉回 85%
 EXIT_PERCENT = 1.00         # ⚪ 退出點：距離拉開大於 100% 時，ACM 徹底休眠
 
 # 2. 加速度動作極限變數 (單位: m/s²)
-COAST_MAX_BRAKE = -0.4      # 🌊 滑行極限：在 80%~95% 區間，只要 MPC 煞車力道輕於 -0.4，就強制抹平為 0.0 (純滑行)
-MIN_RECOVERY_ACCEL = -0.4   # 🛡️ 最小煞車極限：在 75%~80% 區間，為了壓制 MPC 神經質急煞，強制限縮的最大煞車力道
+COAST_MAX_BRAKE = -0.4      # 🌊 滑行極限：在 85%~95% 區間，只要 MPC 煞車力道輕於 -0.4，就強制抹平為 0.0 (純滑行)
+MIN_RECOVERY_ACCEL = -0.4   # 🛡️ 最小煞車極限：在 75%~85% 區間，為了壓制 MPC 神經質急煞，強制限縮的最大煞車力道
 MAX_RECOVERY_ACCEL = 0.4    # 🐢 緩加速極限：前車加速時，限制我們的補油門力道，確保提速比前車慢以拉開安全距離
 MPC_FALLBACK_ACCEL = -1.2   # 💣 危險判定閾值：如果預測或計算出需要低於 -1.2 的重煞，代表情況危急，立刻轉交 MPC
 
@@ -20,7 +20,7 @@ class AdaptiveCoastingManager:
     """
     自適應滑行管理模組 (ACM)
     負責攔截並優化縱向加速度軌跡，提供 80%~95% 區間的純滑行，
-    以及 75%~80% 區間的平滑退讓，同時具備多重保命防護機制。
+    以及 70%~80% 區間的平滑退讓，同時具備多重保命防護機制。
     """
 
     def __init__(self):
@@ -95,7 +95,7 @@ class AdaptiveCoastingManager:
             return a_desired_trajectory
 
         # ------------------------------------------
-        # 5. 動態追蹤演算法 (針對 75%~80% 區間計算最佳平滑拉回力道)
+        # 5. 動態追蹤演算法 (針對 70%~80% 區間計算最佳平滑拉回力道)
         # ------------------------------------------
         # 距離誤差 = 目前距離 - 目標距離 (即 80% 警戒線)
         # 若為負數，代表距離已經跌破 80%，需要煞車拉開距離
@@ -118,8 +118,7 @@ class AdaptiveCoastingManager:
             a_target = a_desired_trajectory[i]
 
             # 【區域 A】80% ~ 100% 滑行享受與遲滯維持區
-            # 💡 關鍵修正：因為 acm_active 狀態機已經把關了 95% 的進入點與 100% 的退出點，
-            # 所以只要在 ACM 活躍狀態下，大於 80% 的所有區間，都應該貫徹滑行邏輯！
+            # 只要在 ACM 活躍狀態下，大於 80% 的所有區間，都貫徹滑行邏輯
             if COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
                 if COAST_MAX_BRAKE <= a_target < 0.0:
                     # 如果 MPC 的煞車力道很輕 (-0.4 到 0.0 之間) -> 抹平為 0.0 純滑行
@@ -128,22 +127,22 @@ class AdaptiveCoastingManager:
                     # 如果 MPC 煞得比較重 (超過 -0.4) -> 進行數學平移保留煞車力道
                     a_target = a_target - COAST_MAX_BRAKE
 
-            # 【區域 B】75% ~ 80% 平滑退讓區 (專抗切入車的 5% 緩衝空間)
+            # 【區域 B】70% ~ 80% 平滑退讓區 (擴大為 10% 的防護切入緩衝空間)
             elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                 # 落實設計理念：強制壓制 MPC 的神經質急煞！
-                # 就算 MPC 被切入車嚇到給出極端煞車，只要還在這 5% 緩衝區內，
+                # 就算 MPC 被切入車嚇到給出極端煞車，只要還在這 10% 緩衝區內，
                 # 我們就只使用剛剛算出的平滑力道 `raw_a_calc`，並嚴格限制在 [-0.4, 0.4] 之間，
                 # 確保車輛以溫柔、不點頭的方式把距離慢慢拉回 80%。
                 a_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
 
-            # 【區域 C】小於 75% 絕對危險區
+            # 【區域 C】小於 70% 絕對危險區
             elif dist_percent < SAFE_DIST_PERCENT:
-                # 距離被極度壓縮，跌破了 75% 的絕對安全底線
+                # 距離被極度壓縮，跌破了 70% 的絕對安全底線
                 # 放棄任何覆寫 (pass)，將這 33 個點的控制權 100% 交還給原生 MPC 執行重煞
                 pass
 
             # 將處理完的數值寫回軌跡陣列
             a_desired_trajectory[i] = a_target
 
-        # 回傳優化後的軌跡，交由外部 Planner (如 longitudinal_planner.py) 進行終端平滑與執行
+        # 回傳優化後的軌跡，交由外部 Planner 進行終端平滑與執行
         return a_desired_trajectory
