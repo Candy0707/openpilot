@@ -108,8 +108,8 @@ class LongitudinalPlannerSP:
       self.events_sp,
     )
 
-    self.dtsc.update(sm)
-    self.pdm.update(sm)
+    self.dtsc.update_target(sm, v_ego, a_ego, v_cruise)
+    self.pdm.update_target(sm, v_ego, a_ego, v_cruise)
 
     targets = {
       LongitudinalPlanSource.cruise: (v_cruise, a_ego),
@@ -179,6 +179,12 @@ class LongitudinalPlannerSP:
     self.dec.update(sm)
     self.e2e_alerts_helper.update(sm, self.events_sp)
     self.accel_controller.update(sm)
+    self.dynamic_follow.update(sm)
+    self.dtsc.update(sm)
+    self.pdm.update(sm)
+
+
+
 
   def publish_longitudinal_plan_sp(self, sm: messaging.SubMaster, pm: messaging.PubMaster) -> None:
     plan_sp_send = messaging.new_message('longitudinalPlanSP')
