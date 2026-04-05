@@ -1,20 +1,29 @@
 """
 ================================================================================
-Dynamic Turn Speed Controller (DTSC) - Dual-Mode TTA & Telemetry Edition
-自動駕駛動態彎道速度控制器 (雙模減速切換 + 極限值決策 + 遙測日誌版) 🚀
+Dynamic Turn Speed Controller (DTSC) - Final Pro Edition
+自動駕駛動態彎道速度控制器 (嚴格 4 階段狀態機 + 彎中動態補油版) 🚀
 ================================================================================
 
-【架構哲學 (Architecture Philosophy)】
-傳統的彎道減速往往依賴靜態地圖或單一曲率閾值，容易造成「幽靈煞車」或「入彎太晚」。
-本系統採用「時空軌跡重疊 (Spatio-Temporal Overlap)」與「動態運動學 (Dynamic Kinematics)」：
-1. 信心建立：AI 模型必須在時間推移中，持續且穩定地在「同一個物理位置」預測出彎道特徵
-   (大曲率或高 G 力)，信心度才會攀升。這有效過濾了模型的瞬間閃爍雜訊。
-2. 極限決策：不看整條軌跡的平均值，而是像賽車手一樣，直接在可信視野內尋找「最刁鑽的彎心 (Apex)」，
-   並用該點的極限物理量一次性決定安全車速。
-3. 雙模煞車 (核心修復)：
-   - 準備入彎 (Dist > 5m)：利用剩餘距離，套用等加速度運動學公式 (TTA) 進行空間煞車。
-   - 彎道中心 (Dist <= 5m)：禁用 TTA 以防止分母過小導致的「撞牆級重煞」，切換為時間
-     比例控制 (P-Controller)，確保彎中動態微調極度絲滑。
+【系統運作核心理論 (System Architecture & Control Theory)】
+本系統屏棄了傳統依賴「靜態地圖」或「單一曲率門檻」的生硬煞車方式，
+改採最先進的「時空軌跡重疊 (Spatio-Temporal Overlap)」與「動態狀態機 (Dynamic State Machine)」。
+
+1. 信心濾波器 (Confidence Filter)：
+   我們不盲目相信 AI 模型單一幀的預測。系統會將未來的軌跡投影到時間軸上，
+   只有當模型在「連續的時間流逝中，對同一個物理位置持續預測出危險彎道特徵」時，
+   信心度才會累積。這就像給了系統一雙抗雜訊的眼睛，徹底消滅了幽靈煞車。
+
+2. 危險剝離與彎心鎖定 (Danger Extraction & Apex Targeting)：
+   在可信賴的視距內，系統會像賽車手一樣去尋找「真正的入彎點」(G>0.3 或 曲率>0.005)，
+   並直接抓取整段彎道最極限的「彎心 (Apex)」數據，一次性反推出該彎道的絕對安全車速。
+
+3. 四階段狀態機與雙模控制 (4-Stage State Machine & Dual-Mode Control)：
+   - [第一階段] 遠距入彎前：利用剩餘距離，套用 TTA (Time-To-Arrival) 空間運動學公式，
+     計算出完美的等減速度。此階段「嚴格禁止補油 (min 鎖定)」，確保入彎前確實減速。
+   - [第二階段] 抵達彎中：距離歸零，若繼續使用 TTA 會導致除以零的「撞牆級重煞」。
+     因此強制切換為 P-Controller (時間比例控制)，並「解除補油鎖定」。若車速過慢，
+     系統會主動給予正加速度 (最高 1.0 m/s²)，維持動力平滑過彎。
+   - [結束階段] 出彎過渡：彎道特徵消失，平滑引導車輛加速回歸原定巡航車速。
 ================================================================================
 """
 
@@ -29,27 +38,30 @@ from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 # ==========================================================
 # [0. 系統全域常數與物理極限設定]
 # ==========================================================
-MAX_ACCEL = 0.0   # 系統介入時最大允許的加速度 (0.0 代表本系統只負責煞車，加速交還給基礎巡航)
-MIN_ACCEL = -3.5  # 最大煞車力道 (m/s²)，接近人類重踩煞車的極限，確保安全
+# 【系統輸出權限界線】
+MAX_ACCEL = 1.0   # 解鎖正向加速權限 (1.0 m/s² 代表允許系統在彎中/出彎時，給予溫和且線性的補油)
+MIN_ACCEL = -3.5  # 最大允許煞車力道 (-3.5 m/s² 接近人類重踩煞車的極限，做為保命的物理底線)
 
-# 時間軸設定 (Openpilot 模型頻率為 20Hz，即 DT = 0.05s)
-NUM_SLOTS = 200                          # 將未來預測切分為 200 格 (總計 10 秒預測)
+# 【時間與空間網格化 (Grid Settings)】
+# Openpilot 視覺模型頻率為 20Hz (即每幀 0.05 秒)，我們將未來 10 秒的預測切分為 200 格。
+NUM_SLOTS = 200
 DT_MDL = 0.05
-LINEAR_T = np.arange(0.0, 10.0, DT_MDL)  # 建立均勻的線性時間軸
-MODEL_T = np.array(ModelConstants.T_IDXS)  # Openpilot 原始的非均勻時間軸 (遠處點較稀疏)
+LINEAR_T = np.arange(0.0, 10.0, DT_MDL)  # 建立均勻的線性時間軸 (0.0, 0.05, 0.10...)
+MODEL_T = np.array(ModelConstants.T_IDXS)  # 模型原始輸出的非均勻時間軸 (越遠處點越稀疏)
 
-# 彎道判定與信心閾值
-MIN_CURVATURE = 0.002    # 最小曲率門檻：低於此值視為大直路，避免在直線上微調方向盤被誤判
-TRIGGER_LAT_ACCEL = 0.6  # 觸發信心累積的預測 G 力門檻：專門捕捉高速公路的大緩彎 (曲率小但 G 值高)
-CONF_THRESHOLD = 0.60    # 絕對信心門檻：軌跡穩定度大於 60%，系統才認定此為真實彎道並啟動減速
+# 【彎道特徵與信心門檻】
+MIN_CURVATURE = 0.002    # 基礎彎道門檻：低於此值視為直路，用於累積最基礎的視野信心。
+TRIGGER_LAT_ACCEL = 0.6  # 預測 G 力門檻：專門用來捕捉高速公路上「曲率微小但車速極快」的高速大緩彎。
+CONF_THRESHOLD = 0.60    # 絕對信心門檻：軌跡穩定度 > 60%，系統才認定此段軌跡可信並納入計算。
 
-# 舒適動態查表 (Comfort Lookup Table)
-# 根據不同車速 (km/h) 定義人類乘客可容忍的舒適橫向 G 力 (m/s²)
+# 【人類舒適度動態查表 (Comfort G-Force Lookup Table)】
+# 根據不同車速 (km/h)，定義出乘客不會感到暈眩或恐懼的最大橫向 G 力 (m/s²)。
+# 速度越快，容忍的 G 力通常會稍微放寬 (對應高速公路的超大彎道設計)。
 COMFORT_SPEEDS_KPH = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0]
 COMFORT_LAT_ACCELS = [1.2, 1.2, 1.2, 1.3, 1.4, 1.5, 1.6, 1.6, 1.8, 1.8, 1.8, 1.8, 1.8]
 
-# 物理防線
-STAT_HARD_LIMIT_LAT_ACCEL = 2.0  # 絕對物理極限，不論查表數值為何，系統絕不允許過彎 G 力超過 2.0G
+# 【底盤硬體物理防線】
+STAT_HARD_LIMIT_LAT_ACCEL = 2.0  # 絕對極限：不論查表舒適度為何，絕不允許過彎 G 力超過此數值，防止失控。
 
 
 class DynamicTurnSpeedController(TargetsBase):
@@ -57,72 +69,73 @@ class DynamicTurnSpeedController(TargetsBase):
     super().__init__(CP, mpc)
     self.log_timer = 0.0
 
-    # 狀態記憶陣列
-    self.confidence_table = np.zeros(NUM_SLOTS)   # 核心：儲存未來 10 秒每一格的彎道確信度 (0.0 ~ 1.0)
-    self.ui_confidence = np.zeros(len(MODEL_T))   # UI 渲染：提供給 HUD 的 33 格信心地毯數據
-    self.v_target_history = np.zeros(10)          # 輸出平滑：10 幀環形緩衝區，防止目標車速跳動
+    # 【狀態記憶體配置】
+    self.confidence_table = np.zeros(NUM_SLOTS)   # 核心記憶：儲存未來 10 秒每一格的彎道確信度 (0.0~1.0)
+    self.ui_confidence = np.zeros(len(MODEL_T))   # 視覺渲染：提供給 HUD 的 33 格信心地毯數據
+    self.v_target_history = np.zeros(10)          # 輸出平滑器：10 幀 (0.5秒) 的環形緩衝區，抹平車速跳動
 
   def update_target(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float):
     model_msg = sm['modelV2']
     ctrl_name = self.__class__.__name__
 
-    # 基礎防呆：若模型當機或無軌跡輸出，直接放行巡航設定
+    # 【基礎防呆機制】
+    # 若 AI 模型當機、無資料，直接放行使用者設定的巡航定速，不做任何干預。
     if model_msg is None or len(model_msg.position.x) == 0:
       self.v_target, self.a_target = v_cruise, a_ego
       return super().update_target(sm, v_ego, a_ego, v_cruise)
 
-    # 限制最低運算基準車速，防止後續公式出現 ZeroDivisionError (除以零)
-    v_ego_clp = max(v_ego, 0.3)
 
     # ==========================================================
-    # [1. 車體狀態與虛擬軌跡萃取]
+    # [1. 車體狀態與虛擬軌跡萃取 (Trajectory Extraction)]
     # ==========================================================
-    # 讀取實車感測器計算的當下真實曲率
+    # 讀取底盤感測器計算的當下「真實曲率」(用於退出判定)。
     cs_curvature = sm['controlsState'].curvature if sm.valid['controlsState'] else 0.0
 
-    # 擷取 AI 模型的 33 個原始預測節點
+    # 擷取 AI 模型的 33 個原始預測節點 (空間距離、速度、車頭旋轉角速度、坡度)。
     x_raw = np.array(model_msg.position.x)                      # 縱向距離
     v_raw = np.maximum(np.array(model_msg.velocity.x), 0.1)     # 預測車速
     y_rate_raw = np.abs(np.array(model_msg.orientationRate.z))  # 預測橫擺角速度 (Yaw Rate)
     pitch_raw = np.array(model_msg.orientation.y)               # 預測俯仰角 (坡度)
 
-    # 利用線性插值 (Interpolation) 將非均勻的 33 個點，展開為 200 個均勻的時間格 (每 0.05 秒一格)
+    # 利用線性插值 (Linear Interpolation) 將稀疏的 33 個點，均勻展開為 200 個時間格。
     x_200 = np.interp(LINEAR_T, MODEL_T, x_raw)
     pitch_200 = np.interp(LINEAR_T, MODEL_T, pitch_raw)
 
-    # 曲率計算 k = (Yaw Rate) / Velocity
-    # 為了避免車輛靜止或蠕行時，微小的方向盤轉動導致曲率運算結果爆炸，設定分母下限為 1.0 m/s
+    # 預測曲率計算公式：k = (Yaw Rate) / Velocity
+    # 分母加上 1.0 m/s 的下限，避免車輛靜止時微轉方向盤導致曲率爆炸。
     v_raw_k = np.maximum(v_raw, 1.0)
     k_raw = y_rate_raw / v_raw_k
 
-    # 將預測 G 力與曲率展開至 200 格陣列
+    # 將預測的 G 力 (向心加速度) 與曲率，一併展開至 200 格陣列。
     g_200 = np.interp(LINEAR_T, MODEL_T, y_rate_raw * v_raw)
     k_200_raw = np.interp(LINEAR_T, MODEL_T, k_raw)
 
-    # 坡度補償：若面臨下坡 (pitch 為負)，重力分量會加劇外拋風險，因此人為放大預測曲率作為安全餘裕
+    # 【下坡危險補償 (Slope Compensation)】
+    # 當遇到下坡 (pitch 為負)，車輛重心前移且重力提供額外向下分量，外拋風險大增。
+    # 這裡人為將預測曲率放大 (最多放大 50%)，迫使系統提早且更重地踩下煞車。
     slope_factor = np.clip(np.abs(pitch_200) * 5.0, 0.0, 0.5)
     k_200_safe = k_200_raw * (1.0 + slope_factor)
 
     # ==========================================================
-    # [2. 信心感知 (Confidence Perception)] 時空平移濾波器
+    # [2. 信心感知器 (Confidence Perception & Temporal Shift)]
     # ==========================================================
-    # 將上一幀的信心畫布向左平移一格 (代表 0.05 秒過去了，未來的軌跡逼近了車頭)
+    # 【時空平移】將上一幀的信心畫布向左平移一格 (代表 0.05 秒過去了，未來逼近了當下)。
     self.confidence_table[:-1] = self.confidence_table[1:]
-    self.confidence_table[-1] = 0.0  # 最遠的未來補零，等待新資料
+    self.confidence_table[-1] = 0.0
 
-    # 定義彎道特徵遮罩：滿足「預測 G 力過大」或「預測曲率過大」任一條件即可
+    # 【彎道特徵遮罩】找出預測軌跡中，滿足大 G 力或大曲率的節點。
     curve_mask = (g_200 > TRIGGER_LAT_ACCEL) | (k_200_safe > MIN_CURVATURE)
 
-    # 執行充放電邏輯：
-    # 如果同一個物理位置在這一幀依然被判定為彎道，信心 +5%；若特徵消失，信心緩慢 -1% 避免錯殺
+    # 【充放電邏輯】
+    # 若特徵持續存在，信心度 +5%；若特徵消失或亂跳，信心度 -1% (緩慢放電以容錯)。
     self.confidence_table[curve_mask] += 0.05
     self.confidence_table[~curve_mask] -= 0.01
     self.confidence_table = np.clip(self.confidence_table, 0.0, 1.0)
 
     # ==========================================================
-    # [3. 動態視距與極限萃取 (Dynamic Horizon & Apex Extraction)]
+    # [3. 動態視距與危險特徵萃取 (Horizon & Apex Extraction)]
     # ==========================================================
-    # 尋找信心畫布中，所有大於採信門檻 (60%) 的索引值
+    # 從信心畫布中，篩選出大於 60% 門檻的索引值，這些是系統認可的「絕對可信軌跡」。
     valid_indices = np.where(self.confidence_table > CONF_THRESHOLD)[0]
 
     is_curve_ahead = False
@@ -130,7 +143,7 @@ class DynamicTurnSpeedController(TargetsBase):
     g_future_max = 0.0
     v_decision_final = v_cruise
 
-    # 初始化遙測與計算用變數
+    # 初始化 Log 遙測用變數
     entry_sec = 0.0          # 預計入彎時間 (秒)
     horizon_sec = 0.0        # 最遠視距時間 (秒)
     dist_to_entry = 0.0      # 距入彎點真實物理距離 (公尺)
@@ -142,11 +155,20 @@ class DynamicTurnSpeedController(TargetsBase):
     if len(valid_indices) > 0:
       is_curve_ahead = True
 
-      # 獲取高信心區段的頭 (入彎點) 與 尾 (最遠視距)
-      entry_idx = valid_indices[0]
+      # 高信心軌跡的尾端，即為系統當下的「最遠動態視距」。
       horizon_idx = valid_indices[-1]
 
-      # 計算空間距離 (公尺)
+      # 【危險入彎點精確定位】
+      # 為了避免微小曲率 (如直路上微調方向盤) 被誤判為 0.0m 入彎，
+      # 必須在可信軌跡中，去尋找第一個真正具備物理危險性 (G>0.3 或 曲率>0.005) 的點。
+      dangerous_pts = np.where((g_200[valid_indices] > 0.3) | (k_200_safe[valid_indices] > 0.005))[0]
+
+      if len(dangerous_pts) > 0:
+        entry_idx = valid_indices[dangerous_pts[0]] # 真正的煞車起點
+      else:
+        entry_idx = valid_indices[0] # 若無明顯危險，退回可信點起點
+
+      # 將 Index 轉換為真實物理距離 (公尺) 與時間 (秒)。
       dist_to_entry = x_200[entry_idx]
       dyn_horizon_dist = x_200[horizon_idx]
 
@@ -158,120 +180,141 @@ class DynamicTurnSpeedController(TargetsBase):
       entry_conf = self.confidence_table[entry_idx] * 100
       horizon_conf = self.confidence_table[horizon_idx] * 100
 
-      # 🌟 核心突破：直接從這段高信心軌跡中，萃取出「最極限的彎心 (Apex)」數據
+      # 【鎖定彎心 (Apex)】
+      # 從這段高信心軌跡中，直接萃取出「最極限的曲率與 G 力」，用來決定彎道的最低限速。
       k_future_max = float(np.max(k_200_safe[valid_indices]))
       g_future_max = float(np.max(g_200[valid_indices]))
 
       # ==========================================================
-      # [4. 速度決策 (Speed Decision)]
+      # [4. 速度決策 (Speed Decision via Kinematic Inversion)]
       # ==========================================================
-      # 將當前車速代入查表，得出人類乘客當下能接受的舒適 G 力極限
+      # 透過查表，獲取當前車速下人類乘客能接受的舒適 G 力極限。
       comfort_speeds_ms = [v * CV.KPH_TO_MS for v in COMFORT_SPEEDS_KPH]
       comfort_g_limit = float(np.interp(v_ego, comfort_speeds_ms, COMFORT_LAT_ACCELS))
 
-      # A. 實車當下安全限速 (應對車輛已經駛入彎道中的狀況)
+      # A. 實車當下安全限速：利用底盤實測曲率反推，用來應對已經在彎道中，防護底盤物理極限。
       act_k_raw = max(abs(cs_curvature), 1e-5)
       act_k_safe = act_k_raw * (1.0 + np.clip(-pitch_200[0] * 5.0, 0.0, 0.5))
-      v_act_hard_g = np.sqrt(STAT_HARD_LIMIT_LAT_ACCEL / act_k_safe)  # 物理極限車速
-      v_act_k_safe = np.sqrt(comfort_g_limit / act_k_safe)            # 舒適極限車速
+      v_act_hard_g = np.sqrt(STAT_HARD_LIMIT_LAT_ACCEL / act_k_safe)
+      v_act_k_safe = np.sqrt(comfort_g_limit / act_k_safe)
       v_actual_decision = min(v_act_hard_g, v_act_k_safe)
 
-      # B. 預測未來安全限速 (應對遠方即將到來的彎心 Apex)
+      # B. 預測未來安全限速：利用找出的彎心 (Apex) 極限曲率，反推入彎前必須降到的目標車速。
       v_mod_hard_g = np.sqrt(STAT_HARD_LIMIT_LAT_ACCEL / max(k_future_max, 1e-5))
       v_mod_k_safe = np.sqrt(comfort_g_limit / max(k_future_max, 1e-5))
       v_model_decision = min(v_mod_hard_g, v_mod_k_safe)
 
-      # 最終決策：整合實車現狀、預測未來與駕駛設定的巡航時速，取最保守 (最小) 的數值
+      # 最終決策：整合實車現狀、預測未來與巡航定速，取最保守 (最小) 的數值作為絕對安全目標。
       v_decision_final = min(v_model_decision, v_actual_decision, v_cruise)
 
-    # --- 狀態機：介入與退出條件 ---
-    # 退出條件：車體已回正 (實體曲率極小) 且 模型視野內已無彎道特徵
+    # ==========================================================
+    # [5. 核心：四階段狀態機切換 (4-Stage State Machine)]
+    # ==========================================================
+
+    # 【退出條件】方向盤實體曲率已回歸直線 (<0.002) 且 AI 模型判定未來已無彎道。
     exit_condition = (abs(cs_curvature) < MIN_CURVATURE) and (not is_curve_ahead)
 
+    # 車輛必須行進中才允許啟動，防止靜止蠕行時因方向盤轉動引發頓挫。
     if v_ego > 0.1:
       if self.action:
+        # 若已在系統介入中，唯有滿足嚴格的 exit_condition 才允許退出。
         if exit_condition:
           self.action = False
       else:
+        # 【開始階段】：尚未介入，只要模型偵測到前方有可信彎道，立即啟動介入。
         if is_curve_ahead:
           self.action = True
     else:
-      self.action = False  # 靜止或極低速時強制解除系統，避免蠕行頓挫
+      self.action = False
 
-    # ==========================================================
-    # [5. 提前減速 (空間 TTA 與 彎中時間 P-Controller 雙模切換)]
-    # ==========================================================
     a_target_tta = 0.0
 
-    if self.action and is_curve_ahead:
-      # 計算速度落差 (正值代表需要加速，負值代表需要減速)
-      speed_diff = v_decision_final - v_ego
+    # 只要仍在介入狀態 (self.action == True)，就必須執行對應的控制邏輯
+    if self.action:
 
-      # --------------------------------------------------------
-      # 狀況 A：準備入彎 (距離彎心 > 5 公尺) -> 啟動 TTA 空間煞車
-      # --------------------------------------------------------
-      if dist_to_entry > 5.0:
-        # 當車速明顯高於目標安全車速 (超速 0.5 m/s 以上)
-        if v_ego > v_decision_final + 0.5:
-          # 運動學公式：a = (Vf² - Vi²) / 2S
-          # 利用剩餘的真實物理距離，算出完美的等加速度
-          a_req = (v_decision_final**2 - v_ego**2) / (2.0 * dist_to_entry)
-          a_target_tta = min(a_req, 0.0) # 準備入彎階段僅允許減速，嚴禁無效補油
+      if is_curve_ahead:
+        # 計算速度落差 (負值代表需減速，正值代表車速過慢需補油)
+        speed_diff = v_decision_final - v_ego
+
+        # --------------------------------------------------------
+        # 【第一階段】：TTA 空間預先減速 (入彎前遠距)
+        # --------------------------------------------------------
+        # 條件：距離真正的危險彎道起點還有 1.0m 以上。
+        if dist_to_entry > 1.0:
+          if v_ego > v_decision_final + 0.5:
+            # TTA 等加速度運動學公式：a = (Vf² - Vi²) / 2S
+            # 準備入彎階段「嚴格禁止補油 (幽靈加速)」，強制使用 min(a, 0.0) 鎖死加速權限。
+            a_req = (v_decision_final**2 - v_ego**2) / (2.0 * dist_to_entry)
+            a_target_tta = min(a_req, 0.0)
+          else:
+            # 速度已提前降至安全範圍，保持緘默 (0.0)，將控制權默默交還給 ACC 巡航。
+            a_target_tta = 0.0
+
+        # --------------------------------------------------------
+        # 【第二階段】：P-Controller 彎中動態調整 (抵達入彎點)
+        # --------------------------------------------------------
         else:
-          # 速度已提前達標，轉換為極溫和的 P-Controller 貼合
-          a_target_tta = speed_diff / 2.0
+          # ⚠️ 致命邊界防護：彎中絕對禁止使用 TTA 距離公式！(S趨近零會導致無限大重煞)
+          # 強制關閉 TTA，改用 1.5 秒的時間常數 (P-Controller) 來平滑微調車速。
+          # 🌟 這裡【解除 min() 限制】：允許輸出正加速度 (最高 1.0 m/s²)。
+          # 當車速掉得太低時，系統會主動幫車輛在彎中微補油門，緊緊貼合最佳極限速度！
+          a_target_tta = speed_diff / 1.5
 
-      # --------------------------------------------------------
-      # 狀況 B：彎心中 (距離彎心 <= 5 公尺) -> 禁用 TTA，切換時間平滑跟隨
-      # --------------------------------------------------------
       else:
-        # ⚠️ 致命邊界防護：彎中絕對禁止使用 TTA！
-        # 若距離 S 趨近於 0，TTA 算出的負加速度會無限大，導致撞牆級重煞 (-3.50)。
-        # 因此，當車輛已在彎中，若 AI 突然下修安全車速，改用 1.5 秒的反應時間 (P-Controller) 平滑過渡。
-        a_target_tta = speed_diff / 1.5
+        # --------------------------------------------------------
+        # 【第二階段尾聲】：出彎過渡期
+        # --------------------------------------------------------
+        # 模型已看不見彎道，但方向盤尚未完全回正 (self.action 依然 True)。
+        # 🌟 這裡同樣【解除 min() 限制】：允許輸出正加速度。
+        # 利用 2.0 秒的時間常數，平滑引導車輛加速回歸原定的巡航定速，營造出人類補油出彎的爽快感。
+        speed_diff_exit = v_cruise - v_ego
+        a_target_tta = speed_diff_exit / 2.0
+
 
     # ==========================================================
     # [6. 輸出控制與 10 幀環形平滑 (Ring Buffer Smoothing)]
     # ==========================================================
-    # 確保輸出的加速度符合車輛物理極限防護
+    # 確保最終輸出的加速度符合硬體物理極限 (-3.5G ~ 1.0G)
     self.a_target = np.clip(a_target_tta, MIN_ACCEL, MAX_ACCEL)
 
     if self.action:
-      # 反推虛擬前導車速 (Virtual Lead Speed)
-      # 為了與 Openpilot 原生的縱向 MPC 完美融合，我們將需要的加速度，反推為前方 4 秒處的一台虛擬車輛的速度
+      # 【虛擬前導車速反推】
+      # 為與 Openpilot 原生的縱向 MPC (模型預測控制) 完美融合，
+      # 我們將決策好的目標加速度，反推為前方 4 秒處的一台「虛擬假車」的速度，引導底層執行。
       v_target_raw = np.sqrt(STAT_HARD_LIMIT_LAT_ACCEL / max(k_future_max, 1e-5)) + (self.a_target * 4.0)
       v_target_raw = np.clip(v_target_raw, 0.0, v_cruise)
 
-      # 環形緩衝區平移：拋棄最舊的幀 (index 9)，存入最新的幀 (index 0)
+      # 陣列平移：拋棄最舊的歷史數據 (index 9)，存入最新計算的目標車速 (index 0)
       self.v_target_history[1:] = self.v_target_history[:-1]
       self.v_target_history[0] = v_target_raw
-      # 取 10 幀平均值輸出，徹底抹平微小的運算抖動
+      # 取 10 幀 (0.5秒) 的平均值輸出，徹底抹平微小的運算抖動，讓油門/煞車踏板絲滑無比。
       self.v_target = float(np.mean(self.v_target_history))
     else:
-      # 待機狀態：持續用當前車速填滿緩衝區，確保下次系統介入的瞬間不會產生車速跳變 (無縫接軌)
+      # 待機狀態：持續用當前車速填滿緩衝區，確保下次系統「突然介入」的瞬間，車速無縫接軌不會頓挫。
       self.v_target_history.fill(v_ego)
       self.v_target = v_cruise
-      self.a_target = a_ego  # 待機時交還加速度控制權
+      self.a_target = a_ego
 
     # ==========================================================
     # [7. UI 視覺渲染與遙測日誌 (Telemetry & Logging)]
     # ==========================================================
-    # 🟩 視覺優化：將高解析的 200 格信心陣列，降採樣回 33 格交給 HUD 渲染。
-    # 乘上 0.5 將透明度設定為 50%，打造具備科技感且不刺眼的高級信心地毯。
+    # 將高解析的 200 格信心陣列降採樣回 33 格，提供給 UI 端繪製半透明信心地毯使用。
     self.ui_confidence = np.interp(MODEL_T, LINEAR_T, self.confidence_table)
 
     self.log_timer += DT_MDL
 
-    # 狀態機紀錄：控制終端機輸出頻率 (每 0.5 秒一筆)
+    # 狀態機紀錄：控制終端機輸出頻率 (每 0.5 秒一筆)，避免洗頻
     if self.action:
       if self.log_timer >= 0.5:
-        # 動態判定車輛當前與彎道的相對位置
-        if dist_to_entry < 5.0 and is_curve_ahead:
-          state_str = "🎯 彎心中"
+        # 配合 4 階段狀態機，精準輸出當前動態文字，方便事後透過 Log 抓蟲與調校。
+        if not is_curve_ahead:
+          state_str = "🏁 出彎加速"
+        elif dist_to_entry <= 1.0:
+          state_str = "🎯 彎中動態"
         else:
-          state_str = "📉 準備入彎"
+          state_str = "📉 預先減速"
 
-        # 🟩 高解析遙測輸出 (包含秒數、距離與信心度)
+        # 高解析遙測輸出 (包含秒數、距離與精準的物理極限)
         log_msg = (
           f"[{ctrl_name}] {state_str} | "
           f"V(現/安/終): {v_ego * 3.6:4.1f}/{v_decision_final * 3.6:4.1f}/{self.v_target * 3.6:4.1f} | "
