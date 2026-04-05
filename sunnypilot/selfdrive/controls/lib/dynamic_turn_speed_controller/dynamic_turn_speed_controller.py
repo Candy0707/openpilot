@@ -1,7 +1,7 @@
 """
 ================================================================================
 Dynamic Turn Speed Controller (DTSC) - Final Pro Edition
-自動駕駛動態彎道速度控制器 (嚴格 4 階段狀態機 + 彎中動態補油版) 🚀
+自動駕駛動態彎道速度控制器 (嚴格 4 階段狀態機 + 彎中動態補油版 + 實車G力防護) 🚀
 ================================================================================
 
 【系統運作核心理論 (System Architecture & Control Theory)】
@@ -17,10 +17,14 @@ Dynamic Turn Speed Controller (DTSC) - Final Pro Edition
    在可信賴的視距內，系統會像賽車手一樣去尋找「真正的入彎點」(G>0.3 或 曲率>0.005)，
    並直接抓取整段彎道最極限的「彎心 (Apex)」數據，一次性反推出該彎道的絕對安全車速。
 
+   🌟 [新增防護] 實車 G 力強制介入：
+   若 AI 信心累積太慢 (<60%)，但底盤實測感受到的橫向 G 力已超越舒適極限，
+   系統將無視 AI 信心，強制判定為「彎道中」，立刻啟動減速接管，構築絕對安全底線。
+
 3. 四階段狀態機與雙模控制 (4-Stage State Machine & Dual-Mode Control)：
    - [第一階段] 遠距入彎前：利用剩餘距離，套用 TTA (Time-To-Arrival) 空間運動學公式，
      計算出完美的等減速度。此階段「嚴格禁止補油 (min 鎖定)」，確保入彎前確實減速。
-   - [第二階段] 抵達彎中：距離歸零，若繼續使用 TTA 會導致除以零的「撞牆級重煞」。
+   - [第二階段] 抵達彎中 / G力強制介入：距離歸零，若繼續使用 TTA 會導致除以零的「撞牆級重煞」。
      因此強制切換為 P-Controller (時間比例控制)，並「解除補油鎖定」。若車速過慢，
      系統會主動給予正加速度 (最高 1.0 m/s²)，維持動力平滑過彎。
    - [結束階段] 出彎過渡：彎道特徵消失，平滑引導車輛加速回歸原定巡航車速。
@@ -133,27 +137,47 @@ class DynamicTurnSpeedController(TargetsBase):
     self.confidence_table = np.clip(self.confidence_table, 0.0, 1.0)
 
     # ==========================================================
-    # [3. 動態視距與危險特徵萃取 (Horizon & Apex Extraction)]
+    # [3. 實車動態極限與 G 力計算 (Chassis Dynamics)]
     # ==========================================================
+    # 透過查表，獲取當前車速下人類乘客能接受的舒適 G 力極限。
+    comfort_speeds_ms = [v * CV.KPH_TO_MS for v in COMFORT_SPEEDS_KPH]
+    comfort_g_limit = float(np.interp(v_ego, comfort_speeds_ms, COMFORT_LAT_ACCELS))
+
+    # A. 實車當下安全限速：利用底盤實測曲率反推，用來應對已經在彎道中，防護底盤物理極限。
+    act_k_raw = max(abs(cs_curvature), 1e-5)
+    act_k_safe = act_k_raw * (1.0 + np.clip(-pitch_200[0] * 5.0, 0.0, 0.5))
+    v_act_hard_g = np.sqrt(STAT_HARD_LIMIT_LAT_ACCEL / act_k_safe)
+    v_act_k_safe = np.sqrt(comfort_g_limit / act_k_safe)
+    v_actual_decision = min(v_act_hard_g, v_act_k_safe)
+
+    # 🌟 即時實體橫向 G 力防護 (G-Force Override)
+    # 物理公式：a_y = v² × k (當下車速平方 乘以 底盤真實曲率)
+    current_lat_accel = (v_ego ** 2) * act_k_raw
+
+    # 🌟 [更嚴格條件] 必須同時滿足：實體橫向 G 力大於舒適極限 AND 實車真實曲率大於最小彎道門檻
+    is_g_force_override = (current_lat_accel > comfort_g_limit) and (act_k_raw > MIN_CURVATURE)
+
+    # ==========================================================
+    # [4. AI 動態視距與危險特徵萃取 (AI Prediction)]
+    # ==========================================================
+    # 初始化 Log 遙測與狀態機變數
+    ai_sees_curve = False
+    v_model_decision = v_cruise
+    k_future_max = 0.0001
+    g_future_max = 0.0
+    entry_sec = 0.0
+    horizon_sec = 0.0
+    dist_to_entry = 0.0
+    dyn_horizon_dist = 0.0
+    entry_conf = 0.0
+    horizon_conf = 0.0
+
     # 從信心畫布中，篩選出大於 60% 門檻的索引值，這些是系統認可的「絕對可信軌跡」。
     valid_indices = np.where(self.confidence_table > CONF_THRESHOLD)[0]
 
-    is_curve_ahead = False
-    k_future_max = 0.0001
-    g_future_max = 0.0
-    v_decision_final = v_cruise
-
-    # 初始化 Log 遙測用變數
-    entry_sec = 0.0          # 預計入彎時間 (秒)
-    horizon_sec = 0.0        # 最遠視距時間 (秒)
-    dist_to_entry = 0.0      # 距入彎點真實物理距離 (公尺)
-    dyn_horizon_dist = 0.0   # 視距極限物理距離 (公尺)
-    entry_conf = 0.0         # 入彎點信心度 (%)
-    horizon_conf = 0.0       # 視距終點信心度 (%)
-
-    # 若視野內存在大於 60% 信心的軌跡，確立「前方有彎道」
+    # 若視野內存在大於 60% 信心的軌跡，確立「AI 預測前方有彎道」
     if len(valid_indices) > 0:
-      is_curve_ahead = True
+      ai_sees_curve = True
 
       # 高信心軌跡的尾端，即為系統當下的「最遠動態視距」。
       horizon_idx = valid_indices[-1]
@@ -171,12 +195,8 @@ class DynamicTurnSpeedController(TargetsBase):
       # 將 Index 轉換為真實物理距離 (公尺) 與時間 (秒)。
       dist_to_entry = x_200[entry_idx]
       dyn_horizon_dist = x_200[horizon_idx]
-
-      # 計算時間距離 (秒)
       entry_sec = entry_idx * DT_MDL
       horizon_sec = horizon_idx * DT_MDL
-
-      # 擷取當前格子的實際信心百分比
       entry_conf = self.confidence_table[entry_idx] * 100
       horizon_conf = self.confidence_table[horizon_idx] * 100
 
@@ -185,30 +205,39 @@ class DynamicTurnSpeedController(TargetsBase):
       k_future_max = float(np.max(k_200_safe[valid_indices]))
       g_future_max = float(np.max(g_200[valid_indices]))
 
-      # ==========================================================
-      # [4. 速度決策 (Speed Decision via Kinematic Inversion)]
-      # ==========================================================
-      # 透過查表，獲取當前車速下人類乘客能接受的舒適 G 力極限。
-      comfort_speeds_ms = [v * CV.KPH_TO_MS for v in COMFORT_SPEEDS_KPH]
-      comfort_g_limit = float(np.interp(v_ego, comfort_speeds_ms, COMFORT_LAT_ACCELS))
-
-      # A. 實車當下安全限速：利用底盤實測曲率反推，用來應對已經在彎道中，防護底盤物理極限。
-      act_k_raw = max(abs(cs_curvature), 1e-5)
-      act_k_safe = act_k_raw * (1.0 + np.clip(-pitch_200[0] * 5.0, 0.0, 0.5))
-      v_act_hard_g = np.sqrt(STAT_HARD_LIMIT_LAT_ACCEL / act_k_safe)
-      v_act_k_safe = np.sqrt(comfort_g_limit / act_k_safe)
-      v_actual_decision = min(v_act_hard_g, v_act_k_safe)
-
       # B. 預測未來安全限速：利用找出的彎心 (Apex) 極限曲率，反推入彎前必須降到的目標車速。
       v_mod_hard_g = np.sqrt(STAT_HARD_LIMIT_LAT_ACCEL / max(k_future_max, 1e-5))
       v_mod_k_safe = np.sqrt(comfort_g_limit / max(k_future_max, 1e-5))
       v_model_decision = min(v_mod_hard_g, v_mod_k_safe)
 
+    # ==========================================================
+    # [5. 🌟 系統介入開啟判斷 (Activation Check)]
+    # ==========================================================
+    # 這是 DTSC 的核心閘門：整合「AI 預測意圖」與「實體底盤意圖」，決定最終是否啟動彎道防護。
+    is_curve_ahead = False
+
+    if ai_sees_curve:
+      # 【意圖一：AI 預見彎道】(原本的 AI 意圖啟動)
+      is_curve_ahead = True
       # 最終決策：整合實車現狀、預測未來與巡航定速，取最保守 (最小) 的數值作為絕對安全目標。
       v_decision_final = min(v_model_decision, v_actual_decision, v_cruise)
 
+    elif is_g_force_override:
+      # 【意圖二：底盤感受危險】(新的實體底盤啟動)
+      # AI 信心不足 (<60%)，但實車底盤 G 力與曲率已同時超標！強制介入！
+      is_curve_ahead = True
+      v_decision_final = min(v_actual_decision, v_cruise) # 以實體方向盤限速為準
+      dist_to_entry = 0.0        # 距離歸零，強迫系統直接進入【第二階段：彎中動態調整】
+      k_future_max = act_k_safe  # 極限曲率採用當下底盤實測
+      g_future_max = current_lat_accel
+
+    else:
+      # 【意圖三：無危險狀態】
+      v_decision_final = v_cruise
+
+
     # ==========================================================
-    # [5. 核心：四階段狀態機切換 (4-Stage State Machine)]
+    # [6. 四階段狀態機切換 (4-Stage State Machine)]
     # ==========================================================
 
     # 【退出條件】方向盤實體曲率已回歸直線 (<0.002) 且 AI 模型判定未來已無彎道。
@@ -221,7 +250,7 @@ class DynamicTurnSpeedController(TargetsBase):
         if exit_condition:
           self.action = False
       else:
-        # 【開始階段】：尚未介入，只要模型偵測到前方有可信彎道，立即啟動介入。
+        # 只要前方的【系統介入開啟判斷】亮起綠燈 (is_curve_ahead = True)，立即啟動介入。
         if is_curve_ahead:
           self.action = True
     else:
@@ -272,7 +301,7 @@ class DynamicTurnSpeedController(TargetsBase):
 
 
     # ==========================================================
-    # [6. 輸出控制與 10 幀環形平滑 (Ring Buffer Smoothing)]
+    # [7. 輸出控制與 10 幀環形平滑 (Ring Buffer Smoothing)]
     # ==========================================================
     # 確保最終輸出的加速度符合硬體物理極限 (-3.5G ~ 1.0G)
     self.a_target = np.clip(a_target_tta, MIN_ACCEL, MAX_ACCEL)
@@ -296,7 +325,7 @@ class DynamicTurnSpeedController(TargetsBase):
       self.a_target = a_ego
 
     # ==========================================================
-    # [7. UI 視覺渲染與遙測日誌 (Telemetry & Logging)]
+    # [8. UI 視覺渲染與遙測日誌 (Telemetry & Logging)]
     # ==========================================================
     # 將高解析的 200 格信心陣列降採樣回 33 格，提供給 UI 端繪製半透明信心地毯使用。
     self.ui_confidence = np.interp(MODEL_T, LINEAR_T, self.confidence_table)
@@ -309,6 +338,9 @@ class DynamicTurnSpeedController(TargetsBase):
         # 配合 4 階段狀態機，精準輸出當前動態文字，方便事後透過 Log 抓蟲與調校。
         if not is_curve_ahead:
           state_str = "🏁 出彎加速"
+        # 🌟 G 力強制介入的專屬 Log 狀態 (AI 沒看見但底盤啟動)
+        elif is_g_force_override and not ai_sees_curve:
+          state_str = "⚠️ 實車Ｇ力強制介入"
         elif dist_to_entry <= 1.0:
           state_str = "🎯 彎中動態"
         else:
