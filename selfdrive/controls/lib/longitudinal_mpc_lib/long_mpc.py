@@ -10,9 +10,6 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.modeld.constants import index_function
 from openpilot.selfdrive.controls.radard import _LEAD_ACCEL_TAU
 
-# CandyPilot
-from openpilot.sunnypilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc_ext import long_mpc_ext
-
 if __name__ == '__main__':  # generating code
   from openpilot.third_party.acados.acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 else:
@@ -26,7 +23,7 @@ EXPORT_DIR = os.path.join(LONG_MPC_DIR, "c_generated_code")
 JSON_FILE = os.path.join(LONG_MPC_DIR, "acados_ocp_long.json")
 
 LongitudinalPlanSource = log.LongitudinalPlan.LongitudinalPlanSource
-MPC_SOURCES = (LongitudinalPlanSource.lead0, LongitudinalPlanSource.lead1, LongitudinalPlanSource.lead2, LongitudinalPlanSource.cruise)
+MPC_SOURCES = (LongitudinalPlanSource.lead0, LongitudinalPlanSource.lead1, LongitudinalPlanSource.cruise)
 
 X_DIM = 3
 U_DIM = 1
@@ -319,11 +316,17 @@ class LongitudinalMpc:
   def update(self, radarstate, v_cruise, personality=log.LongitudinalPersonality.standard, a_cruise_min_override=None, t_follow_override=None):
     t_follow = t_follow_override if t_follow_override is not None else get_T_FOLLOW(personality)
     a_cruise_min = a_cruise_min_override if a_cruise_min_override is not None else CRUISE_MIN_ACCEL
-
     v_ego = self.x0[1]
-    self.status = False
+    self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
     lead_xv_0 = self.process_lead(radarstate.leadOne)
+    lead_xv_1 = self.process_lead(radarstate.leadTwo)
+
+    # To estimate a safe distance from a moving lead, we calculate how much stopping
+    # distance that lead needs as a minimum. We can add that to the current distance
+    # and then treat that as a stopped car/obstacle at this new distance.
+    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1])
+    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1])
 
     # Fake an obstacle for cruise, this ensures smooth acceleration to set speed
     # when the leads are no factor.
@@ -333,16 +336,7 @@ class LongitudinalMpc:
     v_cruise_clipped = np.clip(v_cruise * np.ones(N+1), v_lower, v_upper)
     cruise_obstacle = np.cumsum(T_DIFFS * v_cruise_clipped) + get_safe_obstacle_distance(v_cruise_clipped, t_follow)
 
-    obstacles_list = []
-    for lead in radarstate.leads:
-      if lead.status:
-        self.status = True
-      lead_xv = self.process_lead(lead)
-      obstacle = lead_xv[:,0] + get_stopped_equivalence_factor(lead_xv[:,1])
-      obstacles_list.append(obstacle)
-    obstacles_list.append(cruise_obstacle)
-    x_obstacles = np.column_stack(obstacles_list)
-
+    x_obstacles = np.column_stack([lead_0_obstacle, lead_1_obstacle, cruise_obstacle])
     self.source = MPC_SOURCES[np.argmin(x_obstacles[0])]
 
     self.yref[:,:] = 0.0
