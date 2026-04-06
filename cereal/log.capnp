@@ -742,7 +742,6 @@ struct RadarState @0x9a185389d6fdd05f {
 
   leadOne @3 :LeadData;
   leadTwo @4 :LeadData;
-  leads @14 :List(LeadData);
 
   struct LeadData {
     dRel @0 :Float32;

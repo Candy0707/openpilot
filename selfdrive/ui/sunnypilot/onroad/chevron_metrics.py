@@ -4,7 +4,6 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-
 import numpy as np
 
 import pyray as rl
@@ -79,10 +78,6 @@ class ChevronMetrics:
       unit = "km/h" if ui_state.is_metric else "mph"
       text_lines.append(f"{val:.0f} {unit}")
 
-    if ui_state.chevron_metrics == ChevronOptions.ALL:
-      v_rel_text = f"{v_rel:.1f} m/s"
-      text_lines.append(v_rel_text)
-
     # Time to collision
     if ui_state.chevron_metrics == ChevronOptions.TTC_ONLY or ui_state.chevron_metrics == ChevronOptions.ALL:
       val = (d_rel / v_ego) if (d_rel > 0 and v_ego > 0) else 0.0
@@ -91,7 +86,8 @@ class ChevronMetrics:
 
     return text_lines
 
-  def _render_text_lines(self, text_lines: list[str], chevron_x: float, chevron_y: float, sz: float, rect: rl.Rectangle):
+  def _render_text_lines(self, text_lines: list[str], chevron_x: float, chevron_y: float,
+                         sz: float, rect: rl.Rectangle):
     """Render text lines with proper centering and positioning"""
     font_size = 40
     line_height = 50
@@ -129,20 +125,23 @@ class ChevronMetrics:
       rl.draw_text_ex(self._font, line, rl.Vector2(x, y), font_size, 0, text_color)
 
   def draw_lead_status(self, sm, radar_state, rect, lead_vehicles):
-    # 取得動態長度的 lead 陣列
-    leads = radar_state.leads
+    lead_one = radar_state.leadOne
+    lead_two = radar_state.leadTwo
 
-    # 檢查是否至少有一台車是有效狀態 (用來觸發 UI 淡入效果)
-    has_any_lead = any(lead.status for lead in leads)
-    self.update_alpha(has_any_lead)
+    has_lead_one = lead_one.status if lead_one else False
+    has_lead_two = lead_two.status if lead_two else False
+
+    self.update_alpha(has_lead_one or has_lead_two)
 
     if not self.should_render():
       return
 
     v_ego = sm['carState'].vEgo
 
-    # 確保不會因為 leads 和 lead_vehicles 長度不一致而報錯
-    # 使用 zip 將雷達數據與計算好的畫面座標一一配對
-    for lead_data, lead_vehicle in zip(leads, lead_vehicles, strict=False):
-      if lead_data.status and lead_vehicle.chevron:
-        self._draw_lead(lead_data, lead_vehicle, v_ego, rect)
+    if has_lead_one and lead_vehicles[0].chevron:
+      self._draw_lead(lead_one, lead_vehicles[0], v_ego, rect)
+
+    if has_lead_two and lead_vehicles[1].chevron:
+      d_rel_diff = abs(lead_one.dRel - lead_two.dRel) if has_lead_one else float('inf')
+      if d_rel_diff > 3.0:
+        self._draw_lead(lead_two, lead_vehicles[1], v_ego, rect)

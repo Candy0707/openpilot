@@ -50,10 +50,7 @@ class ModelRenderer(Widget):
     self._prev_allow_throttle = True
     self._lane_line_probs = np.zeros(4, dtype=np.float32)
     self._road_edge_stds = np.zeros(2, dtype=np.float32)
-
-    # 改為空陣列，支援動態數量的雷達點 (不再寫死只有兩台車)
-    self._lead_vehicles = []
-
+    self._lead_vehicles = [LeadVehicle(), LeadVehicle()]
     self._path_offset_z = HEIGHT_INIT[0]
     self._counter = -1
     self._camera_offset = ui_state.params.get("CameraOffset", return_default=True) if ui_state.active_bundle else 0.0
@@ -154,10 +151,10 @@ class ModelRenderer(Widget):
 
   def _update_leads(self, radar_state, path_x_array):
     """Update positions of lead vehicles"""
-    self._lead_vehicles = []
-    leads = radar_state.leads
+    self._lead_vehicles = [LeadVehicle(), LeadVehicle()]
+    leads = [radar_state.leadOne, radar_state.leadTwo]
 
-    for lead_data in leads:
+    for i, lead_data in enumerate(leads):
       if lead_data and lead_data.status:
         d_rel, y_rel, v_rel = lead_data.dRel, lead_data.yRel, lead_data.vRel
         idx = self._get_path_length_idx(path_x_array, d_rel)
@@ -166,7 +163,7 @@ class ModelRenderer(Widget):
         z = self._path.raw_points[idx, 2] if idx < len(self._path.raw_points) else 0.0
         point = self._map_to_screen(d_rel, -y_rel + self._camera_offset, z + self._path_offset_z)
         if point:
-          self._lead_vehicles.append(self._update_lead_vehicle(d_rel, v_rel, point, self._rect))
+          self._lead_vehicles[i] = self._update_lead_vehicle(d_rel, v_rel, point, self._rect)
 
   def _update_model(self, lead, path_x_array):
     """Update model visualization data based on model message"""
