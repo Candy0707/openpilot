@@ -318,16 +318,7 @@ class LongitudinalMpc:
     a_cruise_min = a_cruise_min_override if a_cruise_min_override is not None else CRUISE_MIN_ACCEL
 
     v_ego = self.x0[1]
-    self.status = radarstate.leadOne.status or radarstate.leadTwo.status
-
-    lead_xv_0 = self.process_lead(radarstate.leadOne)
-    lead_xv_1 = self.process_lead(radarstate.leadTwo)
-
-    # To estimate a safe distance from a moving lead, we calculate how much stopping
-    # distance that lead needs as a minimum. We can add that to the current distance
-    # and then treat that as a stopped car/obstacle at this new distance.
-    lead_0_obstacle = lead_xv_0[:,0] + get_stopped_equivalence_factor(lead_xv_0[:,1])
-    lead_1_obstacle = lead_xv_1[:,0] + get_stopped_equivalence_factor(lead_xv_1[:,1])
+    self.status = False
 
     # Fake an obstacle for cruise, this ensures smooth acceleration to set speed
     # when the leads are no factor.
@@ -337,8 +328,57 @@ class LongitudinalMpc:
     v_cruise_clipped = np.clip(v_cruise * np.ones(N+1), v_lower, v_upper)
     cruise_obstacle = np.cumsum(T_DIFFS * v_cruise_clipped) + get_safe_obstacle_distance(v_cruise_clipped, t_follow)
 
-    x_obstacles = np.column_stack([lead_0_obstacle, lead_1_obstacle, cruise_obstacle])
-    self.source = MPC_SOURCES[np.argmin(x_obstacles[0])]
+    # =========================================================================
+    # [最小化修改區] 使用 for 迴圈直接解析 radarstate.leads
+    # =========================================================================
+
+    # 1. 初始化障礙物清單，僅放入「巡航虛擬障礙物」 (cruise_obstacle)
+    # 說明：因為原廠的 leadOne 與 leadTwo 已經包含在 radard.py 傳遞過來的
+    # radarstate.leads 陣列中了，為了避免重複計算，這裡不再提前加入 lead0 與 lead1。
+    obstacles_list = [cruise_obstacle]
+
+    most_dangerous_radar_xv = None     # 儲存最危險的雷達軌跡 (專門給 FCW 用)
+    min_radar_dist = float('inf')      # 追蹤最小雷達距離
+
+    # 2. 直接遍歷 leads 陣列 (Cap'n Proto 的 List 必定存在，無需檢查 hasattr)
+    for lead in radarstate.leads:
+      # 由於過濾邏輯已在 radard.py 完成，這裡只要確認狀態有效即可
+      if lead.status:
+        self.status = True  # 只要有一個有效雷達點，即標記前方有車
+
+        # 計算該雷達點的外推位置與速度軌跡
+        lead_xv = self.process_lead(lead)
+
+        # 計算障礙物安全距離軌跡 (未來位置 + 預期煞停距離)
+        obstacle_trajectory = lead_xv[:, 0] + get_stopped_equivalence_factor(lead_xv[:, 1])
+
+        # 加入障礙物陣列中
+        obstacles_list.append(obstacle_trajectory)
+
+        # 紀錄距離本車最近 (t=0 時距離最小) 的雷達軌跡，保留給碰撞預警 (FCW) 使用
+        current_dist = obstacle_trajectory[0]
+        if current_dist < min_radar_dist:
+          min_radar_dist = current_dist
+          most_dangerous_radar_xv = lead_xv
+
+    # 3. 將所有軌跡疊加成 MPC 需要的矩陣
+    # 此時矩陣結構為：[cruise, lead_A, lead_B, ...]
+    x_obstacles = np.column_stack(obstacles_list)
+
+    # 4. 找出在當下 (t=0) 距離本車最近、最具威脅性的目標索引
+    closest_idx = int(np.argmin(x_obstacles[0]))
+
+    # 5. 判斷資料來源 (Source)，決定 UI 顯示狀態
+    # 因為我們把 cruise 放在 index 0，所以：
+    # - 如果 closest_idx == 0，代表目前最近的是巡航速度 (前方無車，或車距足夠遠)
+    # - 如果 closest_idx > 0，代表目前最近的是某一個雷達前車 (Lead)
+    if closest_idx == 0:
+      # 對應 MPC_SOURCES 中的 LongitudinalPlanSource.cruise (索引 2)
+      self.source = MPC_SOURCES[2]
+    else:
+      # 只要前方有車，一律對應 LongitudinalPlanSource.lead0 (索引 0)，讓 UI 顯示前車圖示
+      self.source = MPC_SOURCES[0]
+    # =========================================================================
 
     self.yref[:,:] = 0.0
     for i in range(N):
@@ -353,9 +393,11 @@ class LongitudinalMpc:
     self.params[:,5] = LEAD_DANGER_FACTOR
 
     self.run()
-    if (np.any(lead_xv_0[FCW_IDXS,0] - self.x_sol[FCW_IDXS,0] < CRASH_DISTANCE) and
-            radarstate.leadOne.modelProb > 0.9):
-      self.crash_cnt += 1
+    if most_dangerous_radar_xv is not None:
+      if np.any(most_dangerous_radar_xv[FCW_IDXS,0] - self.x_sol[FCW_IDXS,0] < CRASH_DISTANCE):
+        self.crash_cnt += 1
+      else:
+        self.crash_cnt = 0
     else:
       self.crash_cnt = 0
 
