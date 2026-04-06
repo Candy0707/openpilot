@@ -10,6 +10,9 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.modeld.constants import index_function
 from openpilot.selfdrive.controls.radard import _LEAD_ACCEL_TAU
 
+# CandyPilot
+from openpilot.sunnypilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc_ext import long_mpc_ext
+
 if __name__ == '__main__':  # generating code
   from openpilot.third_party.acados.acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 else:
@@ -23,7 +26,7 @@ EXPORT_DIR = os.path.join(LONG_MPC_DIR, "c_generated_code")
 JSON_FILE = os.path.join(LONG_MPC_DIR, "acados_ocp_long.json")
 
 LongitudinalPlanSource = log.LongitudinalPlan.LongitudinalPlanSource
-MPC_SOURCES = (LongitudinalPlanSource.lead0, LongitudinalPlanSource.lead1, LongitudinalPlanSource.cruise)
+MPC_SOURCES = (LongitudinalPlanSource.lead0, LongitudinalPlanSource.lead1, LongitudinalPlanSource.lead2, LongitudinalPlanSource.cruise)
 
 X_DIM = 3
 U_DIM = 1
@@ -330,13 +333,14 @@ class LongitudinalMpc:
     v_cruise_clipped = np.clip(v_cruise * np.ones(N+1), v_lower, v_upper)
     cruise_obstacle = np.cumsum(T_DIFFS * v_cruise_clipped) + get_safe_obstacle_distance(v_cruise_clipped, t_follow)
 
-    obstacles_list = [cruise_obstacle]
+    obstacles_list = []
     for lead in radarstate.leads:
       if lead.status:
-        self.status = True  # 只要有一個有效雷達點，即標記前方有車
-        lead_xv = self.process_lead(lead)
-        obstacle = lead_xv[:,0] + get_stopped_equivalence_factor(lead_xv[:,1])
-        obstacles_list.append(obstacle)
+        self.status = True
+      lead_xv = self.process_lead(lead)
+      obstacle = lead_xv[:,0] + get_stopped_equivalence_factor(lead_xv[:,1])
+      obstacles_list.append(obstacle)
+    obstacles_list.append(cruise_obstacle)
     x_obstacles = np.column_stack(obstacles_list)
 
     self.source = MPC_SOURCES[np.argmin(x_obstacles[0])]
