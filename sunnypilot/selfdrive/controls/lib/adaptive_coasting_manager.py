@@ -64,6 +64,10 @@ class AdaptiveCoastingManager:
         d_rel = lead.dRel
         v_rel = lead.vRel
 
+        # 🌟 核心計算：前車的真實絕對速度 (v_lead)
+        # 公式：前車速度 = 本車速度 + 相對速差。使用 max 確保速度不會因為雷達雜訊變成負數
+        v_lead = max(0.0, v_ego + v_rel)
+
         # ------------------------------------------
         # 2. 基礎數據與距離百分比計算
         # ------------------------------------------
@@ -75,15 +79,23 @@ class AdaptiveCoastingManager:
         dist_percent = d_rel / target_dist
 
         # ------------------------------------------
-        # 3. 絕對保命防護網
+        # 3. 絕對保命防護網 (條件成立即刻退場)
         # ------------------------------------------
-        # 防護 A：極速接近中 (速差極大，如前方靜止車)
+        # 🌟 防護 A (極簡煞停邏輯)：前車靜止或極低速蠕行
+        # 只要前車速度低於 1.0 m/s (約 3.6 km/h)，視為「煞停目標」。
+        # 直接把控制權 100% 交還給 MPC，完美解決紅綠燈最後一哩路「放開煞車又急煞」的問題！
+        if v_lead < 1.0:
+            self.acm_active = False
+            self.intent_accelerating = False
+            return a_desired_trajectory
+
+        # 防護 B：極速接近中 (例如遇到靜止車，速差極大，且本車尚未減速)
         if v_rel < -1.5:
             self.acm_active = False
             self.intent_accelerating = False
             return a_desired_trajectory
 
-        # 防護 B：MPC 原生軌跡危險預判
+        # 防護 C：MPC 原生軌跡危險預判
         # 只要未來有任何一點需要重煞 (-1.2)，立刻交還 MPC 保命
         if any(a < MPC_FALLBACK_ACCEL for a in a_desired_trajectory):
             self.acm_active = False
@@ -131,7 +143,7 @@ class AdaptiveCoastingManager:
         # 核心公式：依據速差與距離誤差計算平滑拉回力道
         raw_a_calc = (v_rel * 0.5) + (distance_error * 0.15)
 
-        # 防護 C：若動態拉回力道過大，交還 MPC 保命
+        # 防護 D：若動態拉回力道過大，交還 MPC 保命
         if raw_a_calc < MPC_FALLBACK_ACCEL:
             self.acm_active = False
             return a_desired_trajectory
