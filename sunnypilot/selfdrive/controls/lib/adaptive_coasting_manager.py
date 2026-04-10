@@ -23,7 +23,7 @@ INTENT_LOOKAHEAD    = 3  # 🧠 意圖預判：在 6 個點中有 3 個點成立
 
 # 4. 物理與標定預設常數
 DEFAULT_T_FOLLOW = 1.6  # 預設跟車秒數，當外部未傳入 t_follow_override 時使用
-TARGET_V_REL = 0.6      # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢 0.2 m/s 即可，讓距離自然拉開
+TARGET_V_REL = 0.6      # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢 0.6 m/s 即可，讓距離自然拉開
 STOPPING_SPEED = 1.0    # 🛑 煞停判定車速 (m/s)：前車低於此速度 (約 3.6 km/h) 視為準備煞停
 
 
@@ -57,7 +57,7 @@ class AdaptiveCoastingManager:
         # ==========================================
         # 1. 狀態計算與安全防護 (提早 Return 區塊)
         # ==========================================
-        if lead:
+        if lead.status:
             d_rel = lead.dRel
             v_rel = lead.vRel
 
@@ -65,7 +65,7 @@ class AdaptiveCoastingManager:
             target_dist = max(v_ego * tf, 4.0)
             dist_percent = d_rel / target_dist
 
-            # 🌟 新增：計算前車的絕對速度 (物理換算：前車速度 = 本車速度 + 相對速差)
+            # 計算前車的絕對速度 (物理換算：前車速度 = 本車速度 + 相對速差)
             v_lead = max(0.0, v_ego + v_rel)
 
             # 統一擷取近期軌跡 (供危險與意圖預判使用)
@@ -96,13 +96,18 @@ class AdaptiveCoastingManager:
                 return result
 
             # ------------------------------------------
-            # 動態加速意圖預測
+            # 🧠 狀態機 B：動態加速意圖鎖定 (修復神經網路震盪問題)
             # ------------------------------------------
-            # 只要 6 個預測點中有 3 點 (INTENT_LOOKAHEAD) 大於 0.05，即確立加速意圖
-            is_accel_intent = sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD
+            # 觸發條件：近期軌跡中過半數 (INTENT_LOOKAHEAD) 點要求實質加速 (> 0.05)
+            if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD:
+                self.intent_accelerating = True
 
-            # 若系統明確想要提速，暫停 ACM 壓制，100% 放行原廠 MPC 確保起步與加速敏捷
-            if is_accel_intent:
+            # 解除條件：近期軌跡中出現明顯減速意圖 (< -0.05)，或者距離已經拉開到滑行起點 (95%)
+            elif sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or dist_percent >= COAST_START_PERCENT:
+                self.intent_accelerating = False
+
+            # 若系統鎖定在提速意圖，暫停 ACM 壓制，100% 放行原廠 MPC 確保起步與加速敏捷
+            if self.intent_accelerating:
                 self.acm_active = False
                 return result
 
@@ -138,7 +143,7 @@ class AdaptiveCoastingManager:
         # ------------------------------------------
         # 🌟 ACM 狀態機進出判定 (Hysteresis & 無車區塊)
         # ------------------------------------------
-        if lead:
+        if lead.status:
             # 【有車狀態】：依據距離遲滯區間判定
             if dist_percent >= EXIT_PERCENT:
                 self.acm_active = False
@@ -160,7 +165,7 @@ class AdaptiveCoastingManager:
         for i in range(len(result)):
             a_target = result[i]
 
-            if not lead:
+            if not lead.status:
                 # 【無車滑行邏輯】：抹平 E2E 模型的神經質微煞車
                 if COAST_MAX_BRAKE <= a_target < 0.0:
                     a_target = 0.0
