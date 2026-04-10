@@ -21,14 +21,16 @@ MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重
 TRAJECTORY_HORIZON  = 6  # 🔭 危險預判：取 MPC 軌跡前 6 個點 (約 0.6 秒) 預判是否有緊急重煞
 INTENT_LOOKAHEAD    = 3  # 🧠 意圖預判：在 6 個點中有 3 個點成立即觸發 (過半數表決防震盪)
 
-# 4. 跟車時距預設值
-DEFAULT_T_FOLLOW    = 1.6  # 預設跟車秒數，當外部未傳入 t_follow_override 時使用
+# 4. 物理與標定預設常數
+DEFAULT_T_FOLLOW = 1.6  # 預設跟車秒數，當外部未傳入 t_follow_override 時使用
+TARGET_V_REL = 0.6      # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢 0.2 m/s 即可，讓距離自然拉開
+STOPPING_SPEED = 1.0    # 🛑 煞停判定車速 (m/s)：前車低於此速度 (約 3.6 km/h) 視為準備煞停
 
 
 class AdaptiveCoastingManager:
     """
-    自適應滑行管理模組 (ACM)
-    結合「近期軌跡意圖預測」、「純滑行區間」與「平滑退讓防護」的高階縱向控制。
+    自適應滑行管理模組 (ACM) - 全物理 TTA 升級版
+    結合「近期軌跡意圖預測」、「純滑行區間」、「動態 TTC 防撞」與「TTA 平滑速度匹配退讓」。
     """
 
     def __init__(self):
@@ -63,18 +65,35 @@ class AdaptiveCoastingManager:
             target_dist = max(v_ego * tf, 4.0)
             dist_percent = d_rel / target_dist
 
+            # 🌟 新增：計算前車的絕對速度 (物理換算：前車速度 = 本車速度 + 相對速差)
+            v_lead = max(0.0, v_ego + v_rel)
+
             # 統一擷取近期軌跡 (供危險與意圖預判使用)
             recent_trajectory = a_desired_trajectory[:TRAJECTORY_HORIZON]
 
             # ------------------------------------------
-            # 防護 A：極速接近
-            # 防護 B：原生重煞
-            # 立刻退場保命
+            # 🛡️ 防護 A：極簡煞停邏輯 (解決煞停前放開煞車再重踩)
             # ------------------------------------------
-            if v_rel < -1.6 or any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory):
+            # 只要前車處於靜止或蠕行狀態，直接把控制權 100% 交還給原廠 MPC，確保平順煞停
+            if v_lead < STOPPING_SPEED:
                 self.acm_active = False
                 self.intent_accelerating = False
-                return result  # 危險狀況不進迴圈，直接放行原生軌跡
+                return result
+
+            # ------------------------------------------
+            # 🛡️ 防護 B：動態 TTC 預警與 MPC 原生重煞防護
+            # ------------------------------------------
+            # 計算 TTC (碰撞時間)：只在逼近時計算，遠離時設為 999.0 安全值
+            ttc = (d_rel / abs(v_rel)) if v_rel < -0.5 else 999.0
+
+            # 動態 TTC 閾值：將跟車秒數放大 1.2 倍作為防護底線，提早應對鬼切
+            dynamic_ttc_threshold = tf * 1.2
+
+            # 若預計碰撞時間太短，或原廠近期軌跡已經預測到緊急重煞，立刻退場保命
+            if ttc < dynamic_ttc_threshold or any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory):
+                self.acm_active = False
+                self.intent_accelerating = False
+                return result
 
             # ------------------------------------------
             # 動態加速意圖預測
@@ -88,12 +107,26 @@ class AdaptiveCoastingManager:
                 return result
 
             # ------------------------------------------
-            # 動態追蹤演算法 (PD 控制)
+            # 🌟 動態追蹤演算法：全 TTA 速度匹配 (取代傳統 PD 控制)
             # ------------------------------------------
-            distance_error = d_rel - (target_dist * COAST_END_PERCENT)
-            raw_a_calc = (v_rel * 0.5) + (distance_error * 0.15)
+            if v_rel < 0.0:
+                # 【情境 1：我們正在逼近前車】
+                # 計算距離「75% 死亡線」還剩下多少真實物理空間
+                safe_buffer_dist = max(d_rel - (target_dist * SAFE_DIST_PERCENT), 0.0)
 
-            # 防護 C：PD 算出的力道過大，交還 MPC 保命
+                # 計算 TTA (到達時間)：預估還有幾秒會撞破 75% 底線
+                tta = safe_buffer_dist / abs(v_rel)
+
+                # 物理公式 a = Δv / Δt
+                # 目標：在 TTA 時間內，將我們的車速降到「比前車慢 0.6 m/s」(TARGET_V_REL)
+                # 使用 max(tta, 1.0) 避免極限距離下產生數學無限大的煞車力道
+                raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
+            else:
+                # 【情境 2：我們已經比前車慢了】
+                # 既然車速較慢，距離會自然拉開，不需任何煞車。直接放開油門 (0.0) 享受滑行！
+                raw_a_calc = 0.0
+
+            # 防護 C：若 TTA 算出的所需減速度過大，交還 MPC 保命
             if raw_a_calc < MPC_FALLBACK_ACCEL:
                 self.acm_active = False
                 return result
@@ -101,7 +134,6 @@ class AdaptiveCoastingManager:
         else:
             # 確保無車狀態下不會有加速意圖殘留
             self.intent_accelerating = False
-
 
         # ------------------------------------------
         # 🌟 ACM 狀態機進出判定 (Hysteresis & 無車區塊)
@@ -139,7 +171,7 @@ class AdaptiveCoastingManager:
                     a_target = 0.0
 
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
-                    # 區域 B (75% ~ 85%)：平滑退讓區，套用 PD 控制力道
+                    # 區域 B (75% ~ 85%)：平滑退讓區，套用 TTA 速度匹配力道
                     a_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
 
                 elif dist_percent < SAFE_DIST_PERCENT:
