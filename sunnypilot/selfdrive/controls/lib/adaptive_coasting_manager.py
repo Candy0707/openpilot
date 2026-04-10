@@ -13,8 +13,8 @@ EXIT_PERCENT        = 1.00  # ⚪ 退出點：距離拉開大於 100% 時，ACM 
 
 # 2. 加速度動作極限變數 (單位: m/s²)
 COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在 85%~95% 區間，MPC 煞車輕於此值就強制歸零 (純滑行)
-MIN_RECOVERY_ACCEL  = -0.4  # 🛡️ 最小煞車極限：75%~85% 區間強制限縮的最大煞車力道，壓制神經質急煞
-MAX_RECOVERY_ACCEL  =  0.4  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
+MIN_RECOVERY_ACCEL  = -0.6  # 🛡️ 最小煞車極限：75%~85% 區間強制限縮的最大煞車力道，壓制神經質急煞
+MAX_RECOVERY_ACCEL  =  0.6  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
 
 # 3. 軌跡掃描與意圖預測範圍
@@ -23,8 +23,8 @@ INTENT_LOOKAHEAD    = 3  # 🧠 意圖預判：在 6 個點中有 3 個點成立
 
 # 4. 物理與標定預設常數
 DEFAULT_T_FOLLOW = 1.6  # 預設跟車秒數，當外部未傳入 t_follow_override 時使用
-TARGET_V_REL = 0.6      # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢 0.6 m/s 即可，讓距離自然拉開
-STOPPING_SPEED = 1.0    # 🛑 煞停判定車速 (m/s)：前車低於此速度 (約 3.6 km/h) 視為準備煞停
+TARGET_V_REL = 0.6      # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢即可，讓距離自然拉開
+STOPPING_SPEED = 1.0    # 🛑 煞停判定車速 (m/s)：前車低於此速度視為準備煞停
 
 
 class AdaptiveCoastingManager:
