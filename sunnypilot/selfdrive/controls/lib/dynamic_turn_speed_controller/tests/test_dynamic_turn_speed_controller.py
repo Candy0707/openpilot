@@ -1,223 +1,209 @@
 """
-Test Suite for Dynamic Turn Speed Controller (DTSC) - v8.7 God-Tier Edition
-(內含 12 大極端環境測試與精準中文錯誤標籤)
+Test Suite for Dynamic Turn Speed Controller (DTSC) - Final Pro Edition
+(通用型模擬：精準驗證 4 階段狀態機、G 力強制介入與 20 幀出彎防護)
 """
 
 import pytest
 import numpy as np
-from unittest.mock import MagicMock
 
-from dragonpilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
+from sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
 from opendbc.car import structs
 
+
+# ==========================================================
+# [通用型模擬環境建構]
+# ==========================================================
 class MockSubMaster(dict):
-    def __init__(self):
-        super().__init__()
-        self.valid = {}
+  def __init__(self):
+    super().__init__()
+    self.valid = {}
+
 
 class TestDTSC_Universal:
+  @pytest.fixture
+  def dtsc(self):
+    CP = structs.CarParams()
+    CP.openpilotLongitudinalControl = True
+    controller = DynamicTurnSpeedController(CP, mpc=None)
+    # 初始化信心度，避免未定義錯誤
+    controller.confidence_table = np.zeros(200)
+    return controller
 
-    @pytest.fixture
-    def dtsc(self):
-        CP = structs.CarParams()
-        CP.openpilotLongitudinalControl = True
-        controller = DynamicTurnSpeedController(CP, mpc=None)
-        controller.enable = True
-        controller.available = True
-        return controller
+  def _create_sm(self, v_ego, ai_yaw_rates, real_curvature=0.0, ai_pitch=None):
+    """
+    通用型狀態機模擬器 (Simulator)
+    可獨立設定「AI 預測視野 (ai_yaw_rates)」與「實車底盤狀態 (real_curvature)」
+    """
+    sm = MockSubMaster()
 
-    def _create_sm(self, v_ego, yaw_rates, pred_y_offset=None, steer_saturated=False, steering_pressed=False, steer_rate_deg=0.0):
-        sm = MockSubMaster()
-        class ModelV2:
-            class Position:
-                x = np.linspace(0, 100, 33).tolist()
-                y = pred_y_offset if pred_y_offset else [0.0] * 33
-            class OrientationRate:
-                z = yaw_rates
-            position = Position()
-            orientationRate = OrientationRate()
-        sm['modelV2'] = ModelV2()
-        sm.valid['modelV2'] = True
+    # 模擬 AI 模型預測 (ModelV2)
+    class ModelV2:
+      class Position:
+        x = np.linspace(0, 100, 33).tolist()
 
-        class CarState:
-            yawRate = yaw_rates[0] if yaw_rates else 0.0
-            steeringPressed = steering_pressed
-            steeringRateDeg = steer_rate_deg
-        sm['carState'] = CarState()
-        sm.valid['carState'] = True
+      class Velocity:
+        x = [v_ego] * 33
 
-        class LateralControlState:
-            def which(self): return 'pid'
-            class PID:
-                saturated = steer_saturated
-            pid = PID()
-        class ControlsState:
-            lateralControlState = LateralControlState()
-        sm['controlsState'] = ControlsState()
-        sm.valid['controlsState'] = True
-        return sm
+      class OrientationRate:
+        z = ai_yaw_rates
 
+      class Orientation:
+        y = ai_pitch if ai_pitch else [0.0] * 33
 
-    def test_low_speed_creeping(self, dtsc):
-        v_ego = 2.5
-        v_cruise = 10.0
-        yaw_rates = [0.5] * 33
-        sm = self._create_sm(v_ego, yaw_rates)
+      position = Position()
+      velocity = Velocity()
+      orientationRate = OrientationRate()
+      orientation = Orientation()
 
-        out_v = v_ego
-        for _ in range(20):
-            out_v, _ = dtsc.update_target(sm, v_ego, 0.0, v_cruise)
+    sm['modelV2'] = ModelV2()
+    sm.valid['modelV2'] = True
 
-        assert bool(dtsc.action) is False, "[測試 9: 低速蠕行] 錯誤：車速低於 3.0m/s 時系統未能強制休眠"
-        assert float(out_v) >= v_cruise, "[測試 9: 低速蠕行] 錯誤：休眠時目標車速未能維持在原廠巡航上限"
+    # 模擬實車底盤回饋 (ControlsState)
+    class ControlsState:
+      curvature = real_curvature
 
-    def test_single_frame_noise(self, dtsc):
-        v_ego = 30.0
-        v_cruise = v_ego
-        yaw_noise = [0.0]*10 + [0.9]*5 + [0.0]*18
-        sm_noise = self._create_sm(v_ego, yaw_noise)
-        sm_straight = self._create_sm(v_ego, [0.0]*33)
+    sm['controlsState'] = ControlsState()
+    sm.valid['controlsState'] = True
 
-        dtsc.update_target(sm_noise, v_ego, 0.0, v_cruise)
-        for _ in range(19):
-            dtsc.update_target(sm_straight, v_ego, 0.0, v_cruise)
+    return sm
 
-        assert bool(dtsc.action) is False, "[測試 10: 單幀突發雜訊] 錯誤：時間畫布未能完美吸收單幀雜訊，引發了幽靈煞車"
+  # ==========================================================
+  # [測試 1] 第一階段：AI 視覺前饋啟動 (遠距預判)
+  # ==========================================================
+  def test_stage1_ai_activation(self, dtsc):
+    v_ego = 30.0  # 108 km/h
+    v_cruise = v_ego
+    # AI 看到遠方有連續彎道 (曲率高)
+    ai_yaw_rates = [0.0] * 10 + [0.3] * 23
+    sm = self._create_sm(v_ego, ai_yaw_rates, real_curvature=0.0)
 
-    def test_curvature_energy_clear(self, dtsc):
-        v_ego = 20.0
-        v_cruise = v_ego
-        sm_curve = self._create_sm(v_ego, [0.3]*33)
-        for _ in range(20):
-            dtsc.update_target(sm_curve, v_ego, 0.0, v_cruise)
+    # 模擬 15 幀 (0.75秒) 讓信心度累積過 60%
+    for _ in range(15):
+      dtsc.update_target(sm, v_ego, 0.0, v_cruise)
 
-        assert bool(dtsc.action) is True, "[測試 11: 能量濾波清除] 錯誤：前半段的正常彎道未能成功觸發降速"
+    assert bool(dtsc.action) is True, "[測試 1] 錯誤：AI 連續看見彎道，但系統未能成功啟用介入"
 
-        sm_straight = self._create_sm(v_ego, [0.0]*33)
-        for _ in range(10):
-            dtsc.update_target(sm_straight, v_ego, 0.0, v_cruise)
+  # ==========================================================
+  # [測試 2] 第一階段：實車 G 力強制介入 (AI 盲點防護)
+  # ==========================================================
+  def test_stage1_g_force_override(self, dtsc):
+    v_ego = 20.0  # 72 km/h
+    v_cruise = v_ego
+    # AI 瞎掉，沒看到彎道
+    ai_yaw_rates = [0.0] * 33
 
-        assert bool(dtsc.action) is False, "[測試 11: 能量濾波清除] 錯誤：駛出彎道後，能量濾波器未能快速清除殘留的煞車狀態"
+    # 但實車方向盤已經打下去，算出 G 力 = 20^2 * 0.005 = 2.0G (遠超舒適極限 1.6G)
+    real_curvature = 0.005
+    sm = self._create_sm(v_ego, ai_yaw_rates, real_curvature=real_curvature)
 
-    def test_turn_entry_prediction_catalyst(self, dtsc):
-        v_ego = 25.0
-        v_cruise = v_ego
-        yaw_rates = np.linspace(0.0, 0.6, 33).tolist()
-        sm = self._create_sm(v_ego, yaw_rates)
+    # G 力介入是瞬間的，不需累積信心，1 幀就該作動
+    dtsc.update_target(sm, v_ego, 0.0, v_cruise)
 
-        current_v = v_ego
-        for _ in range(12):
-            out_v, _ = dtsc.update_target(sm, current_v, 0.0, v_cruise)
-            current_v = min(float(out_v), v_ego) if dtsc.action else v_ego
+    assert bool(dtsc.action) is True, "[測試 2] 錯誤：實體 G 力已爆表，保命機制未能瞬間強制介入！"
 
-        assert bool(dtsc.action) is True, "[測試 12: 入彎預判催化] 錯誤：曲率陡升時，雙倍積分催化失效，未能提早觸發減速"
+  # ==========================================================
+  # [測試 3] 第三階段：預先減速實作 (遠距 TTA)
+  # ==========================================================
+  def test_stage3_pre_deceleration(self, dtsc):
+    v_ego = 25.0
+    v_cruise = v_ego
+    # 彎道在較遠處 (index 15 以後)
+    ai_yaw_rates = [0.0] * 15 + [0.4] * 18
+    sm = self._create_sm(v_ego, ai_yaw_rates, real_curvature=0.0)
 
-    def test_90_degree_sharp_turn(self, dtsc):
-        v_ego = 50.0 / 3.6
-        v_cruise = v_ego
-        yaw_rates = [0.0] * 33
-        for i in range(8, 18): yaw_rates[i] = 0.8
+    # 累積信心並啟動
+    for _ in range(15):
+      dtsc.update_target(sm, v_ego, 0.0, v_cruise)
 
-        sm = self._create_sm(v_ego, yaw_rates)
-        current_v = v_ego
-        for _ in range(20):
-            out_v, _ = dtsc.update_target(sm, current_v, 0.0, v_cruise)
-            current_v = min(float(out_v), v_ego) if dtsc.action else v_ego
+    assert bool(dtsc.action) is True
+    # 預先減速階段，不應該出現正加速度 (補油)
+    assert dtsc.a_target <= 0.0, "[測試 3] 錯誤：在遠距 TTA 預先減速階段，系統產生了違規的加速(補油)指令"
 
-        assert bool(dtsc.action) is True, "[測試 1: 直角死角彎] 錯誤：連續確認 20 幀後系統未能觸發作動"
-        assert float(current_v) < v_cruise * 0.85, "[測試 1: 直角死角彎] 錯誤：Preview Braking 未能迫使車輛進行明顯減速"
+  # ==========================================================
+  # [測試 4] 第三階段：彎中比例控制實作 (G-Control)
+  # ==========================================================
+  def test_stage3_proportional_control(self, dtsc):
+    v_ego = 15.0  # 54 km/h
+    v_cruise = v_ego
+    # 強制進入彎中動態 (G力介入)
+    real_curvature = 0.008  # G = 15^2 * 0.008 = 1.8G (大於舒適極限約 1.5G)
+    sm = self._create_sm(v_ego, ai_yaw_rates=[0.0] * 33, real_curvature=real_curvature)
 
-    def test_gentle_highway_curve(self, dtsc):
-        v_ego = 110.0 / 3.6
-        v_cruise = v_ego
-        yaw_rates = [0.0] * 33
-        for i in range(12, 33): yaw_rates[i] = 0.076
+    # 跑 10 幀讓平滑器充滿
+    for _ in range(10):
+      dtsc.update_target(sm, v_ego, 0.0, v_cruise)
 
-        sm = self._create_sm(v_ego, yaw_rates)
-        current_v = v_ego
-        for _ in range(20):
-            out_v, _ = dtsc.update_target(sm, current_v, 0.0, v_cruise)
-            current_v = min(float(out_v), v_ego) if dtsc.action else v_ego
+    # 應該產生明顯的煞車力道 (比例控制發威)
+    assert dtsc.a_target < -0.5, "[測試 4] 錯誤：在彎中動態階段，比例控制未能給予足夠的煞車力道"
 
-        assert bool(dtsc.action) is True, "[測試 2: 高速稍大彎] 錯誤：曲率已達作動門檻，但系統未能介入"
-        assert float(current_v) < v_cruise, "[測試 2: 高速稍大彎] 錯誤：目標車速未能低於當前巡航車速"
+  # ==========================================================
+  # [測試 5] 第四階段：20 幀出彎防護計時器 (S彎防震盪)
+  # ==========================================================
+  def test_stage4_exit_frame_protection(self, dtsc):
+    v_ego = 20.0
+    v_cruise = v_ego
 
-    def test_interchange_s_curve(self, dtsc):
-        v_ego = 80.0 / 3.6
-        v_cruise = v_ego
-        yaw_rates = [0.0] * 33
-        for i in range(0, 11): yaw_rates[i] = 0.15
-        for i in range(18, 30): yaw_rates[i] = -0.45
+    # 步驟 A：進入彎道並將信心度「灌滿」
+    sm_curve = self._create_sm(v_ego, [0.3]*33, real_curvature=0.004)
+    for _ in range(40): # 確保信心度達到 1.0 (需要 20 幀以上)
+      dtsc.update_target(sm_curve, v_ego, 0.0, v_cruise)
+    assert bool(dtsc.action) is True
 
-        sm = self._create_sm(v_ego, yaw_rates)
-        current_v = v_ego
-        for _ in range(20):
-            out_v, _ = dtsc.update_target(sm, current_v, 0.0, v_cruise)
-            current_v = min(float(out_v), v_ego) if dtsc.action else v_ego
+    # 步驟 B：模擬 S 彎中繼點或駛出彎道 (實體方向盤打平，且 AI 前方無彎道)
+    sm_straight = self._create_sm(v_ego, [0.0]*33, real_curvature=0.0)
 
-        assert bool(dtsc.action) is True, "[測試 3: 交流道 S 彎] 錯誤：系統未能成功偵測到前方的連續反向彎道"
-        assert float(current_v) < v_cruise * 0.85, "[測試 3: 交流道 S 彎] 錯誤：未能成功觸發 8 折重心轉移懲罰"
+    # 1. 信心度從 1.0 放電掉到 0.61 需要 39 幀。
+    # 這 39 幀內，is_curve_ahead 仍為 True，防護計時器尚未啟動。
+    for _ in range(39):
+      dtsc.update_target(sm_straight, v_ego, 0.0, v_cruise)
 
-    def test_trajectory_deviation_penalty(self, dtsc):
-        v_ego = 60.0 / 3.6
-        v_cruise = v_ego
-        yaw_rates = [0.4] * 33
-        pred_y = np.linspace(0.0, 2.0, 33).tolist()
+    assert bool(dtsc.action) is True, "錯誤：信心度尚未低於門檻，不應提早解除"
 
-        sm = self._create_sm(v_ego, yaw_rates, pred_y_offset=pred_y)
-        current_v = v_ego
-        for _ in range(20):
-            out_v, _ = dtsc.update_target(sm, current_v, 0.0, v_cruise)
-            current_v = min(float(out_v), v_ego) if dtsc.action else v_ego
+    # 2. 第 40 幀開始，信心度降至 0.60，不滿足 >0.60 門檻。
+    # exit_condition_raw 成立，20 幀防護計時器開始運作！(此時 count = 1)
+    dtsc.update_target(sm_straight, v_ego, 0.0, v_cruise)
 
-        assert bool(dtsc.action) is True, "[測試 4: 推頭軌跡偏移] 錯誤：發生嚴重推頭時系統未能介入"
-        assert float(current_v) < v_cruise * 0.5, "[測試 4: 推頭軌跡偏移] 錯誤：真實推頭發生時，未能觸發大幅度的極限重煞"
+    # 3. 我們再精準地跑 18 幀 (加上前一幀，此時 count = 19)。
+    # 因為未滿 20 幀防護，系統必須還是介入狀態！
+    for _ in range(18):
+      dtsc.update_target(sm_straight, v_ego, 0.0, v_cruise)
 
-    def test_city_lane_change(self, dtsc):
-        v_ego = 50.0 / 3.6
-        v_cruise = v_ego
-        yaw_rates = [0.0] * 33
-        for i in range(3, 9): yaw_rates[i] = 0.06
-        for i in range(9, 15): yaw_rates[i] = -0.06
+    assert bool(dtsc.action) is True, "[測試 5] 錯誤：出彎防護未滿 20 幀，系統卻提早解除了介入！(S彎致命傷)"
 
-        pred_y = [0.0] * 3
-        pred_y.extend(np.linspace(0.0, 3.5, 30).tolist())
-        sm = self._create_sm(v_ego, yaw_rates, pred_y_offset=pred_y)
-        current_v = v_ego
-        for _ in range(20):
-            out_v, _ = dtsc.update_target(sm, current_v, 0.0, v_cruise)
-            current_v = min(float(out_v), v_ego) if dtsc.action else v_ego
+    # 4. 再跑 1 幀 (此時 count 剛好滿 20 幀)
+    dtsc.update_target(sm_straight, v_ego, 0.0, v_cruise)
+    assert bool(dtsc.action) is False, "[測試 5] 錯誤：出彎已滿 20 幀且條件安全，系統未能正常退出解除"
 
-        assert bool(dtsc.action) is False, "[測試 5: 市區平順變道] 錯誤：平順的變換車道被誤判為急彎，觸發了幽靈煞車"
+  # ==========================================================
+  # [測試 6] 邊界條件：單幀雜訊過濾
+  # ==========================================================
+  def test_single_frame_noise_rejection(self, dtsc):
+    v_ego = 30.0
+    v_cruise = v_ego
+    sm_straight = self._create_sm(v_ego, [0.0] * 33, real_curvature=0.0)
+    sm_noise = self._create_sm(v_ego, [0.9] * 33, real_curvature=0.0)
 
-    def test_eps_panic_rescue(self, dtsc):
-        v_ego = 50.0 / 3.6
-        v_cruise = v_ego
-        yaw_rates = [0.6] * 33
-        sm = self._create_sm(v_ego, yaw_rates, steer_saturated=True, steering_pressed=True, steer_rate_deg=90.0)
-        out_v, _ = dtsc.update_target(sm, v_ego, 0.0, v_cruise)
+    # 平穩行駛
+    for _ in range(10):
+      dtsc.update_target(sm_straight, v_ego, 0.0, v_cruise)
 
-        assert bool(dtsc.action) is True, "[測試 6: EPS 恐慌救車] 錯誤：駕駛急拉方向盤且 EPS 滿載時，保母機制未能瞬間觸發"
-        assert float(out_v) < v_cruise * 0.9, "[測試 6: EPS 恐慌救車] 錯誤：保母機制未能對目標車速進行明顯打折"
+    # 突發 2 幀極度危險的 AI 雜訊
+    dtsc.update_target(sm_noise, v_ego, 0.0, v_cruise)
+    dtsc.update_target(sm_noise, v_ego, 0.0, v_cruise)
 
-    def test_long_straight_highway(self, dtsc):
-        v_ego = 100.0 / 3.6
-        v_cruise = v_ego
-        yaw_rates = [0.0] * 33
-        sm = self._create_sm(v_ego, yaw_rates)
-        for _ in range(20):
-            out_v, _ = dtsc.update_target(sm, v_ego, 0.0, v_cruise)
+    # 信心度只會 +0.10，未達 0.60 門檻
+    assert bool(dtsc.action) is False, "[測試 6] 錯誤：時間畫布濾波失效，系統被單幀雜訊欺騙引發幽靈煞車"
 
-        assert bool(dtsc.action) is False, "[測試 7: 大直線巡航] 錯誤：系統在大直線上發生了不該有的降速介入"
-        assert float(out_v) >= v_cruise, "[測試 7: 大直線巡航] 錯誤：大直線目標車速低於巡航車速"
+  # ==========================================================
+  # [測試 7] 邊界條件：低速靜止防頓挫
+  # ==========================================================
+  def test_low_speed_ignore(self, dtsc):
+    v_ego = 0.05  # 車輛幾乎靜止
+    v_cruise = 10.0
+    # 在靜止時狂打方向盤 (產生極大曲率)
+    sm_turn = self._create_sm(v_ego, [0.5] * 33, real_curvature=0.05)
 
-    def test_slight_highway_curve(self, dtsc):
-        v_ego = 110.0 / 3.6
-        v_cruise = v_ego
-        yaw_rates = [0.045] * 33
-        sm = self._create_sm(v_ego, yaw_rates)
-        for _ in range(20):
-            out_v, _ = dtsc.update_target(sm, v_ego, 0.0, v_cruise)
+    for _ in range(20):
+      dtsc.update_target(sm_turn, v_ego, 0.0, v_cruise)
 
-        assert bool(dtsc.action) is False, "[測試 8: 高速微彎防護] 錯誤：曲率未達危險門檻的高速微彎，系統不應過度敏感而觸發"
-        assert float(out_v) >= v_cruise, "[測試 8: 高速微彎防護] 錯誤：高速微彎不應干擾原本的巡航車速"
+    assert bool(dtsc.action) is False, "[測試 7] 錯誤：車輛於靜止/極低速蠕行時，打方向盤依然引發系統介入"

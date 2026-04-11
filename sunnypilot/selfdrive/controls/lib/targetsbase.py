@@ -73,7 +73,7 @@ class TargetsBase(ABC):
 
     # 只有當車輛硬體支援 (CP.openpilotLongitudinalControl)、巡航系統目前處於啟用狀態時，才視為可用 (available)
     cruise_enabled = sm['carState'].cruiseState.enabled
-    self.available = self.CP.openpilotLongitudinalControl  # and cruise_enabled
+    self.available = self.CP.openpilotLongitudinalControl and cruise_enabled
 
     self.frame += 1
     # 依據模型預測的週期 (DT_MDL) 來限制參數更新的頻率，以節省系統效能。
