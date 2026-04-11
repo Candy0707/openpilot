@@ -12,19 +12,19 @@ EXIT_PERCENT        = 1.00  # ⚪ 退出點：距離拉開大於 100% 時，ACM 
 # 遲滯區 (0.95 ~ 1.00)：兩條件皆不成立時維持現有狀態，刻意避免邊界震盪
 
 # 2. 加速度動作極限變數 (單位: m/s²)
-COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在 85%~95% 區間，MPC 煞車輕於此值就強制歸零 (純滑行)
+COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在 85%~100% 區間，MPC 煞車輕於此值就強制歸零 (純滑行)
 MIN_RECOVERY_ACCEL  = -0.6  # 🛡️ 最小煞車極限：75%~85% 區間強制限縮的最大煞車力道，壓制神經質急煞
 MAX_RECOVERY_ACCEL  =  0.6  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
 
 # 3. 軌跡掃描與意圖預測範圍
-TRAJECTORY_HORIZON  = 6  # 🔭 危險預判：取 MPC 軌跡前 6 個點 (約 0.6 秒) 預判是否有緊急重煞
-INTENT_LOOKAHEAD    = 3  # 🧠 意圖預判：在 6 個點中有 3 個點成立即觸發 (過半數表決防震盪)
+TRAJECTORY_HORIZON  = 6     # 🔭 危險預判：取 MPC 軌跡前 6 個點 (約 0.6 秒) 預判是否有緊急重煞
+INTENT_LOOKAHEAD    = 3     # 🧠 意圖預判：在 6 個點中有 3 個點成立即觸發 (過半數表決防震盪)
 
 # 4. 物理與標定預設常數
-DEFAULT_T_FOLLOW = 1.6  # 預設跟車秒數，當外部未傳入 t_follow_override 時使用
-TARGET_V_REL = 0.6      # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢即可，讓距離自然拉開
-STOPPING_SPEED = 1.0    # 🛑 煞停判定車速 (m/s)：前車低於此速度視為準備煞停
+DEFAULT_T_FOLLOW    = 1.6   # 預設跟車秒數，當外部未傳入 t_follow_override 時使用
+TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢即可，讓距離自然拉開
+STANDSTILL_GAP      = 4.0   # 🛡️ 靜止安全間距保底 (m)：確保煞停後與前車保持約一車身的物理距離
 
 
 class AdaptiveCoastingManager:
@@ -61,21 +61,35 @@ class AdaptiveCoastingManager:
             d_rel = lead.dRel
             v_rel = lead.vRel
 
+            # 理想距離 = 車速 × 跟車秒數，並確保絕對不能低於靜止安全間距 (STANDSTILL_GAP)
             tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
-            target_dist = max(v_ego * tf, 4.0)
+            target_dist = max(v_ego * tf, STANDSTILL_GAP)
             dist_percent = d_rel / target_dist
-
-            # 計算前車的絕對速度 (物理換算：前車速度 = 本車速度 + 相對速差)
-            v_lead = max(0.0, v_ego + v_rel)
 
             # 統一擷取近期軌跡 (供危險與意圖預判使用)
             recent_trajectory = a_desired_trajectory[:TRAJECTORY_HORIZON]
 
             # ------------------------------------------
-            # 🛡️ 防護 A：極簡煞停邏輯 (解決煞停前放開煞車再重踩)
+            # 🛡️ 防護 A：動態煞停意圖預測
             # ------------------------------------------
-            # 只要前車處於靜止或蠕行狀態，直接把控制權 100% 交還給原廠 MPC，確保平順煞停
-            if v_lead < STOPPING_SPEED:
+            # 物理運動學公式：v² = v0² + 2ad
+            # 反推：要在安全間距 (STANDSTILL_GAP) 前剛好煞停，理論上需要多大的減速度？
+
+            # 1. 算出真實可用的煞停物理空間 (扣除保底安全距離，最少給 0.5m 避免數學除以零)
+            stopping_distance = max(d_rel - STANDSTILL_GAP, 0.5)
+
+            # 2. 公式推導：a = -(v²) / 2d ，計算「理論所需煞停力道」
+            a_req_to_stop = - (v_ego ** 2) / (2.0 * stopping_distance)
+
+            # 3. 算出原廠 MPC 目前規劃的未來平均加速度
+            avg_mpc_a = sum(recent_trajectory) / len(recent_trajectory)
+
+            # 4. 動態比對大腦意圖：
+            # 因為公式算的是「煞到 0」的力道。如果前車還在走，MPC 的煞車力道絕對不會達到這個值的高標 (70%)。
+            # 只有當前車真的靜止，MPC 決定煞停時，兩者的物理預期才會完美重合！
+            is_stopping_intent = avg_mpc_a < -0.1 and avg_mpc_a <= (a_req_to_stop * 0.7)
+
+            if is_stopping_intent:
                 self.acm_active = False
                 self.intent_accelerating = False
                 return result
@@ -96,14 +110,18 @@ class AdaptiveCoastingManager:
                 return result
 
             # ------------------------------------------
-            # 🧠 狀態機 B：動態加速意圖鎖定 (修復神經網路震盪問題)
+            # 🧠 狀態機 B：動態加速意圖鎖定
             # ------------------------------------------
-            # 觸發條件：近期軌跡中過半數 (INTENT_LOOKAHEAD) 點要求實質加速 (> 0.05)
+            # 觸發條件：近期軌跡中出現明顯加速意圖 (> 0.05)
             if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD:
                 self.intent_accelerating = True
 
-            # 解除條件：近期軌跡中出現明顯減速意圖 (< -0.05)，或者距離已經拉開到滑行起點 (95%)
-            elif sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or dist_percent >= COAST_START_PERCENT:
+            # 解除條件：近期軌跡中出現明顯減速意圖 (< -0.05)
+            if sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD:
+                self.intent_accelerating = False
+
+            # 距離已經拉開到滑行起點 (95%)
+            if dist_percent >= COAST_START_PERCENT:
                 self.intent_accelerating = False
 
             # 若系統鎖定在提速意圖，暫停 ACM 壓制，100% 放行原廠 MPC 確保起步與加速敏捷
@@ -151,7 +169,7 @@ class AdaptiveCoastingManager:
                 self.acm_active = True
         else:
             # 【無車狀態】：抹平的神經質微煞車
-            self.acm_active = any(COAST_MAX_BRAKE <= a < 0.0 for a in a_desired_trajectory)
+            self.acm_active = any(COAST_MAX_BRAKE <= a < 0.0 for a in result)
 
         # 沒啟動就直接回傳
         if not self.acm_active:
