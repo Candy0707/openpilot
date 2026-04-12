@@ -5,6 +5,7 @@ from cereal import messaging
 # ==========================================
 
 # 1. 距離與狀態機閾值 (百分比)
+ZERO_ACCEL_PERCENT  = 0.10  # 🛑 零加速鎖定線：跌破 10% (極限微距) 時，徹底沒收油門權限防暴衝
 SAFE_DIST_PERCENT   = 0.75  # 🚨 絕對安全底線：跌破 75% 理想距離時，ACM 完全退場，交還給原生 MPC 重煞保命
 COAST_START_PERCENT = 0.95  # 🟢 進入點：距離小於 95% 時，ACM 狀態機啟動，準備介入滑行邏輯
 COAST_END_PERCENT   = 0.85  # 🟡 警戒線：距離小於 85% 時結束純滑行，進入「動態微煞車」把距離拉回 85%
@@ -14,7 +15,7 @@ EXIT_PERCENT        = 1.00  # ⚪ 退出點：距離拉開大於 100% 時，ACM 
 # 2. 加速度動作極限變數 (單位: m/s²)
 COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在 85%~100% 區間，MPC 煞車輕於此值就強制歸零 (純滑行)
 MIN_RECOVERY_ACCEL  = -1.0  # 🛡️ 最小煞車極限：75%~85% 區間強制限縮的最大煞車力道，壓制神經質急煞
-MAX_RECOVERY_ACCEL  =  1.0  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
+MAX_RECOVERY_ACCEL  =  0.2  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
 
 # 3. 軌跡掃描與意圖預測範圍
@@ -166,9 +167,13 @@ class AdaptiveCoastingManager:
                     # 區域 B (75% ~ 85%)：平滑退讓區，套用 TTA 速度匹配力道
                     a_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
 
-                elif dist_percent < SAFE_DIST_PERCENT:
+                elif ZERO_ACCEL_PERCENT <=dist_percent < SAFE_DIST_PERCENT:
                     # 區域 C (< 75%)：絕對危險區，保留原生急煞指令
                     pass
+
+                elif dist_percent < ZERO_ACCEL_PERCENT:
+                    # 🔴 區域 D (< 10%)：極限防暴衝區
+                    a_target = min(a_target, 0.0)
 
             # 將處理完的數值寫回陣列
             result[i] = a_target
