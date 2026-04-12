@@ -1,5 +1,5 @@
 from cereal import messaging
-from openpilot.common.swaglog import cloudlog  # 🌟 新增：匯入原廠標準日誌模組
+from openpilot.common.swaglog import cloudlog
 
 # ==========================================
 # ⚙️ 全域變數定義區 (Global Configurations)
@@ -67,7 +67,7 @@ class AdaptiveCoastingManager:
         v_rel = 0.0
 
         # ==========================================
-        # 1. 狀態計算與安全防護 (提早 Return 區塊)
+        # 1. 狀態計算與安全防護
         # ==========================================
         if lead.status:
             d_rel = lead.dRel
@@ -99,7 +99,7 @@ class AdaptiveCoastingManager:
             # ------------------------------------------
             # 🧠 狀態機 B：動態加速意圖鎖定 (已整合 v_rel 物理雙重保險)
             # ------------------------------------------
-            # 觸發條件：近期軌跡中出現明顯加速意圖 (> 0.05) AND 前車正在遠離 (v_rel > 0.0)
+            # 觸發條件：近期軌跡出現加速意圖 AND 前車正在遠離 (v_rel > 0.0)
             if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD and v_rel > 0.0:
                 self.intent_accelerating = True
 
@@ -204,10 +204,11 @@ class AdaptiveCoastingManager:
                     zone_str = "區域A(純滑行)"
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                     zone_str = "區域B(TTA退讓)"
+                elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
+                    zone_str = "區域C(危急防護)"
                 else:
-                    zone_str = "區域C/D(危急防護)"
+                    zone_str = "區域D(預防加速)"
 
-                # 使用動態 class_name 寫入 cloudlog
                 cloudlog.info(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
                               f"{zone_str} (距:{dist_percent*100:.1f}%) | "
                               f"dRel:{d_rel:.1f}m vRel:{v_rel:.2f}m/s | "
