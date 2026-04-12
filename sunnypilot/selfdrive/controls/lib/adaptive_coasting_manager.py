@@ -13,8 +13,8 @@ EXIT_PERCENT        = 1.00  # ⚪ 退出點：距離拉開大於 100% 時，ACM 
 
 # 2. 加速度動作極限變數 (單位: m/s²)
 COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在 85%~100% 區間，MPC 煞車輕於此值就強制歸零 (純滑行)
-MIN_RECOVERY_ACCEL  = -0.6  # 🛡️ 最小煞車極限：75%~85% 區間強制限縮的最大煞車力道，壓制神經質急煞
-MAX_RECOVERY_ACCEL  =  0.0  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
+MIN_RECOVERY_ACCEL  = -1.0  # 🛡️ 最小煞車極限：75%~85% 區間強制限縮的最大煞車力道，壓制神經質急煞
+MAX_RECOVERY_ACCEL  =  1.0  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
 
 # 3. 軌跡掃描與意圖預測範圍
@@ -70,32 +70,7 @@ class AdaptiveCoastingManager:
             recent_trajectory = a_desired_trajectory[:TRAJECTORY_HORIZON]
 
             # ------------------------------------------
-            # 🛡️ 防護 A：動態煞停意圖預測
-            # ------------------------------------------
-            # 物理運動學公式：v² = v0² + 2ad
-            # 反推：要在安全間距 (STANDSTILL_GAP) 前剛好煞停，理論上需要多大的減速度？
-
-            # 1. 算出真實可用的煞停物理空間 (扣除保底安全距離，最少給 0.5m 避免數學除以零)
-            stopping_distance = max(d_rel - STANDSTILL_GAP, 0.5)
-
-            # 2. 公式推導：a = -(v²) / 2d ，計算「理論所需煞停力道」
-            a_req_to_stop = - (v_ego ** 2) / (2.0 * stopping_distance)
-
-            # 3. 算出原廠 MPC 目前規劃的未來平均加速度
-            avg_mpc_a = sum(recent_trajectory) / len(recent_trajectory)
-
-            # 4. 動態比對大腦意圖：
-            # 因為公式算的是「煞到 0」的力道。如果前車還在走，MPC 的煞車力道絕對不會達到這個值的高標 (70%)。
-            # 只有當前車真的靜止，MPC 決定煞停時，兩者的物理預期才會完美重合！
-            is_stopping_intent = avg_mpc_a < -0.1 and avg_mpc_a <= (a_req_to_stop * 0.7)
-
-            if is_stopping_intent:
-                self.acm_active = False
-                self.intent_accelerating = False
-                return result
-
-            # ------------------------------------------
-            # 🛡️ 防護 B：動態 TTC 預警與 MPC 原生重煞防護
+            # 🛡️ 防護 A：動態 TTC 預警與 MPC 原生重煞防護
             # ------------------------------------------
             # 計算 TTC (碰撞時間)：只在逼近時計算，遠離時設為 999.0 安全值
             ttc = (d_rel / abs(v_rel)) if v_rel < -0.5 else 999.0
