@@ -1,4 +1,5 @@
 from cereal import messaging
+from openpilot.common.swaglog import cloudlog  # 🌟 新增：匯入原廠標準日誌模組
 
 # ==========================================
 # ⚙️ 全域變數定義區 (Global Configurations)
@@ -27,6 +28,9 @@ DEFAULT_T_FOLLOW    = 1.6   # 預設跟車秒數，當外部未傳入 t_follow_o
 TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢即可，讓距離自然拉開
 STANDSTILL_GAP      = 4.0   # 🛡️ 靜止安全間距保底 (m)：確保煞停後與前車保持約一車身的物理距離
 
+# 5. 系統偵錯開關
+ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
+
 
 class AdaptiveCoastingManager:
     """
@@ -54,6 +58,13 @@ class AdaptiveCoastingManager:
 
         # 預先複製陣列，準備給最後統一覆寫使用
         result = list(a_desired_trajectory)
+
+        # 🌟 準備給 LOG 使用的預設變數，避免無車狀態下調用報錯
+        tta = 0.0
+        raw_a_calc = 0.0
+        dist_percent = 0.0
+        d_rel = 0.0
+        v_rel = 0.0
 
         # ==========================================
         # 1. 狀態計算與安全防護 (提早 Return 區塊)
@@ -86,14 +97,14 @@ class AdaptiveCoastingManager:
                 return result
 
             # ------------------------------------------
-            # 🧠 狀態機 B：動態加速意圖鎖定
+            # 🧠 狀態機 B：動態加速意圖鎖定 (已整合 v_rel 物理雙重保險)
             # ------------------------------------------
-            # 觸發條件：近期軌跡中出現明顯加速意圖 (> 0.05)
-            if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD:
+            # 觸發條件：近期軌跡中出現明顯加速意圖 (> 0.05) AND 前車正在遠離 (v_rel > 0.0)
+            if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD and v_rel > 0.0:
                 self.intent_accelerating = True
 
-            # 解除條件：近期軌跡中出現明顯減速意圖 (< -0.05)
-            if sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD:
+            # 解除條件：近期軌跡出現減速意圖 OR 前車正在接近 (v_rel < 0.0)
+            if sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or v_rel < 0.0:
                 self.intent_accelerating = False
 
             # 距離已經拉開到滑行起點 (95%)
@@ -167,8 +178,8 @@ class AdaptiveCoastingManager:
                     # 區域 B (75% ~ 85%)：平滑退讓區，套用 TTA 速度匹配力道
                     a_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
 
-                elif ZERO_ACCEL_PERCENT <=dist_percent < SAFE_DIST_PERCENT:
-                    # 區域 C (< 75%)：絕對危險區，保留原生急煞指令
+                elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
+                    # 區域 C (10% ~ 75%)：絕對危險區，保留原生急煞指令
                     pass
 
                 elif dist_percent < ZERO_ACCEL_PERCENT:
@@ -177,5 +188,34 @@ class AdaptiveCoastingManager:
 
             # 將處理完的數值寫回陣列
             result[i] = a_target
+
+        # ==========================================
+        # 📝 3. 原廠標準 cloudlog 輸出區塊 (動態 ClassName 版)
+        # ==========================================
+        if ACM_DEBUG:
+            # 🌟 動態獲取當前類別名稱
+            class_name = self.__class__.__name__
+
+            if lead.status:
+                # 判定目前所處的物理區間字串
+                if dist_percent >= EXIT_PERCENT:
+                    zone_str = "退場(>100%)"
+                elif COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
+                    zone_str = "區域A(純滑行)"
+                elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
+                    zone_str = "區域B(TTA退讓)"
+                else:
+                    zone_str = "區域C/D(危急防護)"
+
+                # 使用動態 class_name 寫入 cloudlog
+                cloudlog.info(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
+                              f"{zone_str} (距:{dist_percent*100:.1f}%) | "
+                              f"dRel:{d_rel:.1f}m vRel:{v_rel:.2f}m/s | "
+                              f"TTA:{tta:.2f}s raw:{raw_a_calc:.2f} | "
+                              f"覆寫: {a_desired_trajectory[0]:.2f} -> {result[0]:.2f}")
+            else:
+                if self.acm_active:
+                    cloudlog.info(f"[{class_name}] 啟動:{self.acm_active} 無車狀態 | 執行抹平 | "
+                                  f"覆寫: {a_desired_trajectory[0]:.2f} -> {result[0]:.2f}")
 
         return result
