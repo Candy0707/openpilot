@@ -14,7 +14,7 @@ EXIT_PERCENT        = 1.00  # ⚪ 退出點：距離拉開大於 100% 時，ACM 
 # 2. 加速度動作極限變數 (單位: m/s²)
 COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在 85%~100% 區間，MPC 煞車輕於此值就強制歸零 (純滑行)
 MIN_RECOVERY_ACCEL  = -0.6  # 🛡️ 最小煞車極限：75%~85% 區間強制限縮的最大煞車力道，壓制神經質急煞
-MAX_RECOVERY_ACCEL  =  0.6  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
+MAX_RECOVERY_ACCEL  =  0.0  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
 
 # 3. 軌跡掃描與意圖預測範圍
@@ -130,24 +130,18 @@ class AdaptiveCoastingManager:
                 return result
 
             # ------------------------------------------
-            # 🌟 動態追蹤演算法：全 TTA 速度匹配 (取代傳統 PD 控制)
+            # 🌟 動態追蹤演算法：全時段連續 TTA 速度匹配 (拔除 if 斷層)
             # ------------------------------------------
-            if v_rel < 0.0:
-                # 【情境 1：我們正在逼近前車】
-                # 計算距離「75% 死亡線」還剩下多少真實物理空間
-                safe_buffer_dist = max(d_rel - (target_dist * SAFE_DIST_PERCENT), 0.0)
+            # 計算距離「75% 死亡線」還剩下多少真實物理空間
+            safe_buffer_dist = max(d_rel - (target_dist * SAFE_DIST_PERCENT), 0.0)
 
-                # 計算 TTA (到達時間)：預估還有幾秒會撞破 75% 底線
-                tta = safe_buffer_dist / abs(v_rel)
+            # 🛡️ 數學防護盾：用 0.01 墊底，徹底避開 ZeroDivisionError 當機！
+            # 這樣我們就能大膽刪除 if v_rel < 0.0，讓數學公式無縫運行。
+            safe_v_rel = max(abs(v_rel), 1e-3)
+            tta = safe_buffer_dist / safe_v_rel
 
-                # 物理公式 a = Δv / Δt
-                # 目標：在 TTA 時間內，將我們的車速降到「比前車慢 0.6 m/s」(TARGET_V_REL)
-                # 使用 max(tta, 1.0) 避免極限距離下產生數學無限大的煞車力道
-                raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
-            else:
-                # 【情境 2：我們已經比前車慢了】
-                # 既然車速較慢，距離會自然拉開，不需任何煞車。直接放開油門 (0.0) 享受滑行！
-                raw_a_calc = 0.0
+            # 🌟 核心修復：全時段套用你原本的 TTA 公式
+            raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
 
             # 防護 C：若 TTA 算出的所需減速度過大，交還 MPC 保命
             if raw_a_calc < MPC_FALLBACK_ACCEL:
