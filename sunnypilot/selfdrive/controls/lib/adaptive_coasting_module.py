@@ -1,4 +1,5 @@
 from cereal import messaging
+from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
 from openpilot.common.swaglog import cloudlog
 
 # ==========================================
@@ -26,13 +27,12 @@ INTENT_LOOKAHEAD    = 3     # 🧠 意圖預判：在 6 個點中有 3 個點成
 # 4. 物理與標定預設常數
 DEFAULT_T_FOLLOW    = 1.6   # 預設跟車秒數，當外部未傳入 t_follow_override 時使用
 TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢即可，讓距離自然拉開
-STANDSTILL_GAP      = 4.0   # 🛡️ 靜止安全間距保底 (m)：確保煞停後與前車保持約一車身的物理距離
 
 # 5. 系統偵錯開關
 ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
 
 
-class AdaptiveCoastingManager:
+class AdaptiveCoastingModule:
     """
     自適應滑行管理模組 (ACM) - 全物理 TTA 升級版
     結合「近期軌跡意圖預測」、「純滑行區間」、「動態 TTC 防撞」與「TTA 平滑速度匹配退讓」。
@@ -73,9 +73,9 @@ class AdaptiveCoastingManager:
             d_rel = lead.dRel
             v_rel = lead.vRel
 
-            # 理想距離 = 車速 × 跟車秒數，並確保絕對不能低於靜止安全間距 (STANDSTILL_GAP)
+            # 理想距離 = 車速 × 跟車秒數，並確保絕對不能低於靜止安全間距 (STOP_DISTANCE)
             tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
-            target_dist = max(v_ego * tf, STANDSTILL_GAP)
+            target_dist = max(v_ego * tf, STOP_DISTANCE)
             dist_percent = d_rel / target_dist
 
             # 統一擷取近期軌跡 (供危險與意圖預判使用)

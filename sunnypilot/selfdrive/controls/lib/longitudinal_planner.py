@@ -18,7 +18,7 @@ from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolve
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
-from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_manager import AdaptiveCoastingManager
+from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_module import AdaptiveCoastingModule
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
@@ -42,7 +42,7 @@ class LongitudinalPlannerSP:
     self.generation = int(model_bundle.generation) if (model_bundle := get_active_bundle()) else None
     self.source = LongitudinalPlanSource.cruise
     self.e2e_alerts_helper = E2EAlertsHelper()
-    self.acm = AdaptiveCoastingManager()
+    self.acm = AdaptiveCoastingModule()
     self.dtsc = DynamicTurnSpeedController(CP, mpc)
     self.pdm = PathDeviationMonitor(CP, mpc)
 
