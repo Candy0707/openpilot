@@ -1,6 +1,6 @@
 from cereal import messaging
-from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
 from openpilot.common.swaglog import cloudlog
+from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
 
 # ==========================================
 # ⚙️ 全域變數定義區 (Global Configurations)
@@ -35,7 +35,8 @@ ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
 class AdaptiveCoastingModule:
     """
     自適應滑行管理模組 (ACM) - 全物理 TTA 升級版
-    結合「近期軌跡意圖預測」、「純滑行區間」、「動態 TTC 防撞」與「TTA 平滑速度匹配退讓」。
+    結合「近期軌跡意圖預測」、「純滑行區間」、「動態 TTC 防撞」、「TTA 平滑速度匹配退讓」
+    以及「連續動態權重阻尼」的全速域控制系統。
     """
 
     def __init__(self):
@@ -73,7 +74,7 @@ class AdaptiveCoastingModule:
             d_rel = lead.dRel
             v_rel = lead.vRel
 
-            # 理想距離 = 車速 × 跟車秒數，並確保絕對不能低於靜止安全間距 (STOP_DISTANCE)
+            # 理想距離 = 車速 × 跟車秒數，並確保絕對不能低於靜止安全間距 (STOP_DISTANCE 同步 MPC)
             tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
             target_dist = max(v_ego * tf, STOP_DISTANCE)
             dist_percent = d_rel / target_dist
@@ -123,11 +124,10 @@ class AdaptiveCoastingModule:
             safe_buffer_dist = max(d_rel - (target_dist * SAFE_DIST_PERCENT), 0.0)
 
             # 🛡️ 數學防護盾：用 0.01 墊底，徹底避開 ZeroDivisionError 當機！
-            # 這樣我們就能大膽刪除 if v_rel < 0.0，讓數學公式無縫運行。
             safe_v_rel = max(abs(v_rel), 1e-3)
             tta = safe_buffer_dist / safe_v_rel
 
-            # 🌟 核心修復：全時段套用你原本的 TTA 公式
+            # 🌟 核心修復：全時段套用 TTA 公式
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
 
             # 防護 C：若 TTA 算出的所需減速度過大，交還 MPC 保命
@@ -159,7 +159,11 @@ class AdaptiveCoastingModule:
         # ==========================================
         # 2. 統一軌跡處理與分區覆寫 (單一輸出區塊)
         # ==========================================
-        # 執行到這裡，代表處於「需要抹平的無車狀態」或是「有車且允許介入的安全狀態」
+
+        # 🌟 核心魔法：計算連續型速度權重 (0 ~ 5 m/s，約 0 ~ 18 km/h)
+        # v_ego 越接近 0，ratio 越接近 0.0 (塞車黏滯模式，保留原廠平滑微煞車)
+        # v_ego 大於 5，ratio 為 1.0 (高速巡航模式，享受極致純滑行)
+        speed_ratio = max(0.0, min(v_ego / 5.0, 1.0))
 
         for i in range(len(result)):
             a_target = result[i]
@@ -171,11 +175,12 @@ class AdaptiveCoastingModule:
             else:
                 # 【有車分區邏輯】：依照安全距離百分比分段控制
                 if COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
-                    # 區域 A (85% ~ 100%)：滑行享受與遲滯維持區
-                    a_target = 0.0
+                    # 🟢 區域 A (85% ~ 100%)：連續動態滑行區
+                    # 高速時 a_target * 0 變成純滑行；低速塞車時 a_target * 1 完整還原微煞車
+                    a_target = a_target * (1.0 - speed_ratio)
 
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
-                    # 區域 B (75% ~ 85%)：平滑退讓區，套用 TTA 速度匹配力道
+                    # 🟡 區域 B (75% ~ 85%)：平滑退讓區，套用 TTA 速度匹配力道
                     a_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
 
                 elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
@@ -201,7 +206,7 @@ class AdaptiveCoastingModule:
                 if dist_percent >= EXIT_PERCENT:
                     zone_str = "退場(>100%)"
                 elif COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
-                    zone_str = "區域A(純滑行)"
+                    zone_str = f"區域A(權重:{speed_ratio:.2f})"
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                     zone_str = "區域B(TTA退讓)"
                 elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
@@ -209,7 +214,7 @@ class AdaptiveCoastingModule:
                 else:
                     zone_str = "區域D(預防加速)"
 
-                cloudlog.info(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
+                cloudlog.info(f"[{class_name}] 啟動:{self.acm_active} 加意圖:{self.intent_accelerating} | "
                               f"{zone_str} (距:{dist_percent*100:.1f}%) | "
                               f"dRel:{d_rel:.1f}m vRel:{v_rel:.2f}m/s | "
                               f"TTA:{tta:.2f}s raw:{raw_a_calc:.2f} | "
