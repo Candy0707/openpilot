@@ -19,6 +19,8 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.circular_alerts import CircularAle
 from openpilot.selfdrive.ui.sunnypilot.onroad.speed_renderer import SpeedRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.radar_ui import RadarUiRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.longitudinal_planner import LongitudinalPlanRenderer
+from openpilot.selfdrive.ui.sunnypilot.onroad.trend_ui import TrendRenderer
+
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.selfdrive.ui.onroad.hud_renderer import HudRenderer, UI_CONFIG, FONT_SIZES, COLORS, CRUISE_DISABLED_CHAR
 from openpilot.system.ui.lib.application import gui_app
@@ -32,6 +34,7 @@ class HudRendererSP(HudRenderer):
   def __init__(self):
     super().__init__()
     self.developer_ui = DeveloperUiRenderer()
+    self.trend_ui = TrendRenderer()
     self.road_name_renderer = RoadNameRenderer()
     self.rocket_fuel = RocketFuel()
     self.speed_limit_renderer = SpeedLimitRenderer()
@@ -143,6 +146,7 @@ class HudRendererSP(HudRenderer):
       self._torque_bar.render(torque_rect)
 
     self.developer_ui.render(rect)
+    self.trend_ui.render(rect)
     self.radar_ui.render(rect)
     self.road_name_renderer.render(rect)
     self.speed_limit_renderer.render(rect)
