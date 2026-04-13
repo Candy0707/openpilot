@@ -17,7 +17,7 @@ EXIT_PERCENT        = 1.00  # ⚪ 退出點：距離拉開大於 100% 時，ACM 
 # 2. 加速度動作極限變數 (單位: m/s²)
 COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在 85%~100% 區間，MPC 煞車輕於此值就強制歸零 (純滑行)
 MIN_RECOVERY_ACCEL  = -1.0  # 🛡️ 最小煞車極限：75%~85% 區間強制限縮的最大煞車力道，壓制神經質急煞
-MAX_RECOVERY_ACCEL  =  0.2  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
+MAX_RECOVERY_ACCEL  =  0.0  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
 
 # 3. 軌跡掃描與意圖預測範圍
@@ -198,12 +198,12 @@ class AdaptiveCoastingModule:
                 if COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
                     # 🟢 區域 A (85% ~ 100%)：連續動態滑行區
                     zone_str = "🟢 區域A(單純滑行)"
-                    a_target = 0
+                    a_target = 0.0
 
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                     # 🟡 區域 B (75% ~ 85%)：平滑退讓區 (連續融合版)
                     zone_str = "🟡 區域B(平滑退讓)"
-                    a_target = raw_a_calc
+                    a_target = max(MIN_RECOVERY_ACCEL ,min(raw_a_calc, MAX_RECOVERY_ACCEL))
 
                 elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
                     # 區域 C (10% ~ 75%)：絕對危險區，保留原生急煞指令
