@@ -9,8 +9,8 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_
 # 1. 距離與狀態機閾值 (百分比)
 ZERO_ACCEL_PERCENT  = 0.10  # 🛑 零加速鎖定線：跌破 10% (極限微距) 時，徹底沒收油門權限防暴衝
 SAFE_DIST_PERCENT   = 0.75  # 🚨 絕對安全底線：跌破 75% 理想距離時，ACM 完全退場，交還給原生 MPC 重煞保命
-COAST_START_PERCENT = 0.95  # 🟢 進入點：距離小於 95% 時，ACM 狀態機啟動，準備介入滑行邏輯
 COAST_END_PERCENT   = 0.85  # 🟡 警戒線：距離小於 85% 時結束純滑行，進入「動態微煞車」把距離拉回 85%
+COAST_START_PERCENT = 0.95  # 🟢 進入點：距離小於 95% 時，ACM 狀態機啟動，準備介入滑行邏輯
 EXIT_PERCENT        = 1.00  # ⚪ 退出點：距離拉開大於 100% 時，ACM 徹底休眠
 # 遲滯區 (0.95 ~ 1.00)：兩條件皆不成立時維持現有狀態，刻意避免邊界震盪
 
@@ -78,7 +78,8 @@ class AdaptiveCoastingModule:
             self.intent_accelerating = intent
 
             # 防洗頻核心：只有當「狀態(退出原因或區域)」跟上一次不同時，才印出 LOG
-            if ACM_DEBUG and (state_str != self.last_log_state or self.acm_active):                # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的格式！
+            if ACM_DEBUG and (state_str != self.last_log_state or self.acm_active):
+                # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的格式！
                 cloudlog.debug(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
                                f"{state_str} (距離:{dist_percent*100:.1f}%) | "
                                f"目標距離:{target_dist:.1f}m 當前距離:{d_rel:.1f}m 相對速度:{v_rel:.2f}m/s | "
@@ -163,17 +164,22 @@ class AdaptiveCoastingModule:
             self.intent_accelerating = False
 
         # ------------------------------------------
-        # 🌟 ACM 狀態機進出判定 (Hysteresis & 無車區塊)
+        # 🌟 ACM 狀態機進出判定
         # ------------------------------------------
         if lead.status:
             # 【有車狀態】：依據距離遲滯區間判定
             if dist_percent >= EXIT_PERCENT:
-                return log_and_return("⚪ 退出(跟車距離>100%)", result, active=False, intent=False)
+                return log_and_return("⚪ 退出(跟車距離 > 100%)", result, active=False, intent=False)
             elif dist_percent <= COAST_START_PERCENT:
                 self.acm_active = True
             else:
                 if not self.acm_active:
-                    return log_and_return("⚪ 退出(還未達到95%門檻)", result, active=False, intent=False)
+                    return log_and_return("⚪ 退出(還未達到 95% 啟動門檻)", result, active=False, intent=False)
+
+            # 🛑 極限距離防護：當真實物理距離已經小於最低停車距離時，交還權限
+            if d_rel < STOP_DISTANCE:
+                return log_and_return("⚪ 退出(當前距離 < 停車距離)", result, active=False, intent=False)
+
         else:
             # 【無車狀態】：抹平的神經質微煞車
             self.acm_active = any(COAST_MAX_BRAKE <= a < 0.0 for a in result)
@@ -181,7 +187,7 @@ class AdaptiveCoastingModule:
                 return log_and_return("⚪ 退出(前方無車且無須抹平煞車)", result, active=False, intent=False)
 
         # ==========================================
-        # 2. 統一軌跡處理與分區覆寫 (單一輸出區塊)
+        # 2. 統一軌跡處理與分區覆寫
         # ==========================================
         zone_str = ""
 
