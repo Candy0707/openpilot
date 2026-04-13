@@ -108,8 +108,8 @@ class AdaptiveCoastingModule:
             if sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or v_rel < 0.0:
                 self.intent_accelerating = False
 
-            # 距離已經拉開到滑行起點 (95%)
-            if dist_percent >= COAST_START_PERCENT:
+            # 距離已經拉開到滑行起點 (85%)
+            if dist_percent >= COAST_END_PERCENT:
                 self.intent_accelerating = False
 
             # 若系統鎖定在提速意圖，暫停 ACM 壓制，100% 放行原廠 MPC 確保起步與加速敏捷
