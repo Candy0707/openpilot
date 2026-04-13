@@ -78,8 +78,7 @@ class AdaptiveCoastingModule:
             self.intent_accelerating = intent
 
             # 防洗頻核心：只有當「狀態(退出原因或區域)」跟上一次不同時，才印出 LOG
-            if ACM_DEBUG and state_str != self.last_log_state:
-                # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的格式！
+            if ACM_DEBUG and (state_str != self.last_log_state or self.acm_active):                # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的格式！
                 cloudlog.debug(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
                                f"{state_str} (距離:{dist_percent*100:.1f}%) | "
                                f"目標距離:{target_dist:.1f}m 當前距離:{d_rel:.1f}m 相對速度:{v_rel:.2f}m/s | "
