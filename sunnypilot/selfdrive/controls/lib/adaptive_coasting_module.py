@@ -34,9 +34,7 @@ ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
 
 class AdaptiveCoastingModule:
     """
-    自適應滑行管理模組 (ACM) - 全物理 TTA 升級版
-    結合「近期軌跡意圖預測」、「純滑行區間」、「動態 TTC 防撞」、「TTA 平滑速度匹配退讓」
-    以及「連續動態權重阻尼」的全速域控制系統。
+    自適應滑行管理模組 (ACM)
     """
 
     def __init__(self):
@@ -44,6 +42,8 @@ class AdaptiveCoastingModule:
         self.acm_active = False
         # 狀態機 B：記錄目前是否處於「強烈起步/加速意圖」狀態 (暫停 ACM，確保敏捷性)
         self.intent_accelerating = False
+        # 記憶上一次的「狀態字串」(包含強制退出或區域)，只要狀態改變就印出
+        self.last_log_state = ""
 
     def update(
         self,
@@ -52,6 +52,7 @@ class AdaptiveCoastingModule:
         v_ego: float,
         t_follow_override: float,
     ) -> list[float]:
+        class_name = self.__class__.__name__
 
         # 從 SubMaster 取得最新一幀的雷達狀態資料
         radar_state = sm['radarState']
@@ -60,15 +61,38 @@ class AdaptiveCoastingModule:
         # 預先複製陣列，準備給最後統一覆寫使用
         result = list(a_desired_trajectory)
 
-        # 🌟 準備給 LOG 使用的預設變數，避免無車狀態下調用報錯
+        # 準備給 LOG 使用的預設變數，確保無車或提早退出時也能印出 0.0，維持格式統一
         tta = 0.0
         raw_a_calc = 0.0
         dist_percent = 0.0
         d_rel = 0.0
         v_rel = 0.0
+        target_dist = 0.0
 
         # ==========================================
-        # 1. 狀態計算與安全防護
+        # 🛡️ 統一攔截與日誌輸出中心 (Universal Logger & Return)
+        # ==========================================
+        def log_and_return(state_str: str, current_result: list[float], active=False, intent=False):
+            # 寫入狀態機
+            self.acm_active = active
+            self.intent_accelerating = intent
+
+            # 防洗頻核心：只有當「狀態(退出原因或區域)」跟上一次不同時，才印出 LOG
+            if ACM_DEBUG and state_str != self.last_log_state:
+                # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的格式！
+                cloudlog.debug(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
+                               f"{state_str} (距離:{dist_percent*100:.1f}%) | "
+                               f"目標距離:{target_dist:.1f}m 當前距離:{d_rel:.1f}m 相對速度:{v_rel:.2f}m/s | "
+                               f"TTA:{tta:.2f}s raw:{raw_a_calc:.2f} | "
+                               f"覆寫: {a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}")
+
+                # 記憶這次的狀態
+                self.last_log_state = state_str
+
+            return current_result
+
+        # ==========================================
+        # 1. 狀態計算與安全防護 (提早退出區)
         # ==========================================
         if lead.status:
             d_rel = lead.dRel
@@ -91,14 +115,16 @@ class AdaptiveCoastingModule:
             # 動態 TTC 閾值：將跟車秒數放大 1.2 倍作為防護底線，提早應對鬼切
             dynamic_ttc_threshold = tf * 1.2
 
-            # 若預計碰撞時間太短，或原廠近期軌跡已經預測到緊急重煞，立刻退場保命
-            if ttc < dynamic_ttc_threshold or any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory):
-                self.acm_active = False
-                self.intent_accelerating = False
-                return result
+            # 若預計碰撞時間太短，立刻退場保命
+            if ttc < dynamic_ttc_threshold:
+                return log_and_return(f"🛑 強制退出(TTC防撞 {ttc:.1f}s)", result, active=False, intent=False)
+
+            # 原廠近期軌跡已經預測到緊急重煞，立刻退場保命
+            if any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory):
+                return log_and_return("🛑 強制退出(原廠重煞保命)", result, active=False, intent=False)
 
             # ------------------------------------------
-            # 🧠 狀態機 B：動態加速意圖鎖定 (已整合 v_rel 物理雙重保險)
+            # 🧠 狀態機 B：動態加速意圖鎖定
             # ------------------------------------------
             # 觸發條件：近期軌跡出現加速意圖 AND 前車正在遠離 (v_rel > 0.0)
             if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD and v_rel > 0.0:
@@ -114,26 +140,24 @@ class AdaptiveCoastingModule:
 
             # 若系統鎖定在提速意圖，暫停 ACM 壓制，100% 放行原廠 MPC 確保起步與加速敏捷
             if self.intent_accelerating:
-                self.acm_active = False
-                return result
+                return log_and_return("🛑 強制退出(加速意圖鎖定中)", result, active=False, intent=True)
 
             # ------------------------------------------
-            # 🌟 動態追蹤演算法：全時段連續 TTA 速度匹配 (拔除 if 斷層)
+            # 動態追蹤演算法：全時段連續 TTA 速度匹配
             # ------------------------------------------
             # 計算距離「75% 死亡線」還剩下多少真實物理空間
             safe_buffer_dist = max(d_rel - (target_dist * SAFE_DIST_PERCENT), 0.0)
 
-            # 🛡️ 數學防護盾：用 0.01 墊底，徹底避開 ZeroDivisionError 當機！
+            # 🛡️ 數學防護盾：用 1e-3 墊底，徹底避開 ZeroDivisionError 當機！
             safe_v_rel = max(abs(v_rel), 1e-3)
             tta = safe_buffer_dist / safe_v_rel
 
-            # 🌟 核心修復：全時段套用 TTA 公式
+            # 核心修復：全時段套用 TTA 公式
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
 
             # 防護 C：若 TTA 算出的所需減速度過大，交還 MPC 保命
             if raw_a_calc < MPC_FALLBACK_ACCEL:
-                self.acm_active = False
-                return result
+                return log_and_return(f"🛑 強制退出(TTA極限保命 {raw_a_calc:.2f})", result, active=False, intent=False)
 
         else:
             # 確保無車狀態下不會有加速意圖殘留
@@ -145,89 +169,54 @@ class AdaptiveCoastingModule:
         if lead.status:
             # 【有車狀態】：依據距離遲滯區間判定
             if dist_percent >= EXIT_PERCENT:
-                self.acm_active = False
+                return log_and_return("⚪ 退出(跟車距離>100%)", result, active=False, intent=False)
             elif dist_percent <= COAST_START_PERCENT:
                 self.acm_active = True
+            else:
+                if not self.acm_active:
+                    return log_and_return("⚪ 退出(還未達到95%門檻)", result, active=False, intent=False)
         else:
             # 【無車狀態】：抹平的神經質微煞車
             self.acm_active = any(COAST_MAX_BRAKE <= a < 0.0 for a in result)
-
-        # 沒啟動就直接回傳
-        if not self.acm_active:
-            return result
+            if not self.acm_active:
+                return log_and_return("⚪ 退出(前方無車且無須抹平煞車)", result, active=False, intent=False)
 
         # ==========================================
         # 2. 統一軌跡處理與分區覆寫 (單一輸出區塊)
         # ==========================================
-
-        # 🌟 核心魔法：計算連續型速度權重 (0 ~ 5 m/s，約 0 ~ 18 km/h)
-        # v_ego 越接近 0，ratio 越接近 0.0 (塞車黏滯模式，保留原廠平滑微煞車)
-        # v_ego 大於 5，ratio 為 1.0 (高速巡航模式，享受極致純滑行)
-        speed_ratio = max(0.0, min(v_ego / 5.0, 1.0))
+        zone_str = ""
 
         for i in range(len(result)):
             a_target = result[i]
 
             if not lead.status:
                 # 【無車滑行邏輯】：抹平 E2E 模型的神經質微煞車
+                zone_str = "🟢 無車狀態(執行抹平)"
                 if COAST_MAX_BRAKE <= a_target < 0.0:
                     a_target = 0.0
             else:
                 # 【有車分區邏輯】：依照安全距離百分比分段控制
                 if COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
                     # 🟢 區域 A (85% ~ 100%)：連續動態滑行區
-                    # 高速時 a_target * 0 變成純滑行；低速塞車時 a_target * 1 完整還原微煞車
-                    a_target = a_target * (1.0 - speed_ratio)
+                    zone_str = "🟢 區域A(單純滑行)"
+                    a_target = 0
 
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                     # 🟡 區域 B (75% ~ 85%)：平滑退讓區 (連續融合版)
-                    # 1. 先算出原本 ACM 想要給的 TTA 力量，存入暫存變數
-                    acm_b_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
-                    
-                    # 2. 完美的蹺蹺板融合：
-                    # 高速 (ratio=1) 時：100% 套用 ACM 的 TTA，0% 吃原廠指令
-                    # 低速 (ratio=0) 時：0% 套用 ACM 的 TTA，100% 保留原廠平滑煞停
-                    a_target = (acm_b_target * speed_ratio) + (a_target * (1.0 - speed_ratio))
+                    zone_str = "🟡 區域B(平滑退讓)"
+                    a_target = raw_a_calc
 
                 elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
                     # 區域 C (10% ~ 75%)：絕對危險區，保留原生急煞指令
-                    pass
+                    zone_str = "🟠 區域C(危急防護)"
 
                 elif dist_percent < ZERO_ACCEL_PERCENT:
                     # 🔴 區域 D (< 10%)：極限防暴衝區
+                    zone_str = "🔴 區域D(預防加速)"
                     a_target = min(a_target, 0.0)
 
             # 將處理完的數值寫回陣列
             result[i] = a_target
 
-        # ==========================================
-        # 📝 3. 原廠標準 cloudlog 輸出區塊 (動態 ClassName 版)
-        # ==========================================
-        if ACM_DEBUG:
-            # 🌟 動態獲取當前類別名稱
-            class_name = self.__class__.__name__
-
-            if lead.status:
-                # 判定目前所處的物理區間字串
-                if dist_percent >= EXIT_PERCENT:
-                    zone_str = "退場(>100%)"
-                elif COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
-                    zone_str = f"區域A(權重:{speed_ratio:.2f})"
-                elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
-                    zone_str = f"區域B(融合:{speed_ratio:.2f})"
-                elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
-                    zone_str = "區域C(危急防護)"
-                else:
-                    zone_str = "區域D(預防加速)"
-
-                cloudlog.info(f"[{class_name}] 啟動:{self.acm_active} 加意圖:{self.intent_accelerating} | "
-                              f"{zone_str} (距:{dist_percent*100:.1f}%) | "
-                              f"dRel:{d_rel:.1f}m vRel:{v_rel:.2f}m/s | "
-                              f"TTA:{tta:.2f}s raw:{raw_a_calc:.2f} | "
-                              f"覆寫: {a_desired_trajectory[0]:.2f} -> {result[0]:.2f}")
-            else:
-                if self.acm_active:
-                    cloudlog.info(f"[{class_name}] 啟動:{self.acm_active} 無車狀態 | 執行抹平 | "
-                                  f"覆寫: {a_desired_trajectory[0]:.2f} -> {result[0]:.2f}")
-
-        return result
+        # 正常跑到最後，也一律呼叫 log_and_return 處理日誌並回傳！
+        return log_and_return(zone_str, result, active=self.acm_active, intent=self.intent_accelerating)
