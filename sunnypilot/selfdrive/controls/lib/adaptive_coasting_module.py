@@ -180,8 +180,14 @@ class AdaptiveCoastingModule:
                     a_target = a_target * (1.0 - speed_ratio)
 
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
-                    # 🟡 區域 B (75% ~ 85%)：平滑退讓區，套用 TTA 速度匹配力道
-                    a_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
+                    # 🟡 區域 B (75% ~ 85%)：平滑退讓區 (連續融合版)
+                    # 1. 先算出原本 ACM 想要給的 TTA 力量，存入暫存變數
+                    acm_b_target = max(MIN_RECOVERY_ACCEL, min(MAX_RECOVERY_ACCEL, raw_a_calc))
+                    
+                    # 2. 完美的蹺蹺板融合：
+                    # 高速 (ratio=1) 時：100% 套用 ACM 的 TTA，0% 吃原廠指令
+                    # 低速 (ratio=0) 時：0% 套用 ACM 的 TTA，100% 保留原廠平滑煞停
+                    a_target = (acm_b_target * speed_ratio) + (a_target * (1.0 - speed_ratio))
 
                 elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
                     # 區域 C (10% ~ 75%)：絕對危險區，保留原生急煞指令
@@ -208,7 +214,7 @@ class AdaptiveCoastingModule:
                 elif COAST_END_PERCENT <= dist_percent < EXIT_PERCENT:
                     zone_str = f"區域A(權重:{speed_ratio:.2f})"
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
-                    zone_str = "區域B(TTA退讓)"
+                    zone_str = f"區域B(融合:{speed_ratio:.2f})"
                 elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
                     zone_str = "區域C(危急防護)"
                 else:
