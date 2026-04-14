@@ -117,7 +117,7 @@ class AdaptiveCoastingModule:
 
             # 若預計碰撞時間太短，立刻退場保命
             if ttc < dynamic_ttc_threshold:
-                return log_and_return(f"🛑 強制退出(TTC防撞 {ttc:.1f}s)", result, active=False, intent=False)
+                return log_and_return(f"🛑 強制退出(TTC防撞)", result, active=False, intent=False)
 
             # 原廠近期軌跡已經預測到緊急重煞，立刻退場保命
             if any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory):
@@ -156,8 +156,8 @@ class AdaptiveCoastingModule:
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
 
             # 防護 C：若 TTA 算出的所需減速度過大，交還 MPC 保命
-            if raw_a_calc < MPC_FALLBACK_ACCEL:
-                return log_and_return(f"🛑 強制退出(TTA極限保命 {raw_a_calc:.2f})", result, active=False, intent=False)
+            # if raw_a_calc < MPC_FALLBACK_ACCEL:
+            #     return log_and_return(f"🛑 強制退出(TTA極限保命 {raw_a_calc:.2f})", result, active=False, intent=False)
 
         else:
             # 確保無車狀態下不會有加速意圖殘留
@@ -220,6 +220,7 @@ class AdaptiveCoastingModule:
                     zone_str = "🔴 區域D(預防加速)"
                     a_target = min(a_target, 0.0)
 
+            a_target = min(a_target, 0.0)
             # 將處理完的數值寫回陣列
             result[i] = a_target
 
