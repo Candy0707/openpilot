@@ -7,7 +7,6 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_
 # ==========================================
 
 # 1. 距離與狀態機閾值 (百分比)
-ZERO_ACCEL_PERCENT  = 0.10  # 🛑 零加速鎖定線：跌破 10% (極限微距) 時，徹底沒收油門權限防暴衝
 SAFE_DIST_PERCENT   = 0.75  # 🚨 絕對安全底線：跌破 75% 理想距離時，ACM 完全退場，交還給原生 MPC 重煞保命
 COAST_END_PERCENT   = 0.85  # 🟡 警戒線：距離小於 85% 時結束純滑行，進入「動態微煞車」把距離拉回 85%
 COAST_START_PERCENT = 0.95  # 🟢 進入點：距離小於 95% 時，ACM 狀態機啟動，準備介入滑行邏輯
@@ -67,22 +66,29 @@ class AdaptiveCoastingModule:
         dist_percent = 0.0
         d_rel = 0.0
         v_rel = 0.0
-        target_dist = 0.0
+        dynamic_target = 0.0
 
         # ==========================================
         # 🛡️ 統一攔截與日誌輸出中心 (Universal Logger & Return)
         # ==========================================
-        def log_and_return(state_str: str, current_result: list[float], active=False, intent=False):
+        def finalize_and_return(state_str: str, current_result: list[float], active=False, intent=False, block_accel=True):
+            """
+            統一處理日誌輸出、狀態機更新與最後的安全過濾
+            """
             # 寫入狀態機
             self.acm_active = active
             self.intent_accelerating = intent
+
+            # 禁止加速防護
+            if block_accel:
+                current_result = [min(a, 0.0) for a in current_result]
 
             # 防洗頻核心：只有當「狀態(退出原因或區域)」跟上一次不同時，才印出 LOG
             if ACM_DEBUG and (state_str != self.last_log_state or self.acm_active):
                 # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的格式！
                 cloudlog.debug(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
                                f"{state_str} (距離:{dist_percent*100:.1f}%) | "
-                               f"目標距離:{target_dist:.1f}m 當前距離:{d_rel:.1f}m 相對速度:{v_rel:.2f}m/s | "
+                               f"目標距離:{dynamic_target:.1f}m 當前距離:{d_rel:.1f}m 相對速度:{v_rel:.2f}m/s | "
                                f"TTA:{tta:.2f}s raw:{raw_a_calc:.2f} | "
                                f"覆寫: {a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}")
 
@@ -98,10 +104,17 @@ class AdaptiveCoastingModule:
             d_rel = lead.dRel
             v_rel = lead.vRel
 
-            # 理想距離 = 車速 × 跟車秒數，並確保絕對不能低於靜止安全間距 (STOP_DISTANCE 同步 MPC)
+            # 真實動態緩衝百分比
             tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
-            target_dist = max(v_ego * tf, STOP_DISTANCE)
-            dist_percent = d_rel / target_dist
+
+            # 1. 動態目標空間：設定最低計算車速 2.0 m/s
+            dynamic_target = max(v_ego, 2.0) * tf
+
+            # 2. 真實剩餘空間：當前距離扣除「絕對靜止底線 (STOP_DISTANCE)」
+            dynamic_actual = max(d_rel - STOP_DISTANCE, 0.0)
+
+            # 3. 真正的安全百分比：只看「動態空間」的消耗率
+            dist_percent = dynamic_actual / dynamic_target
 
             # 統一擷取近期軌跡 (供危險與意圖預判使用)
             recent_trajectory = a_desired_trajectory[:TRAJECTORY_HORIZON]
@@ -113,15 +126,14 @@ class AdaptiveCoastingModule:
             ttc = (d_rel / abs(v_rel)) if v_rel < -0.5 else 999.0
 
             # 動態 TTC 閾值：將跟車秒數放大 1.2 倍作為防護底線，提早應對鬼切
-            dynamic_ttc_threshold = tf * 1.2
-
+            dynamic_ttc_threshold = min(tf * 1.2, 2.5)
             # 若預計碰撞時間太短，立刻退場保命
             if ttc < dynamic_ttc_threshold:
-                return log_and_return(f"🛑 強制退出(TTC防撞)", result, active=False, intent=False)
+                return finalize_and_return(f"🛑 強制退出(TTC防撞)", result, active=False, intent=False, block_accel=True)
 
             # 原廠近期軌跡已經預測到緊急重煞，立刻退場保命
             if any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory):
-                return log_and_return("🛑 強制退出(原廠重煞保命)", result, active=False, intent=False)
+                return finalize_and_return("🛑 強制退出(原廠重煞保命)", result, active=False, intent=False, block_accel=True)
 
             # ------------------------------------------
             # 🧠 狀態機 B：動態加速意圖鎖定
@@ -140,13 +152,13 @@ class AdaptiveCoastingModule:
 
             # 若系統鎖定在提速意圖，暫停 ACM 壓制，100% 放行原廠 MPC 確保起步與加速敏捷
             if self.intent_accelerating:
-                return log_and_return("🛑 強制退出(加速意圖鎖定中)", result, active=False, intent=True)
+                return finalize_and_return("🛑 強制退出(加速意圖鎖定中)", result, active=False, intent=True, block_accel=False)
 
             # ------------------------------------------
             # 動態追蹤演算法：全時段連續 TTA 速度匹配
             # ------------------------------------------
             # 計算距離「75% 死亡線」還剩下多少真實物理空間
-            safe_buffer_dist = max(d_rel - (target_dist * SAFE_DIST_PERCENT), 0.0)
+            safe_buffer_dist = max(dynamic_actual - (dynamic_target * SAFE_DIST_PERCENT), 0.0)
 
             # 🛡️ 數學防護盾：用 1e-3 墊底，徹底避開 ZeroDivisionError 當機！
             safe_v_rel = max(abs(v_rel), 1e-3)
@@ -157,7 +169,7 @@ class AdaptiveCoastingModule:
 
             # 防護 C：若 TTA 算出的所需減速度過大，交還 MPC 保命
             # if raw_a_calc < MPC_FALLBACK_ACCEL:
-            #     return log_and_return(f"🛑 強制退出(TTA極限保命 {raw_a_calc:.2f})", result, active=False, intent=False)
+            #     return finalize_and_return(f"🛑 強制退出(TTA極限保命 {raw_a_calc:.2f})", result, active=False, intent=False, block_accel=True)
 
         else:
             # 確保無車狀態下不會有加速意圖殘留
@@ -169,22 +181,26 @@ class AdaptiveCoastingModule:
         if lead.status:
             # 【有車狀態】：依據距離遲滯區間判定
             if dist_percent >= EXIT_PERCENT:
-                return log_and_return("⚪ 退出(跟車距離 > 100%)", result, active=False, intent=False)
+                # 距離安全，允許 MPC 補油門
+                return finalize_and_return("⚪ 退出(跟車距離 > 100%)", result, active=False, intent=False, block_accel=False)
             elif dist_percent <= COAST_START_PERCENT:
                 self.acm_active = True
             else:
                 if not self.acm_active:
-                    return log_and_return("⚪ 退出(還未達到 95% 啟動門檻)", result, active=False, intent=False)
+                    # 還沒進入管制區，讓原廠發揮
+                    return finalize_and_return("⚪ 退出(還未達到 95% 啟動門檻)", result, active=False, intent=False, block_accel=False)
+
+
 
             # 🛑 極限距離防護：當真實物理距離已經小於最低停車距離時，交還權限
             if d_rel < STOP_DISTANCE:
-                return log_and_return("⚪ 退出(當前距離 < 停車距離)", result, active=False, intent=False)
+                return finalize_and_return("⚪ 退出(當前距離 < 停車距離)", result, active=False, intent=False, block_accel=True)
 
         else:
             # 【無車狀態】：抹平的神經質微煞車
             self.acm_active = any(COAST_MAX_BRAKE <= a < 0.0 for a in result)
             if not self.acm_active:
-                return log_and_return("⚪ 退出(前方無車且無須抹平煞車)", result, active=False, intent=False)
+                return finalize_and_return("⚪ 退出(前方無車且無須抹平煞車)", result, active=False, intent=False, block_accel=False)
 
         # ==========================================
         # 2. 統一軌跡處理與分區覆寫
@@ -209,20 +225,17 @@ class AdaptiveCoastingModule:
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                     # 🟡 區域 B (75% ~ 85%)：平滑退讓區 (連續融合版)
                     zone_str = "🟡 區域B(平滑退讓)"
-                    a_target = max(MIN_RECOVERY_ACCEL ,min(raw_a_calc, MAX_RECOVERY_ACCEL))
+                    safe_tta = max(MIN_RECOVERY_ACCEL, min(raw_a_calc, MAX_RECOVERY_ACCEL))
+                    a_target = min(a_target, safe_tta)
 
-                elif ZERO_ACCEL_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
-                    # 區域 C (10% ~ 75%)：絕對危險區，保留原生急煞指令
+                elif dist_percent < SAFE_DIST_PERCENT:
+                    # 區域 C (0% ~ 75%)：絕對危險區，保留原生急煞指令
                     zone_str = "🟠 區域C(危急防護)"
 
-                elif dist_percent < ZERO_ACCEL_PERCENT:
-                    # 🔴 區域 D (< 10%)：極限防暴衝區
-                    zone_str = "🔴 區域D(預防加速)"
-                    a_target = min(a_target, 0.0)
-
+            # 在分區處理內強制保證安全：禁止加速
             a_target = min(a_target, 0.0)
             # 將處理完的數值寫回陣列
             result[i] = a_target
 
-        # 正常跑到最後，也一律呼叫 log_and_return 處理日誌並回傳！
-        return log_and_return(zone_str, result, active=self.acm_active, intent=self.intent_accelerating)
+        # 正常跑到最後，因迴圈內已處理好 a_target 的 min(a, 0.0) 限制，回傳時不需要再剪一次
+        return finalize_and_return(zone_str, result, active=self.acm_active, intent=self.intent_accelerating, block_accel=False)
