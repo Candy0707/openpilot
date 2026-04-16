@@ -225,8 +225,7 @@ class AdaptiveCoastingModule:
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                     # 🟡 區域 B (75% ~ 85%)：平滑退讓區 (連續融合版)
                     zone_str = "🟡 區域B(平滑退讓)"
-                    safe_tta = max(MIN_RECOVERY_ACCEL, min(raw_a_calc, MAX_RECOVERY_ACCEL))
-                    a_target = min(a_target, safe_tta)
+                    a_target = max(MIN_RECOVERY_ACCEL, min(raw_a_calc, MAX_RECOVERY_ACCEL))
 
                 elif dist_percent < SAFE_DIST_PERCENT:
                     # 區域 C (0% ~ 75%)：絕對危險區，保留原生急煞指令
