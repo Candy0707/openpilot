@@ -217,7 +217,7 @@ class AdaptiveCoastingModule:
                     # 區域 C (0% ~ 75%)：絕對危險區，保留原生急煞指令
                     zone_str = "🟠 區域C(危急防護)"
 
-            a_target = min(a_target, 0.0)
+                a_target = min(a_target, 0.0)
             # 將處理完的數值寫回陣列
             result[i] = a_target
 
