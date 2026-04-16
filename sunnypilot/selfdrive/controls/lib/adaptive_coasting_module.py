@@ -67,6 +67,7 @@ class AdaptiveCoastingModule:
         d_rel = 0.0
         v_rel = 0.0
         dynamic_target = 0.0
+        dynamic_actual = 0.0
 
         # ==========================================
         # 🛡️ 統一攔截與日誌輸出中心 (Universal Logger & Return)
@@ -152,8 +153,7 @@ class AdaptiveCoastingModule:
             # 動態追蹤演算法：全時段連續 TTA 速度匹配
             # ------------------------------------------
             # 計算距離「75% 死亡線」還剩下多少真實物理空間
-            safe_buffer_dist = max(d_rel - (v_ego * tf * SAFE_DIST_PERCENT), 0.0)
-
+            safe_buffer_dist = max(dynamic_actual - (dynamic_target * SAFE_DIST_PERCENT), 0.0)
             # 🛡️ 數學防護盾：用 1e-3 墊底，徹底避開 ZeroDivisionError 當機！
             safe_v_rel = max(abs(v_rel), 1e-3)
             tta = safe_buffer_dist / safe_v_rel
