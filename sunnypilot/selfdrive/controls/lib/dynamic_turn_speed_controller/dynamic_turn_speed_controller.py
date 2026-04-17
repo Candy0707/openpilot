@@ -1,12 +1,12 @@
 """
 ================================================================================
 Dynamic Turn Speed Controller (DTSC) - Final Pro Edition
-自動駕駛動態彎道速度控制器 (嚴格 4 階段狀態機 + 彎中動態補油版 + 實車G力防護) 🚀
+自動駕駛動態彎道速度控制器 (四階段狀態機 + 實車G力限速 + 幀控制防護版) 🚀
 ================================================================================
 
 【系統運作核心理論 (System Architecture & Control Theory)】
 本系統屏棄了傳統依賴「靜態地圖」或「單一曲率門檻」的生硬煞車方式，
-改採最先進的「時空軌跡重疊 (Spatio-Temporal Overlap)」與「動態狀態機 (Dynamic State Machine)」。
+改採最先進的「時空軌跡重疊 (Spatio-Temporal Overlap)」與「四階段動態狀態機」。
 
 1. 信心濾波器 (Confidence Filter)：
    我們不盲目相信 AI 模型單一幀的預測。系統會將未來的軌跡投影到時間軸上，
@@ -17,17 +17,15 @@ Dynamic Turn Speed Controller (DTSC) - Final Pro Edition
    在可信賴的視距內，系統會像賽車手一樣去尋找「真正的入彎點」(G>0.3 或 曲率>0.005)，
    並直接抓取整段彎道最極限的「彎心 (Apex)」數據，一次性反推出該彎道的絕對安全車速。
 
-   🌟 [新增防護] 實車 G 力強制介入：
+   🌟 [防護] 實車 G 力強制介入：
    若 AI 信心累積太慢 (<60%)，但底盤實測感受到的橫向 G 力已超越舒適極限，
    系統將無視 AI 信心，強制判定為「彎道中」，立刻啟動減速接管，構築絕對安全底線。
 
 3. 四階段狀態機與雙模控制 (4-Stage State Machine & Dual-Mode Control)：
-   - [第一階段] 遠距入彎前：利用剩餘距離，套用 TTA (Time-To-Arrival) 空間運動學公式，
-     計算出完美的等減速度。此階段「嚴格禁止補油 (min 鎖定)」，確保入彎前確實減速。
-   - [第二階段] 抵達彎中 / G力強制介入：距離歸零，若繼續使用 TTA 會導致除以零的「撞牆級重煞」。
-     因此強制切換為 P-Controller (時間比例控制)，並「解除補油鎖定」。若車速過慢，
-     系統會主動給予正加速度 (最高 1.0 m/s²)，維持動力平滑過彎。
-   - [結束階段] 出彎過渡：彎道特徵消失，平滑引導車輛加速回歸原定巡航車速。
+   - [第一階段] 啟用判定：AI 預見彎道 OR 底盤 G 力超標。
+   - [第二階段] 狀態定位：區分預先減速區 (Pre-decel) 與 彎中動態區 (Turning)。
+   - [第三階段] 減速實作：入彎前用 TTA 空間公式；彎中單純採用「實體橫向G力」決定安全車速。
+   - [第四階段] 出彎判斷：使用實體曲率並執行 20 幀連續驗證，確保 S 彎不提早加速。
 ================================================================================
 """
 
@@ -45,9 +43,6 @@ from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 # 【系統輸出權限界線】
 MAX_ACCEL = 1.0   # 解鎖正向加速權限 (1.0 m/s² 代表允許系統在彎中/出彎時，給予溫和且線性的補油)
 MIN_ACCEL = -3.5  # 最大允許煞車力道 (-3.5 m/s² 接近人類重踩煞車的極限，做為保命的物理底線)
-
-# G 值比例控制增益 (Proportional Gain)
-_G_PROPORTIONAL_GAIN = 3.5
 
 # 【時間與空間網格化 (Grid Settings)】
 # Openpilot 視覺模型頻率為 20Hz (即每幀 0.05 秒)，我們將未來 10 秒的預測切分為 200 格。
@@ -266,13 +261,10 @@ class DynamicTurnSpeedController(TargetsBase):
     if self.action:
 
       if is_curve_ahead:
-        # 計算速度落差 (負值代表需減速，正值代表車速過慢需補油)
-        speed_diff = v_decision_final - v_ego
-
+        # --------------------------------------------------------
+        # (A) 預先減速實作：TTA 空間公式
+        # --------------------------------------------------------
         if is_pre_deceleration:
-          # --------------------------------------------------------
-          # (A) 預先減速實作：TTA 空間公式
-          # --------------------------------------------------------
           if v_ego > v_decision_final:
             # TTA 等加速度運動學公式：a = (Vf² - Vi²) / 2S
             # 準備入彎階段「嚴格禁止補油 (幽靈加速)」，強制使用 min(a, 0.0) 鎖死加速權限。
@@ -282,18 +274,18 @@ class DynamicTurnSpeedController(TargetsBase):
             # 速度已降至安全範圍，自然收斂為 0.0，不干預 ACC。
             a_target_raw = 0.0
 
+        # --------------------------------------------------------
+        # (B) 彎中動態實作：實車 G 力限速控制
+        # --------------------------------------------------------
         elif is_in_curve_dynamic:
-          # --------------------------------------------------------
-          # (B) 彎中動態實作：G值比例控制 (P-Control)
-          # --------------------------------------------------------
-          # 計算超標 G 值：ΔG = 當前G - 舒適門檻
-          g_excess = max(0.0, current_lat_accel - comfort_g_limit)
+          # 🌟 依照您的需求：彎中完全捨棄 AI 預測速度，單純使用「實體底盤 G 力」來計算當下的安全車速
+          # v_act_k_safe 是由公式 sqrt(舒適G力 / 實體曲率) 所算出的完美過彎速度
+          # 這確保了減速力道永遠柔和且符合物理極限，徹底解決極端重煞問題 (-3.5G)
+          v_curve_target = min(v_act_k_safe, v_cruise)
+          speed_diff_curve = v_curve_target - v_ego
 
-          # 比例控制公式：a_base = -(ΔG * Gain)
-          base_turning_accel = -(g_excess * _G_PROPORTIONAL_GAIN)
-
-          # 結合 P-Controller 速度微調，維持彎中動力貼合極限
-          a_target_raw = base_turning_accel + (speed_diff / 1.5)
+          # 單純使用 1.5 秒的時間常數進行平滑追隨，體感會非常線性柔和 (允許輸出正加速度補油)
+          a_target_raw = speed_diff_curve / 1.5
 
       else:
         # --------------------------------------------------------
@@ -381,7 +373,7 @@ class DynamicTurnSpeedController(TargetsBase):
         elif is_g_force_override and not ai_sees_curve:
           state_str = "⚠️ 實車Ｇ力強制介入"
         elif is_in_curve_dynamic:
-          state_str = "🎯 彎中比例控制"
+          state_str = "🎯 彎中實車G力限速"
         else:
           state_str = "📉 預先減速"
 
@@ -394,7 +386,7 @@ class DynamicTurnSpeedController(TargetsBase):
           f"入彎: {entry_sec:.1f}s/{dist_to_entry:.1f}m/{entry_conf:.0f}% | "
           f"最遠: {horizon_sec:.1f}s/{dyn_horizon_dist:.1f}m/{horizon_conf:.0f}%"
         )
-        cloudlog.warning(log_msg)
+        cloudlog.debug(log_msg)
         print(log_msg)
         self.log_timer = 0.0
 
