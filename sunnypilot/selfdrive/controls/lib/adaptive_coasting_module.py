@@ -1,3 +1,4 @@
+import numpy as np
 from cereal import messaging
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
@@ -19,15 +20,19 @@ MIN_RECOVERY_ACCEL  = -1.0  # 🛡️ 最小煞車極限：75%~85% 區間強制�
 MAX_RECOVERY_ACCEL  =  0.0  # 🐢 緩加速極限：前車加速時限制補油門力道，確保提速比前車慢以拉開距離
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
 
-# 3. 軌跡掃描與意圖預測範圍
+# 3. 動態線性插值參數(防止MPC積分累計)
+CHAUFFEUR_SPEED_BP = [0.0, 1.5]  # 🛑 車速節點 (m/s)：[完全靜止, 開始準備煞停的車速]
+CHAUFFEUR_ACCEL_V  = [0.25, 0.0] # 🛑 對應的最大加速度上限 (m/s²)：[靜止時允許 +0.25 放鬆卡鉗, 高於 1.5m/s 時嚴格限制 0.0]
+
+# 4. 軌跡掃描與意圖預測範圍
 TRAJECTORY_HORIZON  = 6     # 🔭 危險預判：取 MPC 軌跡前 6 個點 (約 0.6 秒) 預判是否有緊急重煞
 INTENT_LOOKAHEAD    = 3     # 🧠 意圖預判：在 6 個點中有 3 個點成立即觸發 (過半數表決防震盪)
 
-# 4. 物理與標定預設常數
+# 5. 物理與標定預設常數
 DEFAULT_T_FOLLOW    = 1.6   # 預設跟車秒數，當外部未傳入 t_follow_override 時使用
 TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差 (m/s)：在退讓區內，只要比前車慢即可，讓距離自然拉開
 
-# 5. 系統偵錯開關
+# 6. 系統偵錯開關
 ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
 
 
@@ -162,8 +167,8 @@ class AdaptiveCoastingModule:
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
 
             # 防護 C：若 TTA 算出的所需減速度過大，交還 MPC 保命
-            # if raw_a_calc < MPC_FALLBACK_ACCEL:
-            #     return log_and_return("🛑 強制退出(TTA極限保命)", result, active=False, intent=False)
+            if raw_a_calc < MPC_FALLBACK_ACCEL:
+                return log_and_return("🛑 強制退出(TTA極限保命)", result, active=False, intent=False)
 
         else:
             # 確保無車狀態下不會有加速意圖殘留
@@ -192,6 +197,8 @@ class AdaptiveCoastingModule:
         # 2. 統一軌跡處理與分區覆寫
         # ==========================================
         zone_str = ""
+        # 根據目前的車速 (v_ego)，自動算出當下允許的最大微加速 (dynamic_max_accel)
+        dynamic_max_accel = np.interp(v_ego, CHAUFFEUR_SPEED_BP, CHAUFFEUR_ACCEL_V)
 
         for i in range(len(result)):
             a_target = result[i]
@@ -211,13 +218,17 @@ class AdaptiveCoastingModule:
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                     # 🟡 區域 B (75% ~ 85%)：平滑退讓區 (連續融合版)
                     zone_str = "🟡 區域B(平滑退讓)"
-                    a_target = max(MIN_RECOVERY_ACCEL ,min(raw_a_calc, MAX_RECOVERY_ACCEL))
+                    a_target = max(MIN_RECOVERY_ACCEL, min(raw_a_calc, MAX_RECOVERY_ACCEL))
 
                 elif dist_percent < SAFE_DIST_PERCENT:
                     # 區域 C (0% ~ 75%)：絕對危險區，保留原生急煞指令
                     zone_str = "🟠 區域C(危急防護)"
 
-                a_target = min(a_target, 0.0)
+                # 套用動態天花板。
+                # 這行程式碼既能徹底擋下原廠模型發神經的 +1.0 暴衝，
+                # 又能在極低速時，精準放行 +0.01 到 +0.25 之間的指令，讓卡鉗完美釋放解決抽搐！
+                a_target = min(a_target, dynamic_max_accel)
+
             # 將處理完的數值寫回陣列
             result[i] = a_target
 
