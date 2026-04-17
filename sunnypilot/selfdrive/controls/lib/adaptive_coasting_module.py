@@ -48,6 +48,7 @@ class AdaptiveCoastingModule:
         self.intent_accelerating = False
 
         # 📡 訊號穩定器記憶變數
+        self.filtered_d_rel = 0.0       # EMA 濾波後的距離
         self.filtered_v_rel = 0.0       # EMA 濾波後的速差
         self.lead_status_prev = False   # 記憶上一幀是否有車
         self.lead_lost_counter = 0      # 丟失前車的倒數計時器
@@ -222,7 +223,10 @@ class AdaptiveCoastingModule:
         # ------------------------------------------
         # 🌟 ACM 狀態機進出判定
         # ------------------------------------------
-        if has_lead:
+        if not has_lead:
+            self.acm_active = False
+
+        else:
             # 【有車狀態】：依據距離遲滯區間判定
             if dist_percent >= EXIT_PERCENT:
                 return log_and_return("⚪ 退出(跟車距離 > 100%)", result, active=False, intent=False)
