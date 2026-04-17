@@ -30,7 +30,7 @@ TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差 (m/s)：在退讓區內只�
 
 # 5. 訊號穩定與濾波參數
 FILTER_ALPHA        = 0.2   # 🧠 平滑係數：數值越小越平滑，有效消除雷達速差雜訊 (0.0~1.0)
-LEAD_LOST_TICKS     = 20    # 🔒 鎖定幀數：雷達丟失前車需連續滿 20 幀 (約1秒) 才判定無車
+LEAD_LOST_TICKS     = 5    # 🔒 鎖定幀數：雷達丟失前車需連續滿 5 幀 (約0.25秒) 才判定無車
 
 # 6. 系統偵錯開關
 ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
@@ -136,7 +136,7 @@ class AdaptiveCoastingModule:
             if self.has_lead_locked:
                 self.lead_lost_counter += 1
 
-            # 滿 20 幀依然無車，才判定前車消失
+            # 滿 5 幀依然無車，才判定前車消失
             if self.lead_lost_counter >= LEAD_LOST_TICKS:
                 self.has_lead_locked = False
                 self.lead_status_prev = False
