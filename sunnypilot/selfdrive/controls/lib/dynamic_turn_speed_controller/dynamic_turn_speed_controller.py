@@ -271,8 +271,11 @@ class DynamicTurnSpeedController(TargetsBase):
             a_req = (v_decision_final**2 - v_ego**2) / (2.0 * effective_dist)
             a_target_raw = min(a_req, 0.0)
           else:
-            # 速度已降至安全範圍，自然收斂為 0.0，不干預 ACC。
-            a_target_raw = 0.0
+            # 當前車速低於彎道極限安全速度
+            # 利用 2.5 秒時間常數給予溫和的正加速度，
+            # 讓車輛能順暢提速回歸安全範圍，防止龜速入彎。
+            speed_diff_pre = v_decision_final - v_ego
+            a_target_raw = speed_diff_pre / 2.5
 
         # --------------------------------------------------------
         # (B) 彎中動態實作：實車 G 力限速控制
@@ -380,9 +383,9 @@ class DynamicTurnSpeedController(TargetsBase):
         # 高解析遙測輸出 (包含秒數、距離與精準的物理極限)
         log_msg = (
           f"[{ctrl_name}] {state_str} | "
-          f"V(現/安/終): {v_ego * 3.6:4.1f}/{v_decision_final * 3.6:4.1f}/{self.v_target * 3.6:4.1f} | "
-          f"A(輸出): {self.a_target:5.2f} | "
-          f"極限(K/G): {k_future_max:.4f}/{g_future_max:.2f} | "
+          f"V(當前/安全/輸出): {v_ego * 3.6:4.1f}/{v_decision_final * 3.6:4.1f}/{self.v_target * 3.6:4.1f} | "
+          f"A(加速度輸出): {self.a_target:5.2f} | "
+          f"極限(曲率/橫向G值): {k_future_max:.4f}/{g_future_max:.2f} | "
           f"入彎: {entry_sec:.1f}s/{dist_to_entry:.1f}m/{entry_conf:.0f}% | "
           f"最遠: {horizon_sec:.1f}s/{dyn_horizon_dist:.1f}m/{horizon_conf:.0f}%"
         )
