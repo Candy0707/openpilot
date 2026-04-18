@@ -271,17 +271,20 @@ class DynamicTurnSpeedController(TargetsBase):
             a_req = (v_decision_final**2 - v_ego**2) / (2.0 * effective_dist)
             a_target_raw = min(a_req, 0.0)
           else:
-            # 當前車速低於彎道極限安全速度
-            # 利用 2.5 秒時間常數給予溫和的正加速度，
-            # 讓車輛能順暢提速回歸安全範圍，防止龜速入彎。
-            speed_diff_pre = v_decision_final - v_ego
-            a_target_raw = speed_diff_pre / 2.5
+            # 🌟 [極簡防護：模型 G 值看破威脅]
+            # 若前方確實是具備離心威脅的彎道 (預測 G 值 > 舒適極限的 50%)，
+            # 減速達標後嚴格鎖死油門 (0.0) 讓車輛順順滑進去。
+            # 只有前方威脅解除時，才允許平滑補油提速。
+            if g_future_max > (comfort_g_limit * 0.5):
+              a_target_raw = 0.0
+            else:
+              a_target_raw = (v_decision_final - v_ego) / 2.5
 
         # --------------------------------------------------------
         # (B) 彎中動態實作：實車 G 力限速控制
         # --------------------------------------------------------
         elif is_in_curve_dynamic:
-          # 🌟 依照您的需求：彎中完全捨棄 AI 預測速度，單純使用「實體底盤 G 力」來計算當下的安全車速
+          # 🌟 彎中完全捨棄 AI 預測速度，單純使用「實體底盤 G 力」來計算當下的安全車速
           # v_act_k_safe 是由公式 sqrt(舒適G力 / 實體曲率) 所算出的完美過彎速度
           # 這確保了減速力道永遠柔和且符合物理極限，徹底解決極端重煞問題 (-3.5G)
           v_curve_target = min(v_act_k_safe, v_cruise)
