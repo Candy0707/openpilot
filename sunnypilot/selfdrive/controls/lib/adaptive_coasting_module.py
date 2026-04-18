@@ -7,7 +7,6 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_
 # ==========================================
 
 # 1. 距離與狀態機閾值 (百分比)
-MPC_TRUST_PERCENT   = 0.40  # 🔴 極限信任線：跌破 40% 時，完全信任原廠 MPC，不設任何上限
 SAFE_DIST_PERCENT   = 0.75  # 🟠 危險防護線：跌破 75% 理想距離時，聽從 MPC 但最高限制 0.0
 COAST_END_PERCENT   = 0.85  # 🟡 警戒線：距離小於 85% 時結束純滑行，進入「動態微煞車」把距離拉回 85%
 COAST_START_PERCENT = 0.95  # 🟢 進入點：距離小於 95% 時，ACM 狀態機啟動，準備介入滑行邏輯
@@ -96,7 +95,7 @@ class AdaptiveCoastingModule:
                 cloudlog.debug(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
                                f"{state_str} (距離:{dist_percent*100:.1f}%) | "
                                f"目標距離:{dynamic_target_dist:.1f}m 當前距離:{d_rel:.1f}m 相對速度:{v_rel:.2f}m/s | "
-                               f"TTA:{tta:.2f}s raw:{raw_a_calc:.2f} | "
+                               f"TTA:{tta:.2f}s raw:{smooth_tta_a:.2f} | "
                                f"覆寫: {a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}")
 
                 # 記憶這次的狀態
@@ -214,6 +213,12 @@ class AdaptiveCoastingModule:
             # 全時段套用 TTA 公式
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
 
+            # 解決邊界撞牆感：建立 85% -> 75% 的漸進比例 (Fade-in)
+            # 在 85% 時 fade_factor 為 0.0，在 75% 時為 1.0
+            fade_factor = (COAST_END_PERCENT - dist_percent) / (COAST_END_PERCENT - SAFE_DIST_PERCENT)
+            fade_factor = max(0.0, min(fade_factor, 1.0)) # 確保比例鎖死在 0~1 之間
+            smooth_tta_a = raw_a_calc * fade_factor
+
         else:
             self.intent_accelerating = False
 
@@ -256,16 +261,11 @@ class AdaptiveCoastingModule:
                 elif SAFE_DIST_PERCENT <= dist_percent < COAST_END_PERCENT:
                     # 🟡 區域 B (75% ~ 85%)：平滑退讓區
                     zone_str = "🟡 區域B(平滑退讓)"
-                    a_target = max(MIN_RECOVERY_ACCEL ,min(raw_a_calc, MAX_RECOVERY_ACCEL))
+                    a_target = max(MIN_RECOVERY_ACCEL ,min(smooth_tta_a, MAX_RECOVERY_ACCEL))
 
-                elif MPC_TRUST_PERCENT <= dist_percent < SAFE_DIST_PERCENT:
-                    # 🟠 區域 C (40% ~ 75%)：危險防護區，聽從 MPC 但不允許加速
-                    zone_str = "🟠 區域C(限制加速0.0)"
-                    a_target = min(a_target, 0.0)
-
-                elif dist_percent < MPC_TRUST_PERCENT:
-                    # 🔴 區域 D (< 40%)：極限信任區，完全交給 MPC (不設任何上限)
-                    zone_str = "🔴 區域D(完全信任MPC)"
+                elif dist_percent < SAFE_DIST_PERCENT:
+                    # 🟠 區域 C (0% ~ 75%)：危險防護區，聽從 MPC
+                    zone_str = "🟠 區域C(危險防護)"
 
             # 將處理完的數值寫回陣列
             result[i] = a_target
