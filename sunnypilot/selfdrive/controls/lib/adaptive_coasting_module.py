@@ -214,9 +214,6 @@ class AdaptiveCoastingModule:
             # 全時段套用 TTA 公式
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
 
-            # 防護 C：若 TTA 算出的所需減速度過大，交還 MPC 保命
-            if raw_a_calc < MPC_FALLBACK_ACCEL:
-                return log_and_return(f"🛑 強制退出(TTA極限保命 {raw_a_calc:.2f})", result, active=False, intent=False)
         else:
             self.intent_accelerating = False
 
