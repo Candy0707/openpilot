@@ -16,8 +16,8 @@ COAST_END_PERCENT_FAR  = 0.85  # 🟡 高速警戒線：維持 85% 結束純滑�
 COAST_END_PERCENT_NEAR = 0.90  # 🟡 低速警戒線：提早至 90% 結束純滑行，增加退讓緩衝
 SAFE_DIST_PERCENT_FAR  = 0.75  # 🟠 高速防護線：維持 75% 進入原廠交接區
 SAFE_DIST_PERCENT_NEAR = 0.70  # 🟠 低速防護線：下推至 70% 進入原廠交接區，最大化低速平滑空間
-DYNAMIC_DIST_FAR       = 30.0  # 📏 動態拓寬上限 (公尺)：大於此物理距離，套用 FAR 邊界
-DYNAMIC_DIST_NEAR      = 10.0  # 📏 動態拓寬下限 (公尺)：小於此物理距離，套用 NEAR 邊界
+DYNAMIC_DIST_FAR       = 40.0  # 📏 動態拓寬上限 (公尺)：大於此物理距離，套用 FAR 邊界
+DYNAMIC_DIST_NEAR      = 15.0  # 📏 動態拓寬下限 (公尺)：小於此物理距離，套用 NEAR 邊界
 
 # 3. 加速度動作極限變數 (單位: m/s²)
 COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在滑行區間，MPC 煞車輕於此值就強制歸零 (純滑行)
@@ -285,7 +285,9 @@ class AdaptiveCoastingModule:
                 elif dynamic_safe_dist <= dist_percent < dynamic_coast_end:
                     # 🟡 區域 B (動態防線 ~ 動態邊界)：平滑退讓區
                     zone_str = "🟡 區域B(平滑退讓)"
-                    a_target = max(MIN_RECOVERY_ACCEL ,min(smooth_tta_a, MAX_RECOVERY_ACCEL))
+                    # MPC 想煞車就煞車，但不准超過TTA速度
+                    combined_a = min(a_target, smooth_tta_a)
+                    a_target = max(MIN_RECOVERY_ACCEL ,min(combined_a, MAX_RECOVERY_ACCEL))
 
                 elif dist_percent < dynamic_safe_dist:
                     # 🟠 區域 C (0% ~ 動態防線)：危險防護區，聽從 MPC (故意全面放行，不設限制)
