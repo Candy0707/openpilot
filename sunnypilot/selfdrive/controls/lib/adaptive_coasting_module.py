@@ -7,16 +7,17 @@ from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_
 # ==========================================
 
 # 1. 距離與狀態機閾值 (百分比)
-SAFE_DIST_PERCENT      = 0.75  # 🟠 危險防護線：跌破 75% 理想距離時，聽從 MPC，不限制油門或煞車
 COAST_START_PERCENT    = 0.95  # 🟢 進入點：距離小於 95% 時，ACM 狀態機啟動，準備介入滑行邏輯
 EXIT_PERCENT           = 1.00  # ⚪ 退出點：距離拉開大於 100% 時，ACM 徹底休眠
 # 遲滯區 (0.95 ~ 1.00)：兩條件皆不成立時維持現有狀態，刻意避免邊界震盪
 
-# 2. 動態警戒線變數 (區域 B 動態拓寬專用)
-COAST_END_PERCENT_FAR  = 0.85  # 🟡 高速警戒線：目標距離長時，維持 85% 結束純滑行，保留長滑行區
-COAST_END_PERCENT_NEAR = 0.90  # 🟡 低速警戒線：塞車目標距離短時，提早至 90% 結束純滑行，補足實體煞車空間
-DYNAMIC_DIST_FAR       = 30.0  # 📏 動態拓寬上限 (公尺)：大於此物理距離，套用 FAR 警戒線
-DYNAMIC_DIST_NEAR      = 10.0  # 📏 動態拓寬下限 (公尺)：小於此物理距離，套用 NEAR 警戒線
+# 2. 動態邊界變數 (依據物理目標距離線性插值)
+COAST_END_PERCENT_FAR  = 0.85  # 🟡 高速警戒線：維持 85% 結束純滑行，保留長滑行區
+COAST_END_PERCENT_NEAR = 0.90  # 🟡 低速警戒線：提早至 90% 結束純滑行，增加退讓緩衝
+SAFE_DIST_PERCENT_FAR  = 0.75  # 🟠 高速防護線：維持 75% 進入原廠交接區
+SAFE_DIST_PERCENT_NEAR = 0.70  # 🟠 低速防護線：下推至 70% 進入原廠交接區，最大化低速平滑空間
+DYNAMIC_DIST_FAR       = 30.0  # 📏 動態拓寬上限 (公尺)：大於此物理距離，套用 FAR 邊界
+DYNAMIC_DIST_NEAR      = 10.0  # 📏 動態拓寬下限 (公尺)：小於此物理距離，套用 NEAR 邊界
 
 # 3. 加速度動作極限變數 (單位: m/s²)
 COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在滑行區間，MPC 煞車輕於此值就強制歸零 (純滑行)
@@ -86,6 +87,7 @@ class AdaptiveCoastingModule:
         dist_percent = 0.0
         dynamic_target_dist = 0.0
         dynamic_coast_end = 0.0
+        dynamic_safe_dist = 0.0  # 🚀 新增動態防線預設值
         fade_factor = 0.0
         d_rel = 0.0
         v_rel = 0.0
@@ -99,12 +101,15 @@ class AdaptiveCoastingModule:
 
             # 防洗頻核心：只有當「狀態(退出原因或區域)」跟上一次不同時，才印出 LOG
             if ACM_DEBUG and (state_str != self.last_log_state or self.acm_active):
-                # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的格式！
-                cloudlog.debug(f"[{class_name}] 啟動:{self.acm_active} 加速意圖:{self.intent_accelerating} | "
-                               f"{state_str} (距離:{dist_percent*100:.1f}% 動態邊界:{dynamic_coast_end*100:.1f}%) | "
-                               f"目標距離:{dynamic_target_dist:.1f}m 當前距離:{d_rel:.1f}m 相對速度:{v_rel:.2f}m/s | "
-                               f"TTA:{tta:.2f}s raw:{smooth_tta_a:.2f} 煞車比例:{fade_factor*100:.0f}% | "
-                               f"覆寫: {a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}")
+                # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的多行格式！
+                log_msg = (
+                    f"\n[{class_name}] 啟動: {self.acm_active} | 加速意圖: {self.intent_accelerating}\n"
+                    f" ┣ 狀態: {state_str} (距離: {dist_percent*100:.1f}% | 邊界: {dynamic_coast_end*100:.1f}% | 防線: {dynamic_safe_dist*100:.1f}%)\n"
+                    f" ┣ 物理: 目標距離: {dynamic_target_dist:.1f}m | 當前距離: {d_rel:.1f}m | 相對速度: {v_rel:.2f}m/s\n"
+                    f" ┣ 運算: TTA: {tta:.2f}s | raw: {smooth_tta_a:.2f} | 煞車比例: {fade_factor*100:.0f}%\n"
+                    f" ┗ 覆寫: {a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}"
+                )
+                cloudlog.debug(log_msg)
 
                 # 記憶這次的狀態
                 self.last_log_state = state_str
@@ -170,13 +175,16 @@ class AdaptiveCoastingModule:
             dist_percent = dynamic_d_rel / dynamic_target_dist
 
             # ------------------------------------------
-            # 📏 動態拓寬警戒線 (依據物理目標距離)
+            # 📏 雙邊界動態拓寬 (依據物理目標距離)
             # ------------------------------------------
-            # 解決低速跟車時，固定百分比換算成物理空間太短的死穴
             ratio = (dynamic_target_dist - DYNAMIC_DIST_NEAR) / (DYNAMIC_DIST_FAR - DYNAMIC_DIST_NEAR)
             # 🛡️ 加入鉗制魔法 (Clamp)，強制鎖死在 0.0 ~ 1.0 之間，防止高速或極低速時數值溢出
             ratio = max(0.0, min(ratio, 1.0))
+
+            # 線性插值計算動態警戒線 (例如 0.90 -> 0.85)
             dynamic_coast_end = COAST_END_PERCENT_NEAR - (ratio * (COAST_END_PERCENT_NEAR - COAST_END_PERCENT_FAR))
+            # 線性插值計算動態防護線 (例如 0.70 -> 0.75)
+            dynamic_safe_dist = SAFE_DIST_PERCENT_NEAR - (ratio * (SAFE_DIST_PERCENT_NEAR - SAFE_DIST_PERCENT_FAR))
 
             # 統一擷取近期軌跡 (供危險與意圖預判使用)
             recent_trajectory = a_desired_trajectory[:TRAJECTORY_HORIZON]
@@ -220,8 +228,8 @@ class AdaptiveCoastingModule:
             # ------------------------------------------
             # 動態追蹤演算法：全時段連續 TTA 速度匹配
             # ------------------------------------------
-            # 計算距離「75% 死亡線」還剩下多少真實物理空間
-            safe_buffer_dist = max(dynamic_d_rel - (dynamic_target_dist * SAFE_DIST_PERCENT), 0.0)
+            # 計算距離「動態死亡線 (dynamic_safe_dist)」還剩下多少真實物理空間
+            safe_buffer_dist = max(dynamic_d_rel - (dynamic_target_dist * dynamic_safe_dist), 0.0)
 
             # TTA 計算與後續的煞車力道
             safe_v_rel = max(abs(v_rel), 1e-3)
@@ -230,8 +238,8 @@ class AdaptiveCoastingModule:
             # 全時段套用 TTA 公式
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
 
-            # 🚀 漸進比例魔法 (Fade-in)：使用 dynamic_coast_end 消除跨界頓挫
-            fade_factor = (dynamic_coast_end - dist_percent) / (dynamic_coast_end - SAFE_DIST_PERCENT)
+            # 🚀 漸進比例魔法 (Fade-in)：使用動態上下界徹底消除跨界頓挫
+            fade_factor = (dynamic_coast_end - dist_percent) / (dynamic_coast_end - dynamic_safe_dist)
             fade_factor = max(0.0, min(fade_factor, 1.0)) # 確保比例鎖死在 0~1 之間
             smooth_tta_a = raw_a_calc * fade_factor
 
@@ -268,19 +276,19 @@ class AdaptiveCoastingModule:
                 if COAST_MAX_BRAKE <= a_target < 0.0:
                     a_target = 0.0
             else:
-                # 【有車分區邏輯】：依照安全距離百分比分段控制 (套用動態邊界)
+                # 【有車分區邏輯】：依照安全距離百分比分段控制 (套用雙動態邊界)
                 if dynamic_coast_end <= dist_percent < EXIT_PERCENT:
                     # 🟢 區域 A (動態邊界 ~ 100%)：單純滑行區
                     zone_str = "🟢 區域A(單純滑行)"
                     a_target = 0.0
 
-                elif SAFE_DIST_PERCENT <= dist_percent < dynamic_coast_end:
-                    # 🟡 區域 B (75% ~ 動態邊界)：平滑退讓區
+                elif dynamic_safe_dist <= dist_percent < dynamic_coast_end:
+                    # 🟡 區域 B (動態防線 ~ 動態邊界)：平滑退讓區
                     zone_str = "🟡 區域B(平滑退讓)"
                     a_target = max(MIN_RECOVERY_ACCEL ,min(smooth_tta_a, MAX_RECOVERY_ACCEL))
 
-                elif dist_percent < SAFE_DIST_PERCENT:
-                    # 🟠 區域 C (0% ~ 75%)：危險防護區，聽從 MPC (故意全面放行，不設限制)
+                elif dist_percent < dynamic_safe_dist:
+                    # 🟠 區域 C (0% ~ 動態防線)：危險防護區，聽從 MPC (故意全面放行，不設限制)
                     zone_str = "🟠 區域C(交接MPC)"
 
             # 將處理完的數值寫回陣列
