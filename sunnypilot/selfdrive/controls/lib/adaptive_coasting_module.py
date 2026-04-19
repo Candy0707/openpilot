@@ -113,7 +113,7 @@ class AdaptiveCoastingModule:
             if ACM_DEBUG and (state_str != self.last_log_state or self.acm_active):
                 cloudlog.debug(f"[{class_name}] 啟動: {self.acm_active} | 加速意圖: {self.intent_accelerating}")
                 cloudlog.debug(f" ┣ 狀態: {state_str} (距離: {dist_percent*100:.1f}% | 邊界: {dynamic_coast_end*100:.1f}% | 防線: {dynamic_safe_dist*100:.1f}%)")
-                cloudlog.debug(f" ┣ 物理: 目標距離: {dynamic_target_dist:.1f}m | 當前距離: {d_rel:.1f}m | 當前車速: {v_ego * CV.MS_TO_KPH:.1f}km/h | 相對速度: {v_rel * CV.MS_TO_KPH:.1f}m/s" )
+                cloudlog.debug(f" ┣ 物理: 目標距離: {dynamic_target_dist:.1f}m | 當前距離: {d_rel:.1f}m | 當前車速: {v_ego * CV.MS_TO_KPH:.1f}km/h | 相對速度: {v_rel:.1f}m/s" )
                 cloudlog.debug(f" ┣ 運算: TTA極限: {dynamic_tta_limit:.2f} | 輸出TTA: {smooth_tta_a:.2f} | 煞車比例: {fade_factor*100:.0f}%")
                 cloudlog.debug(f" ┗ 覆寫: {a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}")
 
