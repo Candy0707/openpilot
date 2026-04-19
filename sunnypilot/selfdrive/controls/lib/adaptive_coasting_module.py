@@ -43,10 +43,14 @@ DEFAULT_T_FOLLOW    = 1.6   # 預設跟車秒數 (若未傳入 override 時使�
 TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差 (m/s)：在退讓區內只要比前車慢即可
 
 # 6. 訊號穩定與濾波參數
-FILTER_ALPHA        = 0.2   # 🧠 平滑係數：數值越小越平滑，有效消除雷達速差雜訊 (0.0~1.0)
+FILTER_ALPHA        = 0.2   # 📡 雷達原始數據平滑係數：數值越小越平滑，有效消除雷達速差雜訊 (0.0~1.0)
 LEAD_LOST_TICKS     = 5     # 🔒 鎖定幀數：雷達丟失前車需連續滿 5 幀 (約0.25秒) 才判定無車
 
-# 7. 系統偵錯開關
+# 7. 非對稱濾波全域變數
+EMA_ALPHA_ACCEL     = 0.4   # 🚀 放煞車比例
+EMA_ALPHA_DECEL     = 0.8   # 🛑 採煞車比例
+
+# 8. 系統偵錯開關
 ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
 
 
@@ -69,6 +73,9 @@ class AdaptiveCoastingModule:
         self.has_lead_locked = False    # 最終輸出的「穩態前車有無」標記
         self.last_valid_d_rel = 0.0     # 最後一次有效的物理距離
         self.last_valid_v_rel = 0.0     # 最後一次有效的速差
+
+        # 🚀 記憶上一幀的最終輸出陣列，專供「非對稱濾波」使用
+        self.last_a_target_array = []
 
         # 記憶上一次的「狀態字串」，只要狀態改變就印出
         self.last_log_state = ""
@@ -275,13 +282,19 @@ class AdaptiveCoastingModule:
                 self.acm_active = True
 
         # ==========================================
-        # 2. 統一軌跡處理與分區覆寫
+        # 2. 統一軌跡處理、分區覆寫與輸出前濾波
         # ==========================================
         zone_str = ""
+
+        # 檢查歷史陣列是否需要初始化 (長度不符或首次啟動)
+        init_history = not self.last_a_target_array or len(self.last_a_target_array) != len(result)
+        if init_history:
+            self.last_a_target_array = [0.0] * len(result)
 
         for i in range(len(result)):
             a_target = result[i]
 
+            # --- A. 區域邏輯處理 ---
             if not has_lead:
                 # 【無車滑行邏輯】：抹平神經質微煞車
                 zone_str = "🟢 無車狀態(執行抹平)"
@@ -310,7 +323,23 @@ class AdaptiveCoastingModule:
                     # 🟠 區域 C (0% ~ 動態防線)：危險防護區，聽從 MPC (故意全面放行，不設限制)
                     zone_str = "🟠 區域C(交接MPC)"
 
-            # 將處理完的數值寫回陣列
+            # --- B. 輸出前平滑濾波處理 ---
+            # 🚀 核心邏輯：若 MPC 想煞得比 ACM 重 (result[i] <= a_target)，絕對放行 MPC 命令，不套用濾波
+            if result[i] > a_target:
+                # 當前是由 ACM 主導，對 a_target 進行加速/減速非對稱濾波
+                if not init_history:
+                    if a_target > self.last_a_target_array[i]:
+                        # 🟢 加速/放開煞車 (數值變大)：反應慢，套用 EMA_ALPHA_ACCEL
+                        a_target = (EMA_ALPHA_ACCEL * a_target) + ((1.0 - EMA_ALPHA_ACCEL) * self.last_a_target_array[i])
+                    else:
+                        # 🔴 減速/踩重煞車 (數值變小)：反應快，套用 EMA_ALPHA_DECEL
+                        a_target = (EMA_ALPHA_DECEL * a_target) + ((1.0 - EMA_ALPHA_DECEL) * self.last_a_target_array[i])
+            else:
+                # 🛡️ 絕對優先防線：MPC 想要更重煞車時，100% 絕對放行原廠訊號
+                a_target = result[i]
+
+            # 將最終處理完的數值，同步寫回歷史紀錄與輸出陣列
+            self.last_a_target_array[i] = a_target
             result[i] = a_target
 
         # 正常跑到最後，也一律呼叫 log_and_return 處理日誌並回傳！
