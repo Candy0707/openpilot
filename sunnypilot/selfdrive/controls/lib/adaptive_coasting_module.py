@@ -38,6 +38,11 @@ REC_ACCEL_MIN_BRAKE =  0.0                  # 🧊 低速時 TTA 允許的最大
 TRAJECTORY_HORIZON  = 6     # 🔭 危險預判：取 MPC 軌跡前 6 個點 (約 0.6 秒)
 INTENT_LOOKAHEAD    = 3     # 🧠 意圖預判：在 6 個點中有 3 個點成立即觸發
 
+INTENT_V_LOW        =  0.0 * CV.KPH_TO_MS # 🛑 意圖判定低速錨點：0 km/h
+INTENT_V_HIGH       = 80.0 * CV.KPH_TO_MS # 🚄 意圖判定高速錨點：80 km/h
+INTENT_FRAMES_LOW   = 1                   # 🧊 低速所需連續幀數 (0km/h 時 1 幀即觸發)
+INTENT_FRAMES_HIGH  = 20                  # ⚡ 高速所需連續幀數 (80km/h 時需連續 20 幀)
+
 # 5. 物理與標定預設常數
 DEFAULT_T_FOLLOW    = 1.6   # 預設跟車秒數 (若未傳入 override 時使用)
 TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差 (m/s)：在退讓區內只要比前車慢即可
@@ -47,8 +52,8 @@ FILTER_ALPHA        = 0.2   # 📡 雷達原始數據平滑係數：數值越小
 LEAD_LOST_TICKS     = 5     # 🔒 鎖定幀數：雷達丟失前車需連續滿 5 幀 (約0.25秒) 才判定無車
 
 # 7. 非對稱濾波全域變數
-EMA_ALPHA_ACCEL     = 0.4   # 🚀 放煞車比例
-EMA_ALPHA_DECEL     = 0.8   # 🛑 採煞車比例
+EMA_ALPHA_ACCEL     = 0.4   # 🚀 放煞車/加速比例 (數值小，反應慢)
+EMA_ALPHA_DECEL     = 0.8   # 🛑 踩煞車/減速比例 (數值大，反應快)
 
 # 8. 系統偵錯開關
 ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
@@ -64,6 +69,9 @@ class AdaptiveCoastingModule:
         self.acm_active = False
         # 狀態機 B：記錄目前是否處於「強烈起步/加速意圖」狀態
         self.intent_accelerating = False
+
+        # ⏱️ 加速意圖連續幀數計數器
+        self.accel_intent_counter = 0
 
         # 📡 訊號穩定器記憶變數
         self.filtered_d_rel = 0.0       # EMA 濾波後的距離
@@ -166,6 +174,7 @@ class AdaptiveCoastingModule:
                 self.has_lead_locked = False
                 self.lead_status_prev = False
                 self.intent_accelerating = False
+                self.accel_intent_counter = 0  # 丟失前車時重置計數器
             # 鎖定期間會自動沿用最後有效的快取數值
 
         has_lead = self.has_lead_locked
@@ -223,17 +232,29 @@ class AdaptiveCoastingModule:
             # ------------------------------------------
             # 🧠 狀態機 B：動態加速意圖鎖定
             # ------------------------------------------
-            # 觸發條件：近期軌跡出現加速意圖 AND 前車正在遠離
-            if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD and v_rel > 0.05:
+            # 1. 依據車速線性插值計算目標幀數 (0~80 km/h -> 1~20 幀)
+            intent_v_ratio = max(0.0, min((v_ego - INTENT_V_LOW) / (INTENT_V_HIGH - INTENT_V_LOW), 1.0))
+            dynamic_intent_frames = int(round(INTENT_FRAMES_LOW + intent_v_ratio * (INTENT_FRAMES_HIGH - INTENT_FRAMES_LOW)))
+
+            # 2. 判斷當下這一幀是否具備「瞬間加速/減速條件」
+            moment_accel = sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD and v_rel > 0.05
+            moment_decel = sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or v_rel < 0.05
+
+            # 3. 連續幀數累積計數 (一旦中斷就歸零，確保是真正的連續)
+            if moment_accel:
+                self.accel_intent_counter += 1
+            else:
+                self.accel_intent_counter = 0
+
+            # 4. 狀態機觸發與解除
+            # 【觸發條件】：連續滿足動態幀數
+            if self.accel_intent_counter >= dynamic_intent_frames:
                 self.intent_accelerating = True
 
-            # 解除條件：近期軌跡出現減速意圖 OR 前車正在接近
-            if sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or v_rel < 0.05:
+            # 【解除條件】：出現減速徵兆或距離拉開，立刻解除以保安全
+            if moment_decel or dist_percent >= dynamic_coast_end:
                 self.intent_accelerating = False
-
-            # 距離已經拉開到「動態滑行起點」
-            if dist_percent >= dynamic_coast_end:
-                self.intent_accelerating = False
+                self.accel_intent_counter = 0
 
             # 若系統鎖定在提速意圖，暫停 ACM 壓制，100% 放行原廠 MPC 確保起步與加速敏捷
             if self.intent_accelerating:
@@ -268,6 +289,7 @@ class AdaptiveCoastingModule:
 
         else:
             self.intent_accelerating = False
+            self.accel_intent_counter = 0
 
         # ------------------------------------------
         # 🌟 ACM 狀態機進出判定
@@ -282,7 +304,7 @@ class AdaptiveCoastingModule:
                 self.acm_active = True
 
         # ==========================================
-        # 2. 統一軌跡處理、分區覆寫與輸出前濾波
+        # 2. 統一軌跡處理與分區覆寫
         # ==========================================
         zone_str = ""
 
@@ -324,19 +346,20 @@ class AdaptiveCoastingModule:
                     zone_str = "🟠 區域C(交接MPC)"
 
             # --- B. 輸出前平滑濾波處理 ---
-            # 🚀 核心邏輯：若 MPC 想煞得比 ACM 重 (result[i] <= a_target)，絕對放行 MPC 命令，不套用濾波
-            if result[i] > a_target:
-                # 當前是由 ACM 主導，對 a_target 進行加速/減速非對稱濾波
-                if not init_history:
-                    if a_target > self.last_a_target_array[i]:
-                        # 🟢 加速/放開煞車 (數值變大)：反應慢，套用 EMA_ALPHA_ACCEL
-                        a_target = (EMA_ALPHA_ACCEL * a_target) + ((1.0 - EMA_ALPHA_ACCEL) * self.last_a_target_array[i])
-                    else:
-                        # 🔴 減速/踩重煞車 (數值變小)：反應快，套用 EMA_ALPHA_DECEL
-                        a_target = (EMA_ALPHA_DECEL * a_target) + ((1.0 - EMA_ALPHA_DECEL) * self.last_a_target_array[i])
-            else:
-                # 🛡️ 絕對優先防線：MPC 想要更重煞車時，100% 絕對放行原廠訊號
-                a_target = result[i]
+            if not init_history:
+                # 比較當下算出的 a_target 與「上一幀的歷史數值」來判斷是加速還是減速
+                if a_target > self.last_a_target_array[i]:
+                    # 🟢 放開煞車/加速 (數值變大)：反應慢，套用 EMA_ALPHA_ACCEL
+                    a_target = (EMA_ALPHA_ACCEL * a_target) + ((1.0 - EMA_ALPHA_ACCEL) * self.last_a_target_array[i])
+                else:
+                    # 🔴 踩深煞車/減速 (數值變小)：反應快，套用 EMA_ALPHA_DECEL
+                    a_target = (EMA_ALPHA_DECEL * a_target) + ((1.0 - EMA_ALPHA_DECEL) * self.last_a_target_array[i])
+
+            # --- C. MPC 絕對優先防線 (救命機制) ---
+            if dist_percent < dynamic_coast_end:
+                if result[i] < a_target:
+                    zone_str = "🔴 MPC 煞車大於 TTA，絕對放行原廠指令"
+                    a_target = result[i]
 
             # 將最終處理完的數值，同步寫回歷史紀錄與輸出陣列
             self.last_a_target_array[i] = a_target
