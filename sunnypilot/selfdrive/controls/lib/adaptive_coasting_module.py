@@ -2,6 +2,9 @@ from cereal import messaging
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
 
+from openpilot.common.constants import CV
+from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
+
 # ==========================================
 # ⚙️ 全域變數定義區 (Global Configurations)
 # ==========================================
@@ -16,14 +19,20 @@ COAST_END_PERCENT_FAR  = 0.85  # 🟡 高速警戒線：維持 85% 結束純滑�
 COAST_END_PERCENT_NEAR = 0.90  # 🟡 低速警戒線：提早至 90% 結束純滑行，增加退讓緩衝
 SAFE_DIST_PERCENT_FAR  = 0.75  # 🟠 高速防護線：維持 75% 進入原廠交接區
 SAFE_DIST_PERCENT_NEAR = 0.70  # 🟠 低速防護線：下推至 70% 進入原廠交接區，最大化低速平滑空間
-DYNAMIC_DIST_FAR       = 40.0  # 📏 動態拓寬上限 (公尺)：大於此物理距離，套用 FAR 邊界
-DYNAMIC_DIST_NEAR      = 15.0  # 📏 動態拓寬下限 (公尺)：小於此物理距離，套用 NEAR 邊界
+DYNAMIC_DIST_FAR       = 40.0  # 📏 動態拓寬上限 (公尺)，套用 FAR 邊界
+DYNAMIC_DIST_NEAR      = 15.0  # 📏 動態拓寬下限 (公尺)，套用 NEAR 邊界
 
 # 3. 加速度動作極限變數 (單位: m/s²)
-COAST_MAX_BRAKE     = -0.4  # 🌊 滑行極限：在滑行區間，MPC 煞車輕於此值就強制歸零 (純滑行)
-MIN_RECOVERY_ACCEL  = -1.0  # 🛡️ 煞車極限：強制限制平滑退讓區(區域 B)的 TTA 煞車力道
-MAX_RECOVERY_ACCEL  =  0.0  # 🐢 加速極限：強制限制平滑退讓區(區域 B)的加速力道
-MPC_FALLBACK_ACCEL  = -1.2  # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
+COAST_MAX_BRAKE     = -0.4       # 🌊 滑行極限：在滑行區間，MPC 煞車輕於此值就強制歸零 (純滑行)
+MIN_RECOVERY_ACCEL  = ACCEL_MIN  # 🛡️ 煞車極限：強制限制平滑退讓區(區域 B)的煞車力道
+MAX_RECOVERY_ACCEL  =  0.0       # 🐢 加速極限：強制限制平滑退讓區(區域 B)的加速力道
+MPC_FALLBACK_ACCEL  = -1.2       # 💣 危險判定閾值：近期軌跡點需要重煞時立刻轉交 MPC
+
+# 3.1 🚀 動態 TTA 介入極限 (依據車速平滑化退讓強度)
+REC_ACCEL_V_HIGH    = 100.0 * CV.KPH_TO_MS  # 🚄 高速錨點
+REC_ACCEL_V_LOW     = 0.0   * CV.KPH_TO_MS  # 🛑 低速錨點
+REC_ACCEL_MAX_BRAKE = -1.0                  # ⚡ 高速時 TTA 允許的最大介入煞車
+REC_ACCEL_MIN_BRAKE =  0.0                  # 🧊 低速時 TTA 允許的最大介入煞車
 
 # 4. 軌跡掃描與意圖預測範圍
 TRAJECTORY_HORIZON  = 6     # 🔭 危險預判：取 MPC 軌跡前 6 個點 (約 0.6 秒)
@@ -87,7 +96,8 @@ class AdaptiveCoastingModule:
         dist_percent = 0.0
         dynamic_target_dist = 0.0
         dynamic_coast_end = 0.0
-        dynamic_safe_dist = 0.0  # 🚀 新增動態防線預設值
+        dynamic_safe_dist = 0.0
+        dynamic_tta_limit = REC_ACCEL_MAX_BRAKE
         fade_factor = 0.0
         d_rel = 0.0
         v_rel = 0.0
@@ -101,15 +111,11 @@ class AdaptiveCoastingModule:
 
             # 防洗頻核心：只有當「狀態(退出原因或區域)」跟上一次不同時，才印出 LOG
             if ACM_DEBUG and (state_str != self.last_log_state or self.acm_active):
-                # 無論是提早退出還是正常覆寫，全部套用這套 100% 統一的多行格式！
-                log_msg = (
-                    f"\n[{class_name}] 啟動: {self.acm_active} | 加速意圖: {self.intent_accelerating}\n"
-                    f" ┣ 狀態: {state_str} (距離: {dist_percent*100:.1f}% | 邊界: {dynamic_coast_end*100:.1f}% | 防線: {dynamic_safe_dist*100:.1f}%)\n"
-                    f" ┣ 物理: 目標距離: {dynamic_target_dist:.1f}m | 當前距離: {d_rel:.1f}m | 相對速度: {v_rel:.2f}m/s\n"
-                    f" ┣ 運算: TTA: {tta:.2f}s | raw: {smooth_tta_a:.2f} | 煞車比例: {fade_factor*100:.0f}%\n"
-                    f" ┗ 覆寫: {a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}"
-                )
-                cloudlog.debug(log_msg)
+                cloudlog.debug(f"[{class_name}] 啟動: {self.acm_active} | 加速意圖: {self.intent_accelerating}")
+                cloudlog.debug(f" ┣ 狀態: {state_str} (距離: {dist_percent*100:.1f}% | 邊界: {dynamic_coast_end*100:.1f}% | 防線: {dynamic_safe_dist*100:.1f}%)")
+                cloudlog.debug(f" ┣ 物理: 目標距離: {dynamic_target_dist:.1f}m | 當前距離: {d_rel:.1f}m | 當前車速: {v_ego * CV.MS_TO_KPH:.1f}km/h | 相對速度: {v_rel * CV.MS_TO_KPH:.1f}m/s" )
+                cloudlog.debug(f" ┣ 運算: TTA極限: {dynamic_tta_limit:.2f} | 輸出TTA: {smooth_tta_a:.2f} | 煞車比例: {fade_factor*100:.0f}%")
+                cloudlog.debug(f" ┗ 覆寫: {a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}")
 
                 # 記憶這次的狀態
                 self.last_log_state = state_str
@@ -177,13 +183,14 @@ class AdaptiveCoastingModule:
             # ------------------------------------------
             # 📏 雙邊界動態拓寬 (依據物理目標距離)
             # ------------------------------------------
+            # 解決低速跟車時，固定百分比換算成物理空間太短的死穴
             ratio = (dynamic_target_dist - DYNAMIC_DIST_NEAR) / (DYNAMIC_DIST_FAR - DYNAMIC_DIST_NEAR)
             # 🛡️ 加入鉗制魔法 (Clamp)，強制鎖死在 0.0 ~ 1.0 之間，防止高速或極低速時數值溢出
             ratio = max(0.0, min(ratio, 1.0))
 
-            # 線性插值計算動態警戒線 (例如 0.90 -> 0.85)
+            # 線性插值計算動態警戒線
             dynamic_coast_end = COAST_END_PERCENT_NEAR - (ratio * (COAST_END_PERCENT_NEAR - COAST_END_PERCENT_FAR))
-            # 線性插值計算動態防護線 (例如 0.70 -> 0.75)
+            # 線性插值計算動態防護線
             dynamic_safe_dist = SAFE_DIST_PERCENT_NEAR - (ratio * (SAFE_DIST_PERCENT_NEAR - SAFE_DIST_PERCENT_FAR))
 
             # 統一擷取近期軌跡 (供危險與意圖預判使用)
@@ -204,17 +211,17 @@ class AdaptiveCoastingModule:
 
             # 原廠近期軌跡已經預測到緊急重煞，立刻退場保命
             if any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory):
-                return log_and_return("🛑 強制退出(原廠重煞保命)", result, active=False, intent=False)
+                return log_and_return("🛑 強制退出(原廠重煞)", result, active=False, intent=False)
 
             # ------------------------------------------
             # 🧠 狀態機 B：動態加速意圖鎖定
             # ------------------------------------------
-            # 觸發條件：近期軌跡出現加速意圖 AND 前車正在遠離 (v_rel > 0.0)
-            if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD and v_rel > 0.0:
+            # 觸發條件：近期軌跡出現加速意圖 AND 前車正在遠離
+            if sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD and v_rel > 0.05:
                 self.intent_accelerating = True
 
-            # 解除條件：近期軌跡出現減速意圖 OR 前車正在接近 (v_rel < 0.0)
-            if sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or v_rel < 0.0:
+            # 解除條件：近期軌跡出現減速意圖 OR 前車正在接近
+            if sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or v_rel < 0.05:
                 self.intent_accelerating = False
 
             # 距離已經拉開到「動態滑行起點」
@@ -223,7 +230,7 @@ class AdaptiveCoastingModule:
 
             # 若系統鎖定在提速意圖，暫停 ACM 壓制，100% 放行原廠 MPC 確保起步與加速敏捷
             if self.intent_accelerating:
-                return log_and_return("🛑 強制退出(加速意圖鎖定中)", result, active=False, intent=True)
+                return log_and_return("🛑 強制退出(加速意圖)", result, active=False, intent=True)
 
             # ------------------------------------------
             # 動態追蹤演算法：全時段連續 TTA 速度匹配
@@ -241,7 +248,16 @@ class AdaptiveCoastingModule:
             # 🚀 漸進比例魔法 (Fade-in)：使用動態上下界徹底消除跨界頓挫
             fade_factor = (dynamic_coast_end - dist_percent) / (dynamic_coast_end - dynamic_safe_dist)
             fade_factor = max(0.0, min(fade_factor, 1.0)) # 確保比例鎖死在 0~1 之間
-            smooth_tta_a = raw_a_calc * fade_factor
+
+            # ------------------------------------------
+            # 🚀 動態 TTA 極限與連續速度匹配演算法
+            # ------------------------------------------
+            # 實作動態車速平滑化介入強度，根據 v_ego 線性插值計算 dynamic_tta_limit
+            v_ratio = max(0.0, min((v_ego - REC_ACCEL_V_LOW) / (REC_ACCEL_V_HIGH - REC_ACCEL_V_LOW), 1.0))
+            dynamic_tta_limit = REC_ACCEL_MIN_BRAKE + v_ratio * (REC_ACCEL_MAX_BRAKE - REC_ACCEL_MIN_BRAKE)
+
+            # 限制 TTA 本身 (Pre-clamping)，確保 TTA 算出來的退讓力道不會在低速時過強
+            smooth_tta_a = max(dynamic_tta_limit, raw_a_calc * fade_factor)
 
         else:
             self.intent_accelerating = False
@@ -251,16 +267,12 @@ class AdaptiveCoastingModule:
         # ------------------------------------------
         if not has_lead:
             self.acm_active = False
-
         else:
             # 【有車狀態】：依據距離遲滯區間判定
             if dist_percent >= EXIT_PERCENT:
-                return log_and_return("⚪ 退出(跟車距離 > 100%)", result, active=False, intent=False)
+                return log_and_return("⚪ 退出(距離過遠)", result, active=False, intent=False)
             elif dist_percent <= COAST_START_PERCENT:
                 self.acm_active = True
-            else:
-                if not self.acm_active:
-                    return log_and_return("⚪ 退出(還未達到 95% 啟動門檻)", result, active=False, intent=False)
 
         # ==========================================
         # 2. 統一軌跡處理與分區覆寫
@@ -285,8 +297,13 @@ class AdaptiveCoastingModule:
                 elif dynamic_safe_dist <= dist_percent < dynamic_coast_end:
                     # 🟡 區域 B (動態防線 ~ 動態邊界)：平滑退讓區
                     zone_str = "🟡 區域B(平滑退讓)"
-                    # MPC 想煞車就煞車，但不准超過TTA速度
+
+                    # 🚀 終極放飛 MPC：
+                    # 1. min(MPC, TTA_Clamped)：若 MPC 想給更重的煞車，系統會優先採用 MPC，確保安全下限。
+                    # 2. 修改的是「當 MPC 煞車不足時，TTA 會補上的平滑介入量」。
                     combined_a = min(a_target, smooth_tta_a)
+
+                    # 3. 確保不發生意外加速，徹底放飛 MPC 重煞
                     a_target = max(MIN_RECOVERY_ACCEL ,min(combined_a, MAX_RECOVERY_ACCEL))
 
                 elif dist_percent < dynamic_safe_dist:
