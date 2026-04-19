@@ -248,8 +248,8 @@ class DynamicTurnSpeedController(TargetsBase):
     # 若為底盤 G 力強制觸發，無視距離強迫定位為「彎中」。
     effective_dist = 0.0 if (is_g_force_override and not ai_sees_curve) else dist_to_entry
 
-    is_pre_deceleration = effective_dist > 1.0   # 距離大於 1.0m：預先減速區
-    is_in_curve_dynamic = effective_dist <= 1.0  # 距離小於 1.0m：彎中動態區
+    is_pre_deceleration = effective_dist > 0.0   # 距離大於 0.0m：預先減速區
+    is_in_curve_dynamic = effective_dist <= 0.0  # 距離小於等於 0.0m：彎中動態區
 
 
     # ==========================================================
@@ -272,6 +272,7 @@ class DynamicTurnSpeedController(TargetsBase):
             a_target_raw = min(a_req, 0.0)
           else:
             # 🌟 [極簡防護：模型 G 值看破威脅]
+            # 捨棄多餘的速差判斷！直接用預測 G 值看破前方彎道。
             # 若前方確實是具備離心威脅的彎道 (預測 G 值 > 舒適極限的 50%)，
             # 減速達標後嚴格鎖死油門 (0.0) 讓車輛順順滑進去。
             # 只有前方威脅解除時，才允許平滑補油提速。
@@ -281,16 +282,19 @@ class DynamicTurnSpeedController(TargetsBase):
               a_target_raw = (v_decision_final - v_ego) / 2.5
 
         # --------------------------------------------------------
-        # (B) 彎中動態實作：實車 G 力限速控制
+        # (B) 彎中動態實作：實車 G 力限速
         # --------------------------------------------------------
         elif is_in_curve_dynamic:
-          # 🌟 彎中完全捨棄 AI 預測速度，單純使用「實體底盤 G 力」來計算當下的安全車速
-          # v_act_k_safe 是由公式 sqrt(舒適G力 / 實體曲率) 所算出的完美過彎速度
-          # 這確保了減速力道永遠柔和且符合物理極限，徹底解決極端重煞問題 (-3.5G)
-          v_curve_target = min(v_act_k_safe, v_cruise)
+          # 我們抓取未來 1.0 秒內 (20 個預測點，頻率 20Hz) 的最大 AI 預測曲率作為「前瞻防護」。
+          k_ahead_1s = float(np.max(k_200_safe[:20]))
+          v_pred_1s_k_safe = np.sqrt(comfort_g_limit / max(k_ahead_1s, 1e-5))
+
+          # 彎中目標車速：嚴格取「實體底盤極限」、「未來 1 秒預測極限」與「巡航速度」的最小值。
+          # 這確保了在方向盤打到位之前，車輛依然會乖乖受制於 AI 的近距離前瞻預測，徹底消滅溜溜球效應！
+          v_curve_target = min(v_act_k_safe, v_pred_1s_k_safe, v_cruise)
           speed_diff_curve = v_curve_target - v_ego
 
-          # 單純使用 1.5 秒的時間常數進行平滑追隨，體感會非常線性柔和 (允許輸出正加速度補油)
+          # 單純使用 1.5 秒的時間常數進行平滑追隨
           a_target_raw = speed_diff_curve / 1.5
 
       else:
