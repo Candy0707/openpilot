@@ -13,6 +13,10 @@ from openpilot.common.params import Params
 from openpilot.sunnypilot.mads.helpers import MadsSteeringModeOnBrake, read_steering_mode_param, MADS_NO_ACC_MAIN_BUTTON
 from openpilot.sunnypilot.mads.state import StateMachine, GEARS_ALLOW_PAUSED_SILENT
 
+# --- 導入 HTD 模組 ---
+from openpilot.sunnypilot.selfdrive.controls.lib.human_turn_detection import HumanTurnDetection
+# ---------------------
+
 State = custom.ModularAssistiveDrivingSystem.ModularAssistiveDrivingSystemState
 ButtonType = structs.CarState.ButtonEvent.Type
 EventName = log.OnroadEvent.EventName
@@ -33,6 +37,7 @@ class ModularAssistiveDrivingSystem:
     self.enabled = False
     self.active = False
     self.available = False
+    self.lateral_mismatch_counter = 0
     self.allow_always = False
     self.no_main_cruise = False
     self.selfdrive = selfdrive
@@ -56,6 +61,11 @@ class ModularAssistiveDrivingSystem:
     self.steering_mode_on_brake = read_steering_mode_param(self.CP, self.CP_SP, self.params)
     self.unified_engagement_mode = self.params.get_bool("MadsUnifiedEngagementMode")
 
+    # --- 初始化 HTD ---
+    self.htd = HumanTurnDetection()
+    self.htd_allowed = True  # 預設允許自動轉向
+    # ------------------
+
   def read_params(self):
     self.main_enabled_toggle = self.params.get_bool("MadsMainCruiseAllowed")
     self.unified_engagement_mode = self.params.get_bool("MadsUnifiedEngagementMode")
@@ -70,6 +80,11 @@ class ModularAssistiveDrivingSystem:
   def should_silent_lkas_enable(self, CS: structs.CarState) -> bool:
     if self.steering_mode_on_brake == MadsSteeringModeOnBrake.PAUSE and self.pedal_pressed_non_gas_pressed(CS):
       return False
+
+    # --- HTD 不允許轉向時，阻止 MADS 自動恢復 ---
+    if not self.htd_allowed:
+      return False
+    # --------------------------------------------
 
     if self.events_sp.contains_in_list(GEARS_ALLOW_PAUSED_SILENT):
       return False
@@ -104,6 +119,17 @@ class ModularAssistiveDrivingSystem:
     self.events.remove(old_event)
     self.events_sp.add(new_event)
 
+  def data_sample(self):
+    # When the safety and selfdrived do not agree on controls_allowed_lateral
+    # we want to disengage sunnypilot. However the status from the panda goes through
+    # another socket other than the CAN messages and one can arrive earlier than the other.
+    # Therefore we allow a mismatch for two samples, then we trigger the disengagement.
+    if not self.active or self.selfdrive.enabled:
+      self.lateral_mismatch_counter = 0
+    elif any(not ps.controlsAllowedLateral for ps in self.selfdrive.sm['pandaStates']
+             if ps.safetyModel not in IGNORED_SAFETY_MODES):
+      self.lateral_mismatch_counter += 1
+
   def update_events(self, CS: structs.CarState):
     if not self.selfdrive.enabled and self.enabled:
       if CS.standstill:
@@ -135,6 +161,12 @@ class ModularAssistiveDrivingSystem:
       self.events.remove(EventName.speedTooLow)
       self.events.remove(EventName.cruiseDisabled)
       self.events.remove(EventName.manualRestart)
+
+    # --- 依賴 htd_allowed 觸發暫停狀態 (紫盤) ---
+    # 只要 HTD 判定不允許轉向，就觸發 transition_paused_state 讓 MADS 進入待命
+    if not self.htd_allowed:
+      self.transition_paused_state()
+    # --------------------------------------------
 
     selfdrive_enable_events = self.events.has(EventName.pcmEnable) or self.events.has(EventName.buttonEnable)
     set_speed_btns_enable = any(be.type in SET_SPEED_BUTTONS for be in CS.buttonEvents)
@@ -186,6 +218,9 @@ class ModularAssistiveDrivingSystem:
       if self.state_machine.state == State.paused:
         self.events_sp.add(EventNameSP.silentLkasEnable)
 
+    if self.lateral_mismatch_counter >= 200:
+      self.events_sp.add(EventNameSP.controlsMismatchLateral)
+
     self.events.remove(EventName.pcmDisable)
     self.events.remove(EventName.buttonCancel)
     self.events.remove(EventName.pedalPressed)
@@ -194,6 +229,21 @@ class ModularAssistiveDrivingSystem:
   def update(self, CS: structs.CarState):
     if not self.enabled_toggle:
       return
+
+    # --- 執行 HTD 更新並取得是否允許轉向的布林值 ---
+    # 在執行 update_events 之前先運算，確保後續邏輯拿到最新狀態
+    if not self.CP.passive and self.selfdrive.initialized:
+      self.htd_allowed, _ = self.htd.update(
+        self.active,
+        CS.cruiseState.enabled,
+        CS.steeringAngleDeg,
+        CS.steeringTorque,
+        CS.vEgo,
+        CS.steeringPressed
+      )
+    # -----------------------------------------------
+
+    self.data_sample()
 
     self.update_events(CS)
 

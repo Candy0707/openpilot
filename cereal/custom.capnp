@@ -154,6 +154,7 @@ struct ModelManagerSP @0xaedffd8f31e7b55d {
       vision @2;
       policy @3;
       offPolicy @4;
+      onPolicy @5;
     }
   }
 
@@ -189,6 +190,7 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
   longitudinalPlanSource @1 :LongitudinalPlanSource;
   smartCruiseControl @2 :SmartCruiseControl;
   speedLimit @3 :SpeedLimit;
+  targets @9 :List(Target);
   vTarget @4 :Float32;
   aTarget @5 :Float32;
   events @6 :List(OnroadEventSP.Event);
@@ -205,6 +207,18 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
       blended @1;
     }
   }
+
+  struct Target {
+    available @0: Bool;
+    enable @1: Bool;
+    action @2: Bool;
+    braking @3: Bool;
+    vTarget @4 :Float32;
+    aTarget @5 :Float32;
+    outputVtarget @6 :Float32;
+    outputAtarget @7 :Float32;
+  }
+
   enum AccelerationPersonality {
     sport @0;
     normal @1;
@@ -294,6 +308,8 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
     sccVision @1;
     sccMap @2;
     speedLimitAssist @3;
+    pdm @4;
+    dtsc @5;
   }
 
   struct E2eAlerts {

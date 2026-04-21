@@ -42,7 +42,7 @@ class Controls(ControlsExt):
     self.CI = interfaces[self.CP.carFingerprint](self.CP, self.CP_SP)
 
     self.sm = messaging.SubMaster(['liveDelay', 'liveParameters', 'liveTorqueParameters', 'modelV2', 'selfdriveState',
-                                   'liveCalibration', 'livePose', 'longitudinalPlan', 'carState', 'carOutput',
+                                   'liveCalibration', 'livePose', 'longitudinalPlan', 'lateralManeuverPlan', 'carState', 'carOutput',
                                    'driverMonitoringState', 'onroadEvents', 'driverAssistance', 'liveDelay'] + self.sm_services_ext,
                                   poll='selfdriveState')
     self.pm = messaging.PubMaster(['carControl', 'controlsState'] + self.pm_services_ext)
@@ -135,7 +135,10 @@ class Controls(ControlsExt):
 
     # Steering PID loop and lateral MPC
     # Reset desired curvature to current to avoid violating the limits on engage
-    new_desired_curvature = model_v2.action.desiredCurvature if CC.latActive else self.curvature
+    if self.sm.valid['lateralManeuverPlan']:
+      new_desired_curvature = self.sm['lateralManeuverPlan'].desiredCurvature if CC.latActive else self.curvature
+    else:
+      new_desired_curvature = model_v2.action.desiredCurvature if CC.latActive else self.curvature
     self.desired_curvature, curvature_limited = clip_curvature(CS.vEgo, self.desired_curvature, new_desired_curvature, lp.roll)
     lat_delay = self.sm["liveDelay"].lateralDelay + LAT_SMOOTH_SECONDS
 
@@ -143,6 +146,20 @@ class Controls(ControlsExt):
     steer, steeringAngleDeg, lac_log = self.LaC.update(CC.latActive, CS, self.VM, lp,
                                                        self.steer_limited_by_safety, self.desired_curvature,
                                                        self.calibrated_pose, curvature_limited, lat_delay)
+
+    # --- 讀取大腦內部決定並寫入 Enum ---
+    if hasattr(self.LaC, 'use_angle'):
+      if self.LaC.use_angle:
+        actuators.steerControlType = car.CarControl.Actuators.SteerControlType.angle
+      else:
+        actuators.steerControlType = car.CarControl.Actuators.SteerControlType.torque
+    else:
+      if self.CP.steerControlType == car.CarParams.SteerControlType.angle:
+        actuators.steerControlType = car.CarControl.Actuators.SteerControlType.angle
+      else:
+        actuators.steerControlType = car.CarControl.Actuators.SteerControlType.torque
+    # -----------------------------------
+
     actuators.torque = float(steer)
     actuators.steeringAngleDeg = float(steeringAngleDeg)
     # Ensure no NaNs/Infs
@@ -215,13 +232,21 @@ class Controls(ControlsExt):
     cs.forceDecel = bool((self.sm['driverMonitoringState'].awarenessStatus < 0.) or
                          (self.sm['selfdriveState'].state == State.softDisabling))
 
-    lat_tuning = self.CP.lateralTuning.which()
-    if self.CP.steerControlType == car.CarParams.SteerControlType.angle:
-      cs.lateralControlState.angleState = lac_log
-    elif lat_tuning == 'pid':
-      cs.lateralControlState.pidState = lac_log
-    elif lat_tuning == 'torque':
-      cs.lateralControlState.torqueState = lac_log
+    # --- 防崩潰 Log 紀錄區塊 ---
+    if hasattr(self.LaC, 'use_angle'):
+      if self.LaC.use_angle:
+        cs.lateralControlState.angleState = lac_log
+      else:
+        cs.lateralControlState.torqueState = lac_log
+    else:
+      lat_tuning = self.CP.lateralTuning.which()
+      if self.CP.steerControlType == car.CarParams.SteerControlType.angle:
+        cs.lateralControlState.angleState = lac_log
+      elif lat_tuning == 'pid':
+        cs.lateralControlState.pidState = lac_log
+      elif lat_tuning == 'torque':
+        cs.lateralControlState.torqueState = lac_log
+    # ---------------------------
 
     self.pm.send('controlsState', dat)
 

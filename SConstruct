@@ -47,8 +47,10 @@ pkgs = [importlib.import_module(name) for name in pkg_names]
 # be distributed with all Linux distros and macOS, or
 # vendored in commaai/dependencies.
 allowed_system_libs = {
-  "EGL", "GLESv2", "GL", "Qt5Charts", "Qt5Core", "Qt5Gui", "Qt5Widgets",
+  "EGL", "GLESv2", "GL",
+  "Qt5Charts", "Qt5Core", "Qt5Gui", "Qt5Widgets",
   "dl", "drm", "gbm", "m", "pthread",
+  "X11", "vdpau", "va", "va-drm", "va-x11"
 }
 
 def _resolve_lib(env, name):
@@ -75,6 +77,13 @@ def _libflags(target, source, env, for_signature):
         libs.append(_resolve_lib(env, lib))
     else:
       libs.append(lib)
+
+  # 👉 核彈級解法：攔截組裝過程，確保硬體加速庫永遠在最後面
+  if arch != "Darwin":
+      for hw_lib in ["X11", "vdpau", "va", "va-drm", "va-x11", "drm"]:
+          if hw_lib not in libs:
+              libs.append(hw_lib)
+
   return _stripixes(env['LIBLINKPREFIX'], libs, env['LIBLINKSUFFIX'],
                     env['LIBPREFIXES'], env['LIBSUFFIXES'], env, env['LIBLITERALPREFIX'])
 
@@ -256,8 +265,13 @@ SConscript([
 
 SConscript(['sunnypilot/SConscript'])
 
-if Dir('#tools/cabana/').exists() and arch != "larch64":
-  SConscript(['tools/cabana/SConscript'])
+# Build tools
+if arch != "larch64":
+  SConscript([
+    'tools/replay/SConscript',
+    'tools/cabana/SConscript',
+    'tools/jotpluggler/SConscript',
+  ])
 
 
 env.CompilationDatabase('compile_commands.json')

@@ -5,6 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 
+import numpy as np
 from cereal import messaging, custom
 from opendbc.car import structs
 from openpilot.common.constants import CV
@@ -17,8 +18,11 @@ from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolve
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
+from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_module import AdaptiveCoastingModule
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
+from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
+from openpilot.sunnypilot.selfdrive.controls.lib.path_deviation_monitor.path_deviation_monitor import PathDeviationMonitor
 from opendbc.car.interfaces import ACCEL_MIN
 
 DecState = custom.LongitudinalPlanSP.DynamicExperimentalControl.DynamicExperimentalControlState
@@ -38,6 +42,9 @@ class LongitudinalPlannerSP:
     self.generation = int(model_bundle.generation) if (model_bundle := get_active_bundle()) else None
     self.source = LongitudinalPlanSource.cruise
     self.e2e_alerts_helper = E2EAlertsHelper()
+    self.acm = AdaptiveCoastingModule()
+    self.dtsc = DynamicTurnSpeedController(CP, mpc)
+    self.pdm = PathDeviationMonitor(CP, mpc)
 
     self.output_v_target = 0.0
     self.output_a_target = 0.0
@@ -60,8 +67,8 @@ class LongitudinalPlannerSP:
 
     return experimental_mode and self.dec.mode() == "blended"
 
-  def get_accel_clip(self, v_ego: float, mode: str) -> list[float] | None:
-    if mode == 'acc' and self.accel_controller.is_enabled():
+  def get_accel_clip(self, v_ego: float) -> list[float] | None:
+    if self.accel_controller.is_enabled():
       return [ACCEL_MIN, self.accel_controller.get_max_accel(v_ego)]
     return None
 
@@ -104,22 +111,48 @@ class LongitudinalPlannerSP:
       self.events_sp,
     )
 
+    self.dtsc.update_target(sm, v_ego, a_ego, v_cruise)
+    self.pdm.update_target(sm, v_ego, a_ego, v_cruise)
+
     targets = {
       LongitudinalPlanSource.cruise: (v_cruise, a_ego),
       LongitudinalPlanSource.sccVision: (self.scc.vision.output_v_target, self.scc.vision.output_a_target),
       LongitudinalPlanSource.sccMap: (self.scc.map.output_v_target, self.scc.map.output_a_target),
       LongitudinalPlanSource.speedLimitAssist: (self.sla.output_v_target, self.sla.output_a_target),
+      LongitudinalPlanSource.dtsc: (self.dtsc.output_v_target, self.dtsc.output_a_target),
+      LongitudinalPlanSource.pdm: (self.pdm.output_v_target, self.pdm.output_a_target),
     }
 
     self.source = min(targets, key=lambda k: targets[k][0])
     self.output_v_target, self.output_a_target = targets[self.source]
     return self.output_v_target, self.output_a_target
 
+  def update_a_desired_trajectory(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float):
+    # 1. 執行 ACM 邏輯 (未來也可以在這裡繼續串接其他模組)
+    processed_trajectory = self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
+
+    # 2. 終端軌跡平滑處理 (Trajectory Smoothing)
+    smoothed_trajectory = []
+    ALPHA = 0.75
+
+    for i in range(len(processed_trajectory)):
+        if i == 0:
+            smoothed_trajectory.append(processed_trajectory[i])
+        else:
+            smooth_a = (ALPHA * processed_trajectory[i]) + ((1.0 - ALPHA) * smoothed_trajectory[i-1])
+            smoothed_trajectory.append(smooth_a)
+
+    # 將原本的 Python List 轉回 NumPy Array，
+    return np.array(smoothed_trajectory)
+
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
     self.dec.update(sm)
     self.e2e_alerts_helper.update(sm, self.events_sp)
     self.accel_controller.update(sm)
+    self.dynamic_follow.update()
+    self.dtsc.update(sm)
+    self.pdm.update(sm)
 
   def publish_longitudinal_plan_sp(self, sm: messaging.SubMaster, pm: messaging.PubMaster) -> None:
     plan_sp_send = messaging.new_message('longitudinalPlanSP')
@@ -131,6 +164,27 @@ class LongitudinalPlannerSP:
     longitudinalPlanSP.vTarget = float(self.output_v_target)
     longitudinalPlanSP.aTarget = float(self.output_a_target)
     longitudinalPlanSP.events = self.events_sp.to_msg()
+
+    # ==========================================
+    # 優雅寫入 targets 列表邏輯
+    # ==========================================
+
+    # 1. 取得 Enum (動態適應 custom.capnp 的變更)
+    source = LongitudinalPlanSource.schema.enumerants
+
+    # 2. 動態初始化 targets 陣列長度
+    targets_list = longitudinalPlanSP.init('targets', len(source))
+
+    # 2. 自動動態對應：遍歷 Enum 中的每一個定義 (例如 'cruise', 'dtsc' 等)
+    for name, enum_value in source.items():
+      # 使用 getattr 動態從 self 抓取同名的控制器實例
+      # 例如：當 name 為 'dtsc' 時，getattr(self, 'dtsc') 等同於呼叫 self.dtsc
+      controller = getattr(self, name, None)
+
+      # 確保該屬性存在，且具有 write_to_msg 方法 (即繼承自 TargetsBase)
+      if controller is not None and hasattr(controller, 'write_to_msg'):
+        idx = enum_value
+        controller.write_to_msg(targets_list[idx])
 
     # Dynamic Experimental Control
     dec = longitudinalPlanSP.dec
