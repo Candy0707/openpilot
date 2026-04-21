@@ -132,10 +132,10 @@ class ModelRendererSP(ModelRenderer):
 
     # 3️⃣ 繪製 5 條【右側釘死】的實體標記線與文字
     # 傳入的顏色我都調成 200 或 220 左右的 Alpha 值，讓線條稍微有點半透明不刺眼
-    draw_mark(exit_dist, rl.Color(255, 60, 60, 200), 10, tr("exit_dist"))
-    draw_mark(danger_dist, rl.Color(255, 150, 0, 200), 8, tr("safety_dist"))
-    draw_mark(safety_dist, rl.Color(255, 215, 0, 200), 6, tr("danger_dist"))
-    draw_mark(target_dist, rl.Color(0, 255, 150, 200), 5, tr("target_dist"))
+    draw_mark(exit_dist, rl.Color(255, 60, 60, 200), 10, f"{tr('exit_dist')}：{exit_dist:.1f}m")
+    draw_mark(danger_dist, rl.Color(255, 150, 0, 200), 8, f"{tr('safety_dist')}：{danger_dist:.1f}m")
+    draw_mark(safety_dist, rl.Color(255, 215, 0, 200), 6, f"{tr('danger_dist')}：{safety_dist:.1f}m")
+    draw_mark(target_dist, rl.Color(0, 255, 150, 200), 5, f"{tr('target_dist')}：{target_dist:.1f}m")
 
     if has_lead:
-      draw_mark(lead_dist, rl.Color(255, 255, 255, 220), 6, tr("leadDist"))
+      draw_mark(lead_dist, rl.Color(255, 255, 255, 220), 6, f"{tr('leadDist')}：{lead_dist:.1f}m")
