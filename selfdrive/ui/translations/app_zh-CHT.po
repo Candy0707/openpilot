@@ -2302,3 +2302,23 @@ msgstr "選擇模型"
 #, python-format
 msgid "Only available when vehicle is off, or always offroad mode is on"
 msgstr "僅當車輛熄火或始終開啟 offroad 模式時可用"
+
+#, python-format
+msgid "exit_dist"
+msgstr "離開距離"
+
+#, python-format
+msgid "safety_dist"
+msgstr "煞車距離"
+
+#, python-format
+msgid "danger_dist"
+msgstr "滑行距離"
+
+#, python-format
+msgid "target_dist"
+msgstr "目標距離"
+
+#, python-format
+msgid "leadDist"
+msgstr "前車距離"
