@@ -56,7 +56,11 @@ EMA_ALPHA_DECEL     = 0.8   # 🛑 踩煞車/減速比例 (數值大，反應快
 EXCESS_DIST_ARR     = [0.0, 0.10, 0.20, 0.40]
 EXCESS_RATIO_ARR    = [0.2, 0.5, 0.8, 1.0]
 
-# 9. 系統偵錯開關
+# 9. TTA 車速動態打折參數 (Gain Scheduling)
+TTA_DISCOUNT_V_ARR     = [0.0, 80.0]    # 🚄 車速節點 (km/h)
+TTA_DISCOUNT_RATIO_ARR = [0.0, 1.0]     # 📉 對應打折比例 (0km/h=1.0不打折，80km/h=0.0完全歸零)
+
+# 10. 系統偵錯開關
 ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
 
 
@@ -117,6 +121,7 @@ class AdaptiveCoastingModule:
         d_rel = 0.0                 # 🚗 經過濾波處理後的與前車相對距離 (公尺)
         v_rel = 0.0                 # 💨 經過濾波處理後的與前車相對速度 (m/s，負值代表逼近中)
         mpc_blend_ratio = 0.0       # 🌟 10% 比例式融合的漸進比例 (0.0 ~ 1.0)
+        tta_speed_ratio = 1.0       # 📉 TTA 車速打折比例預設值
 
         # ==========================================
         # 🛡️ 統一攔截與日誌輸出中心
@@ -132,7 +137,7 @@ class AdaptiveCoastingModule:
                     f"剩餘距離:{dist_percent*100:.1f}% | 減速距離:{dynamic_coast_end*100:.1f}% | 緊急距離:{dynamic_safe_dist*100:.1f}% | "
                     f"當前車速:{v_ego * CV.MS_TO_KPH:.1f}km/h | 速差:{v_rel:.1f}m/s | "
                     f"目標距離:{dynamic_target_dist:.1f}m | 前車距離:{d_rel:.1f}m | "
-                    f"TTA極限:{raw_a_calc:.2f} | TTA輸出:{smooth_tta_a:.2f} | TTA煞車比例:{fade_factor*100:.0f}% | MPC 融合比例:{mpc_blend_ratio*100:.0f}% | "
+                    f"TTA極限:{raw_a_calc:.2f} | 車速打折:{tta_speed_ratio*100:.0f}% | TTA輸出:{smooth_tta_a:.2f} | TTA煞車比例:{fade_factor*100:.0f}% | MPC 融合比例:{mpc_blend_ratio*100:.0f}% | "
                     f"覆寫:{a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}"
                 )
 
@@ -273,9 +278,16 @@ class AdaptiveCoastingModule:
             safe_v_rel = max(abs(v_rel), 1e-3)
             tta = safe_buffer_dist / safe_v_rel
 
-            # 🧮 全時段套用 TTA 公式，並乘上 1.2 倍 TTA 放大器
+            # 🧮 原始 TTA 公式計算出的理論煞車力道
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
-            raw_a_calc = raw_a_calc * TTA_MULTIPLIER
+            
+            # 🌟 依據車速進行線性插值打折 (Gain Scheduling)
+            # 速度從 0 km/h ~ 80 km/h，對應比例 1.0 ~ 0.0 (速度越慢力道越大)
+            v_ego_kph = v_ego * CV.MS_TO_KPH
+            tta_speed_ratio = float(np.interp(v_ego_kph, TTA_DISCOUNT_V_ARR, TTA_DISCOUNT_RATIO_ARR))
+
+            # 套用 TTA 放大器與車速打折比例
+            raw_a_calc = raw_a_calc * TTA_MULTIPLIER * tta_speed_ratio
 
             # ------------------------------------------
             # 🚀 漸進比例魔法 (Fade-in)：使用動態上下界徹底消除跨界頓挫
