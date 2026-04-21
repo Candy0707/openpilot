@@ -190,12 +190,13 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
   longitudinalPlanSource @1 :LongitudinalPlanSource;
   smartCruiseControl @2 :SmartCruiseControl;
   speedLimit @3 :SpeedLimit;
-  targets @9 :List(Target);
   vTarget @4 :Float32;
   aTarget @5 :Float32;
   events @6 :List(OnroadEventSP.Event);
   e2eAlerts @7 :E2eAlerts;
   accelPersonality @8 :AccelerationPersonality;
+  targets @9 :List(Target);
+  adaptiveCoastingModule @10 :AdaptiveCoastingModule;
 
   struct DynamicExperimentalControl {
     state @0 :DynamicExperimentalControlState;
@@ -219,11 +220,42 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
     outputAtarget @7 :Float32;
   }
 
+  struct AdaptiveCoastingModule {
+    active @0 :Bool;
+    state @1 :State;
+
+    leadDist @2 :Float32;
+    targetDist @3 :Float32;
+    dynamicSafety @4 :Float32;
+    dynamicDanger @5 :Float32;
+    stockControl @6 :Float32;
+
+    distPercent @7 :Float32;
+
+    ttaAccelValue @8 :Float32;
+    ttaLimitValue @9 :Float32;
+    speedRatio @10 :Float32;
+    fadeFactor @11 :Float32;
+    mpcBlendRatio @12 :Float32;
+
+    mpcAccel @13 :Float32;
+    acmAccel @14 :Float32;
+
+    enum State {
+      noLead @0;
+      smoothAccel @1;
+      coasting @2;
+      smoothDecel @3;
+      takeover @4;
+    }
+  }
+
   enum AccelerationPersonality {
     sport @0;
     normal @1;
     eco @2;
   }
+
   struct SmartCruiseControl {
     vision @0 :Vision;
     map @1 :Map;
