@@ -186,6 +186,30 @@ class LongitudinalPlannerSP:
         idx = enum_value
         controller.write_to_msg(targets_list[idx])
 
+    # AdaptiveCoastingModule
+
+    adaptiveCoastingModule = longitudinalPlanSP.adaptiveCoastingModule
+    adaptiveCoastingModule.active = self.acm.active
+    adaptiveCoastingModule.state = self.acm.state
+
+    adaptiveCoastingModule.leadDist = float(self.acm.leadDist)
+    adaptiveCoastingModule.targetDist = float(self.acm.target_dist)
+    adaptiveCoastingModule.dynamicSafety = float(self.acm.dynamic_safety)
+    adaptiveCoastingModule.dynamicDanger = float(self.acm.dynamic_danger)
+    adaptiveCoastingModule.stockControl = float(self.acm.stockControl)
+
+    adaptiveCoastingModule.distPercent = float(self.acm.dist_percent)
+
+    adaptiveCoastingModule.ttaAccelValue = float(self.acm.tta_accel_value)
+    adaptiveCoastingModule.ttaLimitValue = float(self.acm.tta_limit_value)
+    adaptiveCoastingModule.speedRatio = float(self.acm.speed_ratio)
+    adaptiveCoastingModule.fadeFactor = float(self.acm.fade_factor)
+    adaptiveCoastingModule.mpcBlendRatio = float(self.acm.mpc_blend_ratio)
+
+    adaptiveCoastingModule.mpcAccel = float(self.acm.mpc_accel)
+    adaptiveCoastingModule.acmAccel = float(self.acm.acm_accel)
+
+
     # Dynamic Experimental Control
     dec = longitudinalPlanSP.dec
     dec.state = DecState.blended if self.dec.mode() == 'blended' else DecState.acc
