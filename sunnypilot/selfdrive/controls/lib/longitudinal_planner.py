@@ -128,22 +128,10 @@ class LongitudinalPlannerSP:
     return self.output_v_target, self.output_a_target
 
   def update_a_desired_trajectory(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float):
-    # 1. 執行 ACM 邏輯 (未來也可以在這裡繼續串接其他模組)
-    processed_trajectory = self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
+    # 1. 執行 ACM 邏輯
+    a_desired_trajectory = self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
 
-    # 2. 終端軌跡平滑處理 (Trajectory Smoothing)
-    smoothed_trajectory = []
-    ALPHA = 0.75
-
-    for i in range(len(processed_trajectory)):
-        if i == 0:
-            smoothed_trajectory.append(processed_trajectory[i])
-        else:
-            smooth_a = (ALPHA * processed_trajectory[i]) + ((1.0 - ALPHA) * smoothed_trajectory[i-1])
-            smoothed_trajectory.append(smooth_a)
-
-    # 將原本的 Python List 轉回 NumPy Array，
-    return np.array(smoothed_trajectory)
+    return a_desired_trajectory
 
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
@@ -175,7 +163,7 @@ class LongitudinalPlannerSP:
     # 2. 動態初始化 targets 陣列長度
     targets_list = longitudinalPlanSP.init('targets', len(source))
 
-    # 2. 自動動態對應：遍歷 Enum 中的每一個定義 (例如 'cruise', 'dtsc' 等)
+    # 3. 自動動態對應：遍歷 Enum 中的每一個定義
     for name, enum_value in source.items():
       # 使用 getattr 動態從 self 抓取同名的控制器實例
       # 例如：當 name 為 'dtsc' 時，getattr(self, 'dtsc') 等同於呼叫 self.dtsc
@@ -187,27 +175,26 @@ class LongitudinalPlannerSP:
         controller.write_to_msg(targets_list[idx])
 
     # AdaptiveCoastingModule
-
     adaptiveCoastingModule = longitudinalPlanSP.adaptiveCoastingModule
     adaptiveCoastingModule.active = self.acm.active
     adaptiveCoastingModule.state = self.acm.state
 
     adaptiveCoastingModule.leadDist = float(self.acm.leadDist)
-    adaptiveCoastingModule.targetDist = float(self.acm.target_dist)
-    adaptiveCoastingModule.dynamicSafety = float(self.acm.dynamic_safety)
-    adaptiveCoastingModule.dynamicDanger = float(self.acm.dynamic_danger)
+    adaptiveCoastingModule.targetDist = float(self.acm.targetDist)
+    adaptiveCoastingModule.dynamicSafety = float(self.acm.dynamicSafety)
+    adaptiveCoastingModule.dynamicDanger = float(self.acm.dynamicDanger)
     adaptiveCoastingModule.stockControl = float(self.acm.stockControl)
 
-    adaptiveCoastingModule.distPercent = float(self.acm.dist_percent)
+    adaptiveCoastingModule.distPercent = float(self.acm.distPercent)
 
-    adaptiveCoastingModule.ttaAccelValue = float(self.acm.tta_accel_value)
-    adaptiveCoastingModule.ttaLimitValue = float(self.acm.tta_limit_value)
-    adaptiveCoastingModule.speedRatio = float(self.acm.speed_ratio)
-    adaptiveCoastingModule.fadeFactor = float(self.acm.fade_factor)
-    adaptiveCoastingModule.mpcBlendRatio = float(self.acm.mpc_blend_ratio)
+    adaptiveCoastingModule.ttaAccelValue = float(self.acm.ttaAccelValue)
+    adaptiveCoastingModule.ttaLimitValue = float(self.acm.ttaLimitValue)
+    adaptiveCoastingModule.speedRatio = float(self.acm.speedRatio)
+    adaptiveCoastingModule.fadeFactor = float(self.acm.fadeFactor)
+    adaptiveCoastingModule.mpcBlendRatio = float(self.acm.mpcBlendRatio)
 
-    adaptiveCoastingModule.mpcAccel = float(self.acm.mpc_accel)
-    adaptiveCoastingModule.acmAccel = float(self.acm.acm_accel)
+    adaptiveCoastingModule.mpcAccel = float(self.acm.mpcAccel)
+    adaptiveCoastingModule.acmAccel = float(self.acm.acmAccel)
 
 
     # Dynamic Experimental Control
