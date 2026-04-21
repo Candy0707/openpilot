@@ -354,11 +354,6 @@ class AdaptiveCoastingModule:
                     zone_str = "🟠 區域C(交接MPC)"
                     a_target = raw_mpc_a
 
-                # --- MPC 絕對優先防線  ---
-                if dist_percent < dynamic_coast_end and a_target > raw_mpc_a:
-                    zone_str = "🔴 加速度都以 MPC 為準"
-                    a_target = min(a_target, raw_mpc_a)
-
             # --- B. 最終安全鉗制 (Clamp)，確保不超出物理加速度極限 ---
             a_target = max(ACCEL_MIN, min(a_target, ACCEL_MAX))
 
