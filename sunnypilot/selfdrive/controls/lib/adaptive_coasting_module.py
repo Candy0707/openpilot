@@ -58,7 +58,7 @@ EXCESS_RATIO_ARR    = [0.2, 0.5, 0.8, 1.0]
 
 # 9. TTA 車速動態打折參數 (Gain Scheduling)
 TTA_DISCOUNT_V_ARR     = [0.0, 80.0]    # 🚄 車速節點 (km/h)
-TTA_DISCOUNT_RATIO_ARR = [0.0, 1.0]     # 📉 對應打折比例 (0km/h=1.0不打折，80km/h=0.0完全歸零)
+TTA_DISCOUNT_RATIO_ARR = [0.0, 1.0]     # 📉 對應打折比例 (0km/h=0.0完全歸零，80km/h=1.0不打折)
 
 # 10. 系統偵錯開關
 ACM_DEBUG           = True  # 📝 開關：是否輸出 cloudlog 偵錯日誌
@@ -280,7 +280,7 @@ class AdaptiveCoastingModule:
 
             # 🧮 原始 TTA 公式計算出的理論煞車力道
             raw_a_calc = - (TARGET_V_REL - v_rel) / max(tta, 1.0)
-            
+
             # 🌟 依據車速進行線性插值打折 (Gain Scheduling)
             # 速度從 0 km/h ~ 80 km/h，對應比例 1.0 ~ 0.0 (速度越慢力道越大)
             v_ego_kph = v_ego * CV.MS_TO_KPH
