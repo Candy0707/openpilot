@@ -289,20 +289,21 @@ class AdaptiveCoastingModule:
             smooth_tta_a = raw_a_calc * fade_factor
             limit_tta_a = max(MIN_RECOVERY_ACCEL, min(smooth_tta_a, MAX_RECOVERY_ACCEL))
 
-            # ------------------------------------------
-            # 🌟 10% 比例式過度 (MPC 提早漸進介入防線)
-            # ------------------------------------------
-            # 定義融合起點：在距離區域 C (動態防線) 剩下 10% 時開始啟動
-            blend_start_dist = dynamic_safe_dist + 0.10
-            if dist_percent < blend_start_dist:
-                mpc_blend_ratio = (blend_start_dist - dist_percent) / 0.10
+            # 全區域 B 比例式過度 (MPC 漸進介入防線)
+            if dist_percent < dynamic_coast_end:
+
+                # 1. 算出區域 B 的總長度跨度 (例如 85% - 75% = 10% 的緩坡)
+                blend_span = dynamic_coast_end - dynamic_safe_dist
+
+                # 2. 計算你在這個緩坡上走了多遠 (0.0 -> 1.0)
+                mpc_blend_ratio = (dynamic_coast_end - dist_percent) / max(blend_span, 1e-5)
                 mpc_blend_ratio = max(0.0, min(mpc_blend_ratio, 1.0))
 
-                # 取當下這一瞬間的原廠煞車指令 (第 0 個點) 作為融合基準，單純且直接
+                # 取當下這一瞬間的原廠煞車指令 (第 0 個點) 作為融合基準
                 current_mpc_a = a_desired_trajectory[0]
 
-                # 只有當進入 10% 區間，且原廠煞得比我們深時，才依照比例把原廠力道揉進來
-                if mpc_blend_ratio > 0.0 and current_mpc_a < limit_tta_a:
+                # 3. 🛡️ 安全防線：只有當原廠煞得比我們深時，才依照比例把原廠力道揉進來！
+                if mpc_blend_ratio > 0.0:
                     limit_tta_a = ((1.0 - mpc_blend_ratio) * limit_tta_a) + (mpc_blend_ratio * current_mpc_a)
 
         else:
