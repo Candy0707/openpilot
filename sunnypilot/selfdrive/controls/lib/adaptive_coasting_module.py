@@ -116,6 +116,7 @@ class AdaptiveCoastingModule:
         fade_factor = 0.0           # 🪄 漸進魔法比例係數 (0.0 ~ 1.0)，確保微煞力道平滑介入
         d_rel = 0.0                 # 🚗 經過濾波處理後的與前車相對距離 (公尺)
         v_rel = 0.0                 # 💨 經過濾波處理後的與前車相對速度 (m/s，負值代表逼近中)
+        mpc_blend_ratio = 0.0       # 🌟 10% 比例式融合的漸進比例 (0.0 ~ 1.0)
 
         # ==========================================
         # 🛡️ 統一攔截與日誌輸出中心
@@ -131,7 +132,7 @@ class AdaptiveCoastingModule:
                     f"剩餘距離:{dist_percent*100:.1f}% | 減速距離:{dynamic_coast_end*100:.1f}% | 緊急距離:{dynamic_safe_dist*100:.1f}% | "
                     f"當前車速:{v_ego * CV.MS_TO_KPH:.1f}km/h | 速差:{v_rel:.1f}m/s | "
                     f"目標距離:{dynamic_target_dist:.1f}m | 前車距離:{d_rel:.1f}m | "
-                    f"TTA極限:{raw_a_calc:.2f} | TTA輸出:{smooth_tta_a:.2f} | TTA煞車比例:{fade_factor*100:.0f}% | "
+                    f"TTA極限:{raw_a_calc:.2f} | TTA輸出:{smooth_tta_a:.2f} | TTA煞車比例:{fade_factor*100:.0f}% | MPC 融合比例:{mpc_blend_ratio*100:.0f}% | "
                     f"覆寫:{a_desired_trajectory[0]:.2f} -> {current_result[0]:.2f}"
                 )
 
@@ -227,7 +228,7 @@ class AdaptiveCoastingModule:
             # 動態 TTC 閾值：將跟車秒數放大 1.2 倍作為防護底線，提早應對鬼切
             dynamic_ttc_threshold = tf * 1.2
 
-            # 🚨 拔除提早 return！改為標記緊急狀態，讓防線自然融入下方管線處理
+            # 🚨 標記緊急狀態，讓防線自然融入下方管線處理
             if ttc < dynamic_ttc_threshold:
                 emergency_fallback = True
                 emergency_str = "🛑 強制退出(TTC防撞)"
@@ -286,6 +287,23 @@ class AdaptiveCoastingModule:
 
             # 限制 TTA 本身算出來的退讓力道
             smooth_tta_a = raw_a_calc * fade_factor
+            limit_tta_a = max(MIN_RECOVERY_ACCEL, min(smooth_tta_a, MAX_RECOVERY_ACCEL))
+
+            # ------------------------------------------
+            # 🌟 10% 比例式過度 (MPC 提早漸進介入防線)
+            # ------------------------------------------
+            # 定義融合起點：在距離區域 C (動態防線) 剩下 10% 時開始啟動
+            blend_start_dist = dynamic_safe_dist + 0.10
+            if dist_percent < blend_start_dist:
+                mpc_blend_ratio = (blend_start_dist - dist_percent) / 0.10
+                mpc_blend_ratio = max(0.0, min(mpc_blend_ratio, 1.0))
+
+                # 取當下這一瞬間的原廠煞車指令 (第 0 個點) 作為融合基準，單純且直接
+                current_mpc_a = a_desired_trajectory[0]
+
+                # 只有當進入 10% 區間，且原廠煞得比我們深時，才依照比例把原廠力道揉進來
+                if mpc_blend_ratio > 0.0 and current_mpc_a < limit_tta_a:
+                    limit_tta_a = ((1.0 - mpc_blend_ratio) * limit_tta_a) + (mpc_blend_ratio * current_mpc_a)
 
         else:
             self.intent_accelerating = False
@@ -307,6 +325,7 @@ class AdaptiveCoastingModule:
         # 2. 統一軌跡處理與分區覆寫
         # ==========================================
         zone_str = ""
+        log_zone_str = ""
 
         # 檢查歷史陣列是否需要初始化 (長度不符或首次啟動)
         init_history = not self.last_a_target_array or len(self.last_a_target_array) != len(result)
@@ -347,7 +366,7 @@ class AdaptiveCoastingModule:
                 # 🟡 區域 B (動態防線 ~ 動態邊界)：平滑退讓區
                 elif dynamic_safe_dist <= dist_percent < dynamic_coast_end:
                     zone_str = "🟡 區域B(平滑退讓)"
-                    a_target = max(MIN_RECOVERY_ACCEL, min(smooth_tta_a, MAX_RECOVERY_ACCEL))
+                    a_target = limit_tta_a
 
                 # 🟠 區域 C (0% ~ 動態防線)：危險防護區，聽從 MPC (全面放行，不設限制)
                 elif dist_percent < dynamic_safe_dist:
