@@ -131,7 +131,7 @@ class LongitudinalPlannerSP:
     # 1. 執行 ACM 邏輯
     a_desired_trajectory = self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
 
-    return a_desired_trajectory
+    return np.array(a_desired_trajectory)
 
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
