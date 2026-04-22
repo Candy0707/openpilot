@@ -174,25 +174,19 @@ class LongitudinalPlannerSP:
         idx = enum_value
         controller.write_to_msg(targets_list[idx])
 
-    # AdaptiveCoastingModule
+
+    # AdaptiveCoastingModule (ACM) 資料寫入邏輯
     adaptiveCoastingModule = longitudinalPlanSP.adaptiveCoastingModule
     adaptiveCoastingModule.active = self.acm.active
     adaptiveCoastingModule.state = self.acm.state
 
+    # 寫入物理距離資料 (轉為 float 確保通訊格式正確)
     adaptiveCoastingModule.leadDist = float(self.acm.leadDist)
     adaptiveCoastingModule.targetDist = float(self.acm.targetDist)
-    adaptiveCoastingModule.dynamicSafety = float(self.acm.dynamicSafety)
-    adaptiveCoastingModule.dynamicDanger = float(self.acm.dynamicDanger)
-    adaptiveCoastingModule.stockControl = float(self.acm.stockControl)
-
     adaptiveCoastingModule.distPercent = float(self.acm.distPercent)
 
-    adaptiveCoastingModule.ttaAccelValue = float(self.acm.ttaAccelValue)
+    # 寫入控制決策與極限值
     adaptiveCoastingModule.ttaLimitValue = float(self.acm.ttaLimitValue)
-    adaptiveCoastingModule.speedRatio = float(self.acm.speedRatio)
-    adaptiveCoastingModule.fadeFactor = float(self.acm.fadeFactor)
-    adaptiveCoastingModule.mpcBlendRatio = float(self.acm.mpcBlendRatio)
-
     adaptiveCoastingModule.mpcAccel = float(self.acm.mpcAccel)
     adaptiveCoastingModule.acmAccel = float(self.acm.acmAccel)
 
