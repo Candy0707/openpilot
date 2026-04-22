@@ -34,6 +34,8 @@ DANGER_PCT      = 0.75      # 🔴 交接線：跌破 75% 評估交接給 MPC �
 MIN_BRAKE_ZONE_M    = 3.0   # 📏 實體長度保底：90%~75% 區間大於 3m 啟用 TTA，小於則 min(MPC, 0.0)
 COAST_MAX_BRAKE     = -0.4  # 🌊 無車神經質極限：無車時抹除 0.0 到 -0.4 之間的微弱煞車
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 緊急重煞交接閾值：原廠低於此數值時 ACM 瞬間退出
+TTA_ACCEL_MIN       = -1.0  # 🛑 TTA 煞車力道壓制下限
+TTA_ACCEL_MAX       = 0.0   # 🛑 TTA 煞車力道壓制上限
 TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差：保留微小速差以平滑收尾，不完全貼死前車速度
 TTA_MULTIPLIER      = 1.2   # 🚀 TTA 力道放大器：放大基礎數學公式算出的力道，使煞車更扎實
 TTA_TIME_RATIO      = 0.5   # ⏱️ TTA 時間壓縮比例：欺騙公式要求用剩餘時間的一半達成減速，逼出初期煞車力道
@@ -166,7 +168,7 @@ class AdaptiveCoastingModule:
                 raw_tta_a = - (TARGET_V_REL - self.last_valid_v_rel) / max(tta, 1e-3)  # TTA 核心物理公式算出減速度
 
                 # 魔法 2：套用 TTA 力道放大器 (無動態打折，直接放大)
-                tta_a = raw_tta_a * TTA_MULTIPLIER
+                tta_a = np.clip(raw_tta_a * TTA_MULTIPLIER, TTA_ACCEL_MIN, TTA_ACCEL_MAX)
 
                 # 魔法 3：90%~80% 比例漸進，80%~75% 鉗制為滿煞車。預留最後 5% 空間滿輸出，消滅 75% 交接頓挫
                 fadeFactor = np.clip((COAST_BRAKE_PCT - self.distPercent) / 0.10, 0.0, 1.0)
