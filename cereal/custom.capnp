@@ -226,11 +226,11 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
 
       leadDist @2 :Float32;      # 前車實體距離 (m)
       targetDist @3 :Float32;    # 100% 目標跟車距離 (m)
-      distPercent @7 :Float32;   # 當前距離百分比 (0.0 ~ 1.0+)
+      distPercent @4 :Float32;   # 當前距離百分比 (0.0 ~ 1.0+)
 
-      ttaLimitValue @9 :Float32; # 當前 TTA 算出的煞車極限值
-      mpcAccel @13 :Float32;     # 原廠 MPC 原始加速度
-      acmAccel @14 :Float32;     # ACM 介入後的加速度
+      ttaLimitValue @5 :Float32; # 當前 TTA 算出的煞車極限值
+      mpcAccel @6 :Float32;     # 原廠 MPC 原始加速度
+      acmAccel @7 :Float32;     # ACM 介入後的加速度
 
       enum State {
         noLead @0;               # 前方無車
