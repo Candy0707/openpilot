@@ -31,6 +31,7 @@ COAST_BRAKE_PCT = 0.90      # 🟡 微煞車點：90% 開啟微煞車功能 (防
 DANGER_PCT      = 0.75      # 🔴 交接線：跌破 75% 評估交接給 MPC 執行重煞
 
 # 2. 物理保底與極限參數
+MIN_ACTIVE_DIST     = 6.0   # 🛡️ 絕對物理防線：距離前車 <= 6m 時，ACM 強制退出不干涉
 MIN_BRAKE_ZONE_M    = 3.0   # 📏 實體長度保底：90%~75% 區間大於 3m 啟用 TTA，小於則 min(MPC, 0.0)
 COAST_MAX_BRAKE     = -0.4  # 🌊 無車神經質極限：無車時抹除 0.0 到 -0.4 之間的微弱煞車
 MPC_FALLBACK_ACCEL  = -1.2  # 💣 緊急重煞交接閾值：原廠低於此數值時 ACM 瞬間退出
@@ -45,7 +46,7 @@ TRAJECTORY_HORIZON  = 6     # 掃描未來軌跡點數 (約涵蓋未來 1.2 秒�
 INTENT_LOOKAHEAD    = 3     # 確認意圖所需的連續點數 (避免單一雜訊誤判)
 INTENT_V_LOW        = 0.0 * CV.KPH_TO_MS   # 低速判定基準 (用於動態決定確認幀數)
 INTENT_V_HIGH       = 80.0 * CV.KPH_TO_MS  # 高速判定基準 (用於動態決定確認幀數)
-INTENT_FRAMES_LOW   = 1     # 低速起步所需的確認幀數 (極其靈敏，防卡油門)
+INTENT_FRAMES_LOW   = 5     # 低速起步所需的確認幀數 (極其靈敏，防卡油門，提昇至5幀防雷達雜訊)
 INTENT_FRAMES_HIGH  = 20    # 高速巡航所需的確認幀數 (防止高速風吹草動誤判)
 DEFAULT_T_FOLLOW    = 1.6   # 預設跟車秒數 (當無法讀取車機設定時的保底值)
 FILTER_ALPHA        = 0.2   # 雷達訊號 EMA 濾波權重 (20% 新資料，80% 舊資料，撫平跳動)
@@ -139,7 +140,7 @@ class AdaptiveCoastingModule:
             # 2.3 🚀 加速意圖掃描 (抓取起步與超車時機)
             recent_traj = a_desired_trajectory[:TRAJECTORY_HORIZON] # 截取未來 6 個原廠加速度軌跡點
             intent_v_ratio = np.clip((v_ego - INTENT_V_LOW) / (INTENT_V_HIGH - INTENT_V_LOW), 0.0, 1.0) # 計算車速所在比例
-            # 線性插值決定需要幾幀來確認意圖 (低速 1 幀極靈敏，高速 20 幀防誤判)
+            # 線性插值決定需要幾幀來確認意圖 (低速 5 幀極靈敏，高速 20 幀防誤判)
             dynamic_intent_frames = int(round(INTENT_FRAMES_LOW + intent_v_ratio * (INTENT_FRAMES_HIGH - INTENT_FRAMES_LOW)))
 
             # 判斷單幀強烈加速意圖：未來軌跡有多個點加速，且與前車速差正在拉開
@@ -182,7 +183,9 @@ class AdaptiveCoastingModule:
 
         if self.has_lead_locked:
             # 按照優先級依序判斷是否要瞬間交還控制權
-            if emergency_fallback:
+            if self.leadDist <= MIN_ACTIVE_DIST:
+                direct_return, self.state = True, AcmState.fastExitSafe          # 優先級 0：絕對物理防線，<= 6m 借用 100% 退出狀態交還原廠
+            elif emergency_fallback:
                 direct_return, self.state = True, AcmState.fastExitEmergency     # 優先級 1：緊急防撞保命
             elif self.intent_accelerating:
                 direct_return, self.state = True, AcmState.fastExitAccel         # 優先級 2：前車大腳油門，放行起步
