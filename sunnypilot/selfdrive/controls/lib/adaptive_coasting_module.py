@@ -46,7 +46,7 @@ TRAJECTORY_HORIZON  = 6     # 掃描未來軌跡點數 (約涵蓋未來 1.2 秒�
 INTENT_LOOKAHEAD    = 3     # 確認意圖所需的連續點數 (避免單一雜訊誤判)
 INTENT_V_LOW        = 0.0 * CV.KPH_TO_MS   # 低速判定基準 (用於動態決定確認幀數)
 INTENT_V_HIGH       = 80.0 * CV.KPH_TO_MS  # 高速判定基準 (用於動態決定確認幀數)
-INTENT_FRAMES_LOW   = 5     # 低速起步所需的確認幀數 (極其靈敏，防卡油門，提昇至5幀防雷達雜訊)
+INTENT_FRAMES_LOW   = 1     # 低速起步所需的確認幀數 (極其靈敏)
 INTENT_FRAMES_HIGH  = 20    # 高速巡航所需的確認幀數 (防止高速風吹草動誤判)
 DEFAULT_T_FOLLOW    = 1.6   # 預設跟車秒數 (當無法讀取車機設定時的保底值)
 FILTER_ALPHA        = 0.2   # 雷達訊號 EMA 濾波權重 (20% 新資料，80% 舊資料，撫平跳動)
@@ -140,7 +140,7 @@ class AdaptiveCoastingModule:
             # 2.3 🚀 加速意圖掃描 (抓取起步與超車時機)
             recent_traj = a_desired_trajectory[:TRAJECTORY_HORIZON] # 截取未來 6 個原廠加速度軌跡點
             intent_v_ratio = np.clip((v_ego - INTENT_V_LOW) / (INTENT_V_HIGH - INTENT_V_LOW), 0.0, 1.0) # 計算車速所在比例
-            # 線性插值決定需要幾幀來確認意圖 (低速 5 幀極靈敏，高速 20 幀防誤判)
+            # 線性插值決定需要幾幀來確認意圖 (低速 1 幀極靈敏，高速 20 幀防誤判)
             dynamic_intent_frames = int(round(INTENT_FRAMES_LOW + intent_v_ratio * (INTENT_FRAMES_HIGH - INTENT_FRAMES_LOW)))
 
             # 判斷單幀強烈加速意圖：未來軌跡有多個點加速，且與前車速差正在拉開
