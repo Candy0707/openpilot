@@ -18,7 +18,7 @@ from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolve
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
-from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_module import AdaptiveCoastingModule
+from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_module import AdaptiveCoastingModule, EXIT_PERCENT, COAST_END_PERCENT, SAFE_DIST_PERCENT
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
@@ -174,7 +174,6 @@ class LongitudinalPlannerSP:
         idx = enum_value
         controller.write_to_msg(targets_list[idx])
 
-
     # AdaptiveCoastingModule (ACM) 資料寫入邏輯
     adaptiveCoastingModule = longitudinalPlanSP.adaptiveCoastingModule
     adaptiveCoastingModule.active = self.acm.active
@@ -185,11 +184,15 @@ class LongitudinalPlannerSP:
     adaptiveCoastingModule.targetDist = float(self.acm.targetDist)
     adaptiveCoastingModule.distPercent = float(self.acm.distPercent)
 
+    # 寫入動態邊界參數
+    adaptiveCoastingModule.exitPercent = float(EXIT_PERCENT)
+    adaptiveCoastingModule.coastEndPercent = float(COAST_END_PERCENT)
+    adaptiveCoastingModule.safeDistPercent = float(SAFE_DIST_PERCENT)
+
     # 寫入控制決策與極限值
     adaptiveCoastingModule.ttaLimitValue = float(self.acm.ttaLimitValue)
     adaptiveCoastingModule.mpcAccel = float(self.acm.mpcAccel)
     adaptiveCoastingModule.acmAccel = float(self.acm.acmAccel)
-
 
     # Dynamic Experimental Control
     dec = longitudinalPlanSP.dec

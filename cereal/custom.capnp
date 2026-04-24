@@ -221,30 +221,27 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
   }
 
   struct AdaptiveCoastingModule {
-      active @0 :Bool;          # ACM 是否正在介入修改軌跡
-      state @1 :State;           # 10 大精細狀態枚舉
+    active @0 :Bool;            # ACM 是否正在介入 (決定 UI 燈號)
+    state @1 :State;             # 3 大核心狀態
 
-      leadDist @2 :Float32;      # 前車實體距離 (m)
-      targetDist @3 :Float32;    # 100% 目標跟車距離 (m)
-      distPercent @4 :Float32;   # 當前距離百分比 (0.0 ~ 1.0+)
+    leadDist @2 :Float32;        # 前車實體距離 (m)
+    targetDist @3 :Float32;      # 100% 目標跟車距離 (m)
+    distPercent @4 :Float32;     # 當前距離百分比 (0.0 ~ 1.0+)
 
-      ttaLimitValue @5 :Float32; # 當前 TTA 算出的煞車極限值
-      mpcAccel @6 :Float32;     # 原廠 MPC 原始加速度
-      acmAccel @7 :Float32;     # ACM 介入後的加速度
+    exitPercent @5 :Float32;      # 進入範圍
+    coastEndPercent @6 :Float32;  # 滑行結束
+    safeDistPercent @7 :Float32; # 煞車結束
 
-      enum State {
-        noLead @0;               # 前方無車
-        fastExitSafe @1;         # 距離 > 100% 退出
-        fastExitAccel @2;        # 加速意圖退出
-        fastExitEmergency @3;    # 緊急防撞退出
-        fastExitTakeover @4;     # 75% 完美交接退出
-        hysteresisCoast @5;      # 100%~98% 遲滯區
-        pureCoasting @6;         # 98%~90% 純滑行區
-        shortMicroBrake @7;      # 90%~75% 短距防點頭 (<3m)
-        longTtaBrake @8;         # 90%~75% TTA 舒適微煞 (>=3m)
-        ttaFallback @9;          # <75% 拒絕交接保底
+    ttaLimitValue @8 :Float32;   # 當前 TTA 算出的微煞車力道
+    mpcAccel @9 :Float32;        # 原廠 MPC 原始加速度
+    acmAccel @10 :Float32;        # ACM 介入後的加速度
+
+    enum State {
+      disabled @0;               # ⚪ 關閉：不干涉區 (>100%、<40%、加速意圖、無車)
+      coasting @1;               # 🟢 滑行：純滑行區 (85% ~ 100%)
+      braking @2;                # 🔴 煞車：微煞車與壓制區 (40% ~ 85%)
+      }
     }
-  }
 
   enum AccelerationPersonality {
     sport @0;

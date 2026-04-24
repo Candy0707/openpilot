@@ -54,24 +54,24 @@ class ModelRendererSP(ModelRenderer):
     self._draw_acm_integrated_path(acm, sm)
 
   def _draw_acm_integrated_path(self, acm, sm):
-    # 1️⃣ 先繪製原廠基本的路徑背景
+    # 1️⃣ 先繪製原廠基本的路徑背景 (包含原本的信心彩虹色)
     super()._draw_path(sm)
 
     path_x = self._path.raw_points[:, 0]
     proj_pts = self._path.projected_points
 
-    # 🛑 防呆攔截：若無路徑資料、或目前處於無車狀態 (noLead)，則不繪製 ACM 特有的標記
-    # 備註：Cereal 讀取枚舉時會轉為字串
-    if path_x.size < 2 or proj_pts.size < 2 or acm.state == 'noLead':
+    # 🛑 防呆攔截：若無路徑資料、或目前處於無車狀態/關閉狀態 (disabled)，則不繪製 ACM 特有的標記
+    if path_x.size < 2 or proj_pts.size < 2 or acm.state == 'disabled':
       return
 
-    # 2️⃣ 基於新版 ACM 的固定百分比邊界計算物理距離
+    # 2️⃣ 動態讀取來自通訊協定 (Capnp) 的百分比邊界計算物理距離
     target_dist = acm.targetDist
-    exit_dist = target_dist * 1.00  # ⚪ 100% 退出線
-    coast_dist = target_dist * 0.98  # 🟢 98% 滑行啟動線
-    brake_dist = target_dist * 0.90  # 🟡 90% 微煞車起點
-    danger_dist = target_dist * 0.75  # 🔴 75% 危險交接線
-    lead_dist_actual = acm.leadDist
+    exit_dist = target_dist * acm.exitPercent  # ⚪ 動態讀取：通常為 1.00 (100% 退出線)
+    brake_dist = target_dist * acm.coastEndPercent  # 🟡 動態讀取：通常為 0.80 (80% 微煞車起點)
+    danger_dist = target_dist * acm.safeDistPercent  # 🔴 動態讀取：通常為 0.70 (70% 危險交接線)
+
+    # 🛡️ 原色保護區：交接線下方再扣除 10%
+    pre_danger_dist = target_dist * (acm.safeDistPercent - 0.10)
 
     # 3️⃣ 繪製路面彩虹地毯 (Gradient Veil)
     def get_stop_for_dist_idx(dist):
@@ -83,27 +83,34 @@ class ModelRendererSP(ModelRenderer):
       return np.clip(stop, 0.0, 1.0)
 
     s_exit = get_stop_for_dist_idx(exit_dist)
-    s_coast = get_stop_for_dist_idx(coast_dist)
     s_brake = get_stop_for_dist_idx(brake_dist)
     s_danger = get_stop_for_dist_idx(danger_dist)
+    s_pre_danger = get_stop_for_dist_idx(pre_danger_dist)
+
+    # 數學防呆，確保 stops 點嚴格遞增不破圖
+    s_pre_danger_end = min(s_pre_danger + 0.01, s_danger - 0.001)
+    s_exit_end = min(s_exit + 0.001, 1.0)
 
     # 定義各區間顏色
-    c_red = rl.Color(255, 60, 60, 100)  # 75% 以下：危險重煞區 (紅色)
-    c_orange = rl.Color(255, 150, 0, 100)  # 90%~75%：微煞車緩衝區 (橘色)
-    c_green = rl.Color(0, 255, 150, 100)  # 98%~90%：舒適滑行區 (綠色)
-    c_clear = rl.Color(0, 0, 0, 0)  # 100% 以上：透明不干涉區
+    c_red = rl.Color(255, 60, 60, 100)  # 交接區 (紅色)
+    c_orange = rl.Color(255, 150, 0, 100)  # 微煞車緩衝區 (橘色)
+    c_green = rl.Color(0, 255, 150, 100)  # 舒適滑行區 (綠色)
+    c_clear = rl.Color(0, 0, 0, 0)  # 透明區 / 原廠顏色保護區
 
-    # 依照距離遠近設置漸變色標 (Stops)
+    # 依照距離遠近設置漸變色標 (Stops) - 嚴格保持 8 個點
     stops = [
       0.0,
-      max(0.0, s_danger - 0.02),
-      s_danger,  # 自車到 75%：危險紅
-      s_brake,  # 75% 到 90%：微煞橘
-      s_coast,  # 90% 到 98%：滑行綠
-      s_exit,  # 98% 到 100%：轉向透明
+      s_pre_danger,  # 🛡️ 車頭到保護線：維持透明，保護原始軌跡顏色
+      s_pre_danger_end,  # 快速漸變銜接至危險紅
+      s_danger,  # 🔴 到達交接線：危險紅 (70%)
+      s_brake,  # 🟡 到達微煞線：微煞橘 (80%)
+      s_exit,  # 🟢 到達退出線：滑行綠 (100%) (80~100 區間直接填滿綠色過渡)
+      s_exit_end,  # 退出線後轉回透明
       1.0,
     ]
-    colors = [c_red, c_red, c_orange, c_orange, c_green, c_green, c_clear]
+
+    # 對應的漸層顏色陣列 - 嚴格保持 8 個顏色以防崩潰
+    colors = [c_clear, c_clear, c_red, c_red, c_orange, c_green, c_clear, c_clear]
 
     # 繪製路面漸變多邊形
     grad = Gradient(start=(0.0, 1.0), end=(0.0, 0.0), colors=colors, stops=stops)
@@ -124,11 +131,10 @@ class ModelRendererSP(ModelRenderer):
         rl.draw_text_ex(self._font_bold, label, rl.Vector2(pos.x + 1, pos.y + 1), 30, 0, rl.BLACK)
         rl.draw_text_ex(self._font_bold, label, pos, 30, 0, color)
 
-    # 依序畫出四條固定邊界界線
-    draw_mark(exit_dist, rl.Color(255, 255, 255, 150), 4, f"100% 退出：{exit_dist:.1f}m")
-    draw_mark(coast_dist, rl.Color(0, 255, 150, 200), 6, f"98% 滑行：{coast_dist:.1f}m")
-    draw_mark(brake_dist, rl.Color(255, 215, 0, 200), 8, f"90% 微煞：{brake_dist:.1f}m")
-    draw_mark(danger_dist, rl.Color(255, 60, 60, 220), 10, f"75% 交接：{danger_dist:.1f}m")
+    # 依序畫出所有動態邊界標記線
+    draw_mark(exit_dist, rl.Color(255, 255, 255, 150), 4, f"退出：{exit_dist:.1f}m")
+    draw_mark(brake_dist, rl.Color(255, 215, 0, 200), 8, f"微煞：{brake_dist:.1f}m")
+    draw_mark(danger_dist, rl.Color(255, 60, 60, 220), 10, f"交接：{danger_dist:.1f}m")
 
-    # 畫出前車當下的實體位置標記
-    draw_mark(lead_dist_actual, rl.Color(255, 255, 255, 255), 6, f"前車：{lead_dist_actual:.1f}m")
+    # 🛡️ 畫出額外要求的 10% 原色保護區邊界線
+    draw_mark(pre_danger_dist, rl.Color(200, 200, 200, 100), 2, f"{int((acm.safeDistPercent - 0.1) * 100)}% 邊界")
