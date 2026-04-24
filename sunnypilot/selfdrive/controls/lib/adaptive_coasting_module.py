@@ -121,6 +121,7 @@ class AdaptiveCoastingModule:
     # ==========================================
     bypass_acm = False  # 控制是否要將權限交還原廠 MPC 的最高旗標
     raw_a_calc = 0.0  # 預先初始化 TTA 煞車值
+    is_emergency = False # 緊急狀況旗標
 
     if self.has_lead_locked:
       self.leadDist = self.last_valid_d_rel
@@ -156,6 +157,11 @@ class AdaptiveCoastingModule:
         self.intent_accelerating = False
         self.accel_intent_counter = 0
 
+      # 💣 [緊急退出防線] TTC 防撞與軌跡重煞監控
+      # 當 TTC 過低或原廠預測軌跡中有任何點低於 -1.2 時，準備立刻退出交還 MPC
+      ttc_val = (self.leadDist / abs(self.last_valid_v_rel)) if self.last_valid_v_rel < -0.5 else 999.0
+      is_emergency = (ttc_val < (tf * 1.2)) or any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory)
+
       # 🧮 [計算 TTA 線性微煞車]
       # 計算距離跌破 70% 死亡線，還剩下多少真實的物理緩衝空間
       safe_buffer_dist = max(self.leadDist - (self.targetDist * SAFE_DIST_PERCENT), 0.0)
@@ -182,6 +188,8 @@ class AdaptiveCoastingModule:
         bypass_acm = True  # ⚪ 空間充裕，徹底休眠
       elif self.distPercent < SAFE_DIST_PERCENT:
         bypass_acm = True  # 🔴 跌破危險線，交還原廠處理重煞
+      elif is_emergency:
+        bypass_acm = True  # 💣 緊急狀況 (TTC過低或原廠重煞)，立刻讓權保命
       elif self.intent_accelerating:
         bypass_acm = True  # 🚀 偵測到起步或加速，放行原廠補油門
       elif brake_zone_length < MIN_BRAKE_ZONE_M:
