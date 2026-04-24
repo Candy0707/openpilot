@@ -223,8 +223,12 @@ class AdaptiveCoastingModule:
         elif SAFE_DIST_PERCENT <= self.distPercent < COAST_END_PERCENT:
           self.state = AcmState.braking
           # 套用算出的線性微煞車力道，並用 np.clip 嚴格限定在 -1.0 到 0.0 之間
-          self.ttaLimitValue = max(MIN_RECOVERY_ACCEL, min(raw_a_calc, MAX_RECOVERY_ACCEL))
-          a_target = self.ttaLimitValue
+          tta_constrained = max(MIN_RECOVERY_ACCEL, min(raw_a_calc, MAX_RECOVERY_ACCEL))
+          self.ttaLimitValue = tta_constrained
+
+          # 安全競爭機制：比較原廠 MPC 指令與 TTA 指令，取其小者 (煞車較重者)
+          # 這確保當原廠 MPC 判定需要更強煞車時，ACM 不會誤將其放軟
+          a_target = min(raw_mpc_a, self.ttaLimitValue)
 
       # 只要最終決定的加速度與原廠不同，就點亮介入燈號
       if a_target != raw_mpc_a:
