@@ -121,9 +121,19 @@ class VisualsLayout(Widget):
       inline=False
     )
 
+    self._radar_ui = multiple_button_item_sp(
+      title=lambda: tr("Radar Info UI"),
+      description=lambda: tr("Display Radar Points and Info."),
+      buttons=[lambda: tr("Off"), lambda: tr("Point"), lambda: tr("Info")],
+      param="RadarUIInfo",
+      button_width=350,
+      inline=False
+    )
+
     items = list(self._toggles.values()) + [
       self._chevron_info,
       self._dev_ui_info,
+      self._radar_ui,
     ]
     return items
 
