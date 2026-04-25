@@ -185,9 +185,9 @@ class LongitudinalPlannerSP:
     adaptiveCoastingModule.distPercent = float(self.acm.distPercent)
 
     # 寫入動態邊界參數
-    adaptiveCoastingModule.exitPercent = float(EXIT_PERCENT)
-    adaptiveCoastingModule.coastEndPercent = float(COAST_END_PERCENT)
-    adaptiveCoastingModule.safeDistPercent = float(SAFE_DIST_PERCENT)
+    adaptiveCoastingModule.exitPercent = float(self.acm.exitPercent)
+    adaptiveCoastingModule.coastEndPercent = float(self.acm.coastEndPercent)
+    adaptiveCoastingModule.safeDistPercent = float(self.acm.safeDistPercent)
 
     # 寫入控制決策與極限值
     adaptiveCoastingModule.ttaLimitValue = float(self.acm.ttaLimitValue)

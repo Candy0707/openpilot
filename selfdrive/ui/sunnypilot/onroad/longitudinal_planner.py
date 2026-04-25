@@ -21,11 +21,17 @@ class LongitudinalPlanRenderer(Widget):
     if sm.updated['longitudinalPlanSP']:
       plan = sm['longitudinalPlanSP']
 
-      # 取得 source 數值 (例如: plan.longitudinalPlanSource)
-      source_val = plan.longitudinalPlanSource
+      state_val = plan.adaptiveCoastingModule.state
+      leadDist = plan.adaptiveCoastingModule.leadDist
+      targetDist = plan.adaptiveCoastingModule.targetDist
+      distPercent = plan.adaptiveCoastingModule.distPercent
 
       # 使用我們定義的 Data 類別轉換
-      self.source_text = f"Source: {source_val}"
+      self.state_text = f"state: {state_val}"
+      self.leadDist_text = f"leadDist: {leadDist:.1f}"
+      self.targetDist_text = f"targetDist: {targetDist:.1f}"
+      self.distPercent_text = f"distPercent: {distPercent:.1f}"
+      self.source_text = f"{self.state_text} | {self.distPercent_text}"
 
   def _render(self, rect: rl.Rectangle) -> None:
     # 設定顯示位置（跟隨傳入的動態 rect 區塊）

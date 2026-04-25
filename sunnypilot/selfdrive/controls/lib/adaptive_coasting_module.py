@@ -44,6 +44,7 @@ TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差：保留微小的相對速�
 TTA_TIME_RATIO      = 0.8   # ⏳ 時間壓縮魔法：將時間壓縮為 0.8 倍，放軟初期煞車力道
 TTA_MULTIPLIER      = 1.2   # 🚀 力道放大魔法：放大基礎數學公式算出的力道，克服變速箱與車重慣性，使煞車更扎實
 MIN_BRAKE_ZONE_M    = 3.0   # 🧱 低速市區防線：(80%~70% 的物理長度) 若小於 3m，代表目前在低速市區，ACM 進入微煞區時直接退出
+MIN_TARGET_DIST_M   = 6.0   # 🛑 絕對距離防線：目標距離小於等於 6m 時，絕對不允許 ACM 啟動
 
 # --- 6. 動態滑行權重參數 (Lerp Blend) ---
 BLEND_V_MIN         = 0.0   # ⚖️ 動態權重下限：時速 0 m/s 時，ACM 滑行權重為 0% (完全依賴原廠 MPC)
@@ -82,6 +83,9 @@ class AdaptiveCoastingModule:
     self.ttaLimitValue = 0.0  # 算出的 TTA 微煞車力道 (供 UI 顯示除錯)
     self.mpcAccel = 0.0  # 原始原廠加速度指令
     self.acmAccel = 0.0  # 經過 ACM 介入或 EMA 濾波後的最終加速度指令
+    self.exitPercent = EXIT_PERCENT
+    self.coastEndPercent = COAST_END_PERCENT
+    self.safeDistPercent = SAFE_DIST_PERCENT
 
   def update(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float) -> list[float]:
     # 取出雷達資料與複製軌跡陣列
@@ -128,12 +132,13 @@ class AdaptiveCoastingModule:
     is_emergency = False # 緊急狀況旗標
     acm_weight = 0.0  # 動態滑行權重
 
+    # 🌟 修改點：將目標距離計算拉到全域！
+    # 不論前方有沒有車，永遠計算當下車速應該保有的安全比例尺，供 UI 繪製標線使用
+    tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
+    self.targetDist = max(v_ego * tf, STOP_DISTANCE)
+
     if self.has_lead_locked:
       self.leadDist = self.last_valid_d_rel
-      tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
-
-      # 確保靜止時 100% 安全線就是原廠的煞停距離，防止 0km/h 數學塌陷
-      self.targetDist = max(v_ego * tf, STOP_DISTANCE)
       # 回歸純粹的物理比例相除，確保距離跨越邊界時不會產生比例扭曲
       self.distPercent = self.leadDist / self.targetDist
 
@@ -194,7 +199,9 @@ class AdaptiveCoastingModule:
       brake_zone_length = self.targetDist * (COAST_END_PERCENT - SAFE_DIST_PERCENT)
 
       # 只要符合以下任一條件，全部導向 Bypass (將控制權平滑交還原廠 MPC)
-      if self.distPercent >= EXIT_PERCENT:
+      if self.targetDist <= MIN_TARGET_DIST_M:
+        bypass_acm = True  # 🛑 絕對距離防線：目標距離 <= 6m 時，禁止啟動 ACM
+      elif self.distPercent >= EXIT_PERCENT:
         bypass_acm = True  # ⚪ 空間充裕，徹底休眠
       elif self.distPercent < SAFE_DIST_PERCENT:
         bypass_acm = True  # 🔴 跌破危險線，交還原廠處理重煞
