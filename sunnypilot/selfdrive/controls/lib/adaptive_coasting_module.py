@@ -34,11 +34,7 @@ INTENT_FRAMES_HIGH  = 20    # 🛡️ 高速巡航幀數：高速時需連續 20
 FILTER_ALPHA        = 0.2   # 📡 雷達平滑係數：20% 新雷達數據 + 80% 歷史數據，有效撫平毫米波雷達的雜訊跳動
 LEAD_LOST_TICKS     = 5     # 🔒 丟失容忍度：雷達若瞬間沒看到車，容忍 5 幀 (約0.25秒) 內不解除有車狀態，防閃爍
 
-# --- 4. 平滑著陸 (EMA) 參數 ---
-EMA_ALPHA_ACCEL     = 0.4   # ☁️ 舒適過渡權重：當 ACM 退出交接給原廠 (放開煞車/踩油門) 時，使用 40% 低權重，確保扭力緩慢接合無頓挫
-EMA_ALPHA_DECEL     = 0.8   # 🛑 快速保命權重：當需要踩下煞車 (數值變小) 時，使用 80% 高權重，確保制動力迅速建立
-
-# --- 5. TTA 線性煞車魔法與物理基準 ---
+# --- 4. TTA 線性煞車魔法與物理基準 ---
 DEFAULT_T_FOLLOW    = 1.6   # ⏱️ 預設跟車秒數：當無法從系統讀取設定時的保底跟車時間
 TARGET_V_REL        = 0.6   # 🎯 TTA 目標速差：保留微小的相對速度差，讓煞車收尾能平滑貼近前車
 TTA_TIME_RATIO      = 0.8   # ⏳ 時間壓縮魔法：將時間壓縮為 0.8 倍，放軟初期煞車力道
@@ -46,15 +42,15 @@ TTA_MULTIPLIER      = 1.2   # 🚀 力道放大魔法：放大基礎數學公式
 MIN_BRAKE_ZONE_M    = 3.0   # 🧱 低速市區防線：(80%~70% 的物理長度) 若小於 3m，代表目前在低速市區，ACM 進入微煞區時直接退出
 MIN_TARGET_DIST_M   = 6.0   # 🛑 絕對距離防線：目標距離小於等於 6m 時，絕對不允許 ACM 啟動
 
-# --- 6. 動態滑行權重參數 (Lerp Blend) ---
-BLEND_V_MIN         = 0.0   # ⚖️ 動態權重下限：時速 0 m/s 時，ACM 滑行權重為 0% (完全依賴原廠 MPC)
+# --- 5. 動態滑行權重參數 (Lerp Blend) ---
+BLEND_V_MIN         = 6.0   # ⚖️ 動態權重下限：時速 6 m/s 時，ACM 滑行權重為 0% (完全依賴原廠 MPC)
 BLEND_V_MAX         = 20.0  # ⚖️ 動態權重上限：時速 20 m/s (72 km/h) 時，ACM 滑行權重為 100% (強制輸出 0.0)
 
 
 class AdaptiveCoastingModule:
   """
   自適應滑行管理模組 (ACM) - 中高速專武最終版
-  特色：三大純淨狀態、延遲 3m 低速實體防線、動態速度權重融合、無延遲加速意圖、線性舒適煞車、EMA 完美軟著陸
+  特色：三大純淨狀態、延遲 3m 低速實體防線、動態速度權重融合、無延遲加速意圖、線性舒適煞車、零延遲直通輸出
   """
 
   def __init__(self):
@@ -72,9 +68,6 @@ class AdaptiveCoastingModule:
     self.last_valid_d_rel = 0.0  # 備份最後有效的距離 (供雷達閃爍時盲算使用)
     self.last_valid_v_rel = 0.0  # 備份最後有效的速差 (供雷達閃爍時盲算使用)
 
-    # 動力平滑濾波記憶體
-    self.last_a_target_array = []  # 儲存上一幀算出的最終軌跡陣列，供這幀執行 EMA 軟著陸使用
-
     # 介面 (UI) 綁定變數
     self.state = AcmState.disabled  # 當前 ACM 核心狀態 (對應 capnp)
     self.leadDist = 0.0  # 當前真實前車距離 (公尺)
@@ -82,7 +75,7 @@ class AdaptiveCoastingModule:
     self.distPercent = 0.0  # 當前距離百分比 (用來驅動狀態機)
     self.ttaLimitValue = 0.0  # 算出的 TTA 微煞車力道 (供 UI 顯示除錯)
     self.mpcAccel = 0.0  # 原始原廠加速度指令
-    self.acmAccel = 0.0  # 經過 ACM 介入或 EMA 濾波後的最終加速度指令
+    self.acmAccel = 0.0  # 經過 ACM 介入後的最終加速度指令
     self.exitPercent = EXIT_PERCENT
     self.coastEndPercent = COAST_END_PERCENT
     self.safeDistPercent = SAFE_DIST_PERCENT
@@ -121,7 +114,7 @@ class AdaptiveCoastingModule:
         self.lead_lost_counter += 1
       # 滿 5 幀依然無車，才正式宣告前方淨空，清除所有狀態
       if self.lead_lost_counter >= LEAD_LOST_TICKS:
-        self.has_lead_locked, self.lead_status_prev, self.intent_accelerating = False, False, False
+        self.has_lead_locked, self.lead_status_prev, self.intent_accelerating = False, False
         self.accel_intent_counter = 0
 
     # ==========================================
@@ -188,7 +181,7 @@ class AdaptiveCoastingModule:
       raw_a_calc = base_a_calc * TTA_MULTIPLIER
 
       # ⚖️ [計算滑行動態權重 (Lerp Blend)]
-      # 時速 0m/s = 0.0 (100% MPC), 時速 >= 20m/s = 1.0 (100% ACM 0.0滑行)
+      # 時速 <= 6m/s = 0.0 (100% MPC), 時速 >= 20m/s = 1.0 (100% ACM 0.0滑行)
       acm_weight = np.clip((v_ego - BLEND_V_MIN) / (BLEND_V_MAX - BLEND_V_MIN), 0.0, 1.0)
 
     # 🌟 [ACM 實體防線與退出總結]
@@ -219,12 +212,8 @@ class AdaptiveCoastingModule:
           bypass_acm = True  # 處於遲滯區，且原本沒啟動，則繼續保持退出
 
     # ==========================================
-    # 🎨 步驟 3：統一軌跡修飾與 EMA 軟著陸濾波
+    # 🎨 步驟 3：統一軌跡修飾 (已移除 EMA 濾波器)
     # ==========================================
-    init_history = not self.last_a_target_array or len(self.last_a_target_array) != len(result)
-    if init_history:
-      self.last_a_target_array = [0.0] * len(result)  # 防呆：初始化全零歷史陣列
-
     action_triggered = False
 
     # 對未來預測軌跡逐點執行邏輯修飾
@@ -264,16 +253,7 @@ class AdaptiveCoastingModule:
       # 🛡️ 終極硬體防護：用 numpy clip 將數值限制在車輛硬體能承受的極限範圍內
       a_target = np.clip(a_target, ACCEL_MIN, ACCEL_MAX)
 
-      # 🌊 非對稱 EMA 軟著陸濾波
-      # 確保不管是 Bypass 交接或是 ACM 介入，動力的切換都經過平滑處理，完全消滅頓挫感
-      if not init_history:
-        # 想加速或放開煞車用慢速過渡 (0.4)；想踩下煞車用快速反應 (0.8)
-        alpha = EMA_ALPHA_ACCEL if a_target > self.last_a_target_array[i] else EMA_ALPHA_DECEL
-        # 將這一個迴圈的目標值與上一幀的歷史值進行指數移動平均融合
-        a_target = (alpha * a_target) + ((1.0 - alpha) * self.last_a_target_array[i])
-
-      # 將結果寫回陣列並備份歷史
-      self.last_a_target_array[i] = a_target
+      # 直接將結果寫回陣列 (零延遲輸出)
       result[i] = a_target
 
       # 將第一點的最終結果供 UI 介面讀取
