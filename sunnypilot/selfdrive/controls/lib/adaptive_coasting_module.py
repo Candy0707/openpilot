@@ -1,7 +1,7 @@
 import numpy as np
 from cereal import messaging, custom
 from openpilot.common.constants import CV
-from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
+from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE, COMFORT_BRAKE, get_safe_obstacle_distance
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
 
 # 🟢 綁定 custom.capnp 3 大核心狀態
@@ -125,10 +125,11 @@ class AdaptiveCoastingModule:
     is_emergency = False # 緊急狀況旗標
     acm_weight = 0.0  # 動態滑行權重
 
-    # 🌟 修改點：將目標距離計算拉到全域！
-    # 不論前方有沒有車，永遠計算當下車速應該保有的安全比例尺，供 UI 繪製標線使用
+    # 修改點：將目標距離計算完全同步為 MPC 的 get_safe_obstacle_distance 公式！
+    # 這樣 UI 的 100% 標線就會完美貼齊原廠平時巡航的真實跟車距離！
     tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
-    self.targetDist = max(v_ego * tf, STOP_DISTANCE)
+    mpc_desired_dist = get_safe_obstacle_distance(v_ego, tf)
+    self.targetDist = max(mpc_desired_dist, MIN_TARGET_DIST_M)
 
     if self.has_lead_locked:
       self.leadDist = self.last_valid_d_rel
