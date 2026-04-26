@@ -30,7 +30,7 @@ class LongitudinalPlanRenderer(Widget):
       self.state_text = f"state: {state_val}"
       self.leadDist_text = f"leadDist: {leadDist:.1f}"
       self.targetDist_text = f"targetDist: {targetDist:.1f}"
-      self.distPercent_text = f"distPercent: {distPercent:.1f}"
+      self.distPercent_text = f"distPercent: {distPercent:.2f}"
       self.source_text = f"{self.state_text} | {self.distPercent_text}"
 
   def _render(self, rect: rl.Rectangle) -> None:
