@@ -114,7 +114,7 @@ class AdaptiveCoastingModule:
         self.lead_lost_counter += 1
       # 滿 5 幀依然無車，才正式宣告前方淨空，清除所有狀態
       if self.lead_lost_counter >= LEAD_LOST_TICKS:
-        self.has_lead_locked, self.lead_status_prev, self.intent_accelerating = False, False
+        self.has_lead_locked, self.lead_status_prev, self.intent_accelerating = False, False, False
         self.accel_intent_counter = 0
 
     # ==========================================
@@ -265,3 +265,4 @@ class AdaptiveCoastingModule:
     self.active = action_triggered if not bypass_acm else False
 
     return result
+
