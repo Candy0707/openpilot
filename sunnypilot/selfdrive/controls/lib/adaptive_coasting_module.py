@@ -283,6 +283,6 @@ class AdaptiveCoastingModule:
     self.active = action_triggered if not bypass_acm else False
 
     # 先使用原生數據，等數值確定正確後，在移除
-    result = list(a_desired_trajectory)
+    # result = list(a_desired_trajectory)
 
     return result
