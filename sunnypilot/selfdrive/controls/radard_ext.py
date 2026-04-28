@@ -11,12 +11,14 @@ from openpilot.selfdrive.controls.radard import (
     KalmanParams, Track, RadarD, match_vision_to_track,
     get_RadarState_from_vision, get_custom_yrel, RADAR_TO_CAMERA
 )
+# 3. 引入 cloudlog 用於記錄我們自訂的鎖定事件
+from openpilot.common.swaglog import cloudlog
 
 # ==============================================================================
 # 提早鎖定 (Early Lock) 擴充模組參數設定
 # ==============================================================================
 MATCH_D_REL_THRES = 1.5   # 縱向距離允許誤差 (公尺)
-MATCH_Y_REL_THRES = 0.5   # 橫向距離允許誤差 (公尺)
+MATCH_Y_REL_THRES = 1.0   # 橫向距離允許誤差 (公尺)
 MATCH_V_REL_THRES = 1.0   # 相對速度允許誤差 (m/s)
 STRICT_MATCH_FRAMES = 20  # 連續滿足條件的所需幀數 (以 20Hz 計約 1 秒)
 PROB_THRES_REDUCED = 0.3  # 雷達嚴格驗證通過後的放寬視覺信心度門檻
@@ -69,7 +71,6 @@ def get_lead_ext(v_ego: float, ready: bool, tracks: dict[int, TrackSP], lead_msg
 
   # ========================================================================
   # 下方為原廠 get_lead 判斷邏輯的完美移植，僅將硬編碼的 0.5 替換為 current_prob_thres
-  # 如此便可完全保留原廠的防護與決策機制
   # ========================================================================
 
   # Determine leads, this is where the essential logic happens
@@ -82,6 +83,16 @@ def get_lead_ext(v_ego: float, ready: bool, tracks: dict[int, TrackSP], lead_msg
   if track is not None:
     lead_dict = track.get_RadarState(lead_msg.prob)
     lead_dict = get_custom_yrel(CP, CP_SP, lead_dict, lead_msg)
+
+    # ==============================================================================
+    # 【新增 LOG】：記錄由我們邏輯觸發的提早鎖定
+    # 條件：雷達連勝達標 (has_confident_radar) 且 視覺信心度在 0.3 ~ 0.5 之間
+    # 這代表原廠邏輯原本會漏掉它，是我們把它救回來的！
+    # ==============================================================================
+    if has_confident_radar and (0.5 >= lead_msg.prob > PROB_THRES_REDUCED):
+      cloudlog.debug(f"[RadarDSP_EarlyLock] 觸發提早鎖定！目標 {lead_idx} | "
+                       f"視覺信心度: {lead_msg.prob:.2f} | 已連續 {STRICT_MATCH_FRAMES} 幀精準重合")
+
   elif (track is None) and ready and (lead_msg.prob > current_prob_thres):
     lead_dict = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego)
 
