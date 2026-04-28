@@ -3,7 +3,7 @@ from cereal import messaging, custom
 from openpilot.common.constants import CV
 
 # 🌟 直接匯入 MPC 原廠核心公式、變數與前車動能緩衝函數，確保距離計算 100% 同步
-from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import get_safe_obstacle_distance, get_stopped_equivalence_factor
+from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE, get_safe_obstacle_distance, get_stopped_equivalence_factor
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
 
 # 🟢 綁定 custom.capnp 3 大核心狀態
@@ -42,7 +42,6 @@ TARGET_V_REL = 0.6  # 🎯 TTA 目標速差：保留微小的相對速度差，�
 TTA_TIME_RATIO = 0.8  # ⏳ 時間壓縮魔法：將時間壓縮為 0.8 倍，放軟初期煞車力道
 TTA_MULTIPLIER = 1.2  # 🚀 力道放大魔法：放大基礎數學公式算出的力道，克服變速箱與車重慣性，使煞車更扎實
 MIN_BRAKE_ZONE_M = 3.0  # 🧱 低速市區防線：(80%~70% 的物理長度) 若小於 3m，代表目前在低速市區，ACM 進入微煞區時直接退出
-MIN_TARGET_DIST_M = 6.0  # 🛑 絕對距離防線：目標距離小於等於 6m 時，絕對不允許 ACM 啟動
 
 # --- 5. 動態滑行權重參數 (Lerp Blend) ---
 BLEND_V_MIN = 6.0  # ⚖️ 動態權重下限：時速 6 m/s 時，ACM 滑行權重為 0% (完全依賴原廠 MPC)
@@ -147,7 +146,7 @@ class AdaptiveCoastingModule:
       mpc_desired_dist = get_safe_obstacle_distance(v_ego, tf)
 
     # 確保最終目標距離不低於我們設定的 6m 絕對防線 (供 UI 繪製與後續除法使用)
-    self.targetDist = max(mpc_desired_dist, MIN_TARGET_DIST_M)
+    self.targetDist = max(mpc_desired_dist, STOP_DISTANCE)
 
     if self.has_lead_locked:
       self.leadDist = self.last_valid_d_rel
@@ -211,7 +210,7 @@ class AdaptiveCoastingModule:
       brake_zone_length = self.targetDist * (COAST_END_PERCENT - SAFE_DIST_PERCENT)
 
       # 只要符合以下任一條件，全部導向 Bypass (將控制權平滑交還原廠 MPC)
-      if self.targetDist <= MIN_TARGET_DIST_M:
+      if self.targetDist <= STOP_DISTANCE:
         bypass_acm = True  # 🛑 絕對距離防線：目標距離 <= 6m 時，禁止啟動 ACM
       elif self.distPercent >= EXIT_PERCENT:
         bypass_acm = True  # ⚪ 空間充裕，徹底休眠
