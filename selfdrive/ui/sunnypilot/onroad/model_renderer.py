@@ -46,96 +46,117 @@ class ModelRendererSP(ModelRenderer):
     if not self._path.projected_points.size:
       return
 
-    # 直接讀取 SubMaster
+    # 從 SubMaster 讀取縱向規劃資料
     lp_sp = sm["longitudinalPlanSP"]
     acm = lp_sp.adaptiveCoastingModule
 
+    # 執行 ACM 整合軌跡繪製
     self._draw_acm_integrated_path(acm, sm)
 
   def _draw_acm_integrated_path(self, acm, sm):
-    # 1️⃣ 先打底：畫出完整的原廠軌跡
+    # 1️⃣ 先繪製原廠基本的路徑背景 (包含原本的信心彩虹色)
     super()._draw_path(sm)
 
-    # 取得原始路徑的距離數據 (x 軸) 用於查找索引
     path_x = self._path.raw_points[:, 0]
     proj_pts = self._path.projected_points
 
+    # 🛑 防呆攔截：若無路徑資料，直接退出 (移除 acm.state == 'disabled'，確保隨時顯示)
     if path_x.size < 2 or proj_pts.size < 2:
       return
 
+    # 取得 Openpilot 物理路徑的視界極限 (防止線段疊加在畫面盡頭閃爍)
+    max_path_x = path_x[-1] - 0.5
+
+    # 2️⃣ 動態讀取來自通訊協定 (Capnp) 的百分比邊界計算物理距離
     target_dist = acm.targetDist
-    safety_dist = target_dist * acm.dynamicSafety
-    danger_dist = target_dist * acm.dynamicDanger
-    exit_dist = target_dist * acm.stockControl
-    lead_dist = target_dist * acm.leadDist
-    has_lead = acm.state >= 2
 
-    # --- 輔助函式：畫標記線與【右側邊緣釘死】文字 ---
-    def draw_mark(dist, color, thickness, label):
-      idx = np.searchsorted(path_x, dist)
-      idx = np.clip(idx, 0, len(proj_pts) // 2 - 1)
+    # 防止剛啟動或異常時 target_dist 為 0 造成畫面崩潰
+    if target_dist < 0.1:
+      return
 
-      # 拿取左右對應頂點
-      p_l = proj_pts[idx]
-      p_r = proj_pts[len(proj_pts) - 1 - idx]
+    exit_dist = target_dist * acm.exitPercent  # ⚪ 動態讀取：通常為 1.00 (100% 退出線)
+    brake_dist = target_dist * acm.coastEndPercent  # 🟡 動態讀取：通常為 0.80 (80% 微煞車起點)
+    danger_dist = target_dist * acm.safeDistPercent  # 🔴 動態讀取：通常為 0.70 (70% 危險交接線)
 
-      v_l = rl.Vector2(p_l[0], p_l[1])
-      v_r = rl.Vector2(p_r[0], p_r[1])
+    # 🛡️ 原色保護區：交接線下方再扣除 10%
+    pre_danger_dist = target_dist * 0.10
 
-      # 🟢 修復：直接使用傳入的 color，不再去呼叫報錯的 color.r
-      rl.draw_line_ex(v_l, v_r, thickness, color)
-
-      if label:
-        sz = measure_text_cached(self._font_bold, label, 30, 0)
-        # 文字釘死在右頂點 (v_r)，加上偏移 (x+8) 確保不重疊
-        text_pos = rl.Vector2(v_r.x + 8, v_r.y - sz.y / 2)
-
-        # 畫文字底色陰影提高閱讀性
-        rl.draw_text_ex(self._font_bold, label, rl.Vector2(text_pos.x + 1, text_pos.y + 1), 30, 0, rl.BLACK)
-        rl.draw_text_ex(self._font_bold, label, text_pos, 30, 0, color)
-
-    # 2️⃣ 繪製漸變面紗 (包含 5 段區間著色)
+    # 3️⃣ 繪製路面連續漸變霓虹地毯 (Continuous Blend)
     def get_stop_for_dist_idx(dist):
       idx = np.searchsorted(path_x, dist)
       idx = np.clip(idx, 0, len(proj_pts) // 2 - 1)
       track_y = proj_pts[idx][1]
+      # 計算畫面上相對應的 Y 軸停靠點百分比
       stop = 1.0 - (track_y - self._rect.y) / self._rect.height
-      return np.clip(stop, 0.0, 1.0)
+      return float(np.clip(stop, 0.0, 1.0))
 
-    s_exit = get_stop_for_dist_idx(exit_dist)
-    s_danger = get_stop_for_dist_idx(danger_dist)
-    s_safety = get_stop_for_dist_idx(safety_dist)
-    s_target = get_stop_for_dist_idx(target_dist)
+    raw_s_pre = get_stop_for_dist_idx(pre_danger_dist)
+    raw_s_danger = get_stop_for_dist_idx(danger_dist)
+    raw_s_brake = get_stop_for_dist_idx(brake_dist)
+    raw_s_exit = get_stop_for_dist_idx(exit_dist)
 
-    # 顏色配置
-    c_red = rl.Color(255, 60, 60, 100)
-    c_yellow = rl.Color(255, 215, 0, 100)
-    c_green = rl.Color(0, 255, 150, 100)
-    c_clear = rl.Color(0, 0, 0, 0)  # 乾淨透明 (露出原廠)
+    # 🛠️ 絕對防崩潰 8-Stop 推擠演算法
+    # 嚴格保持單調遞增，徹底解決 OpenGL 漸層蒸發與閃爍的問題！
+    s_pre = max(0.0, raw_s_pre)
+    s_danger = max(s_pre + 0.001, raw_s_danger)
+    s_brake = max(s_danger + 0.001, raw_s_brake)
+    s_exit = max(s_brake + 0.001, raw_s_exit)
 
+    # 若超出畫面邊界 (1.0)，則由後往前強壓回來
+    if s_exit > 0.995:
+      s_exit = 0.995
+      s_brake = min(s_brake, s_exit - 0.001)
+      s_danger = min(s_danger, s_brake - 0.001)
+      s_pre = min(s_pre, s_danger - 0.001)
+
+    s_exit_end = s_exit + 0.002
+
+    # 定義各標線的核心顏色 (降低透明度，讓 GPU 自動融合出柔和過渡)
+    c_red = rl.Color(255, 60, 60, 150)  # 交接區 (紅色)
+    c_orange = rl.Color(255, 150, 0, 150)  # 微煞車緩衝區 (橘色)
+    c_green = rl.Color(0, 255, 150, 150)  # 舒適滑行區 (綠色)
+    c_clear = rl.Color(0, 0, 0, 0)  # 透明區 / 原廠顏色保護區
+
+    # 依照距離遠近設置漸變色標 (Stops) - 嚴格保持 8 個點
+    # 💡 重大改變：不再設定「突兀切換」，直接將顏色綁定在防線上，讓 GPU 在區間內平滑漸變
     stops = [
       0.0,
-      max(0.0, s_exit - 0.05),
-      s_exit,  # 自車 -> 退出區間：透明 -> 紅色
-      s_danger - 0.03,
-      s_danger,  # 退出區間 -> 煞車區間：紅色 -> 黃色
-      s_safety - 0.03,
-      s_safety,  # 煞車區間 -> 滑行區間：黃色 -> 綠色
-      s_target,
-      min(1.0, s_target + 0.1),  # 滑行區間 -> 目標距離：綠色 -> 透明
+      s_pre,  # 🛡️ 60% 保護線 (透明)
+      s_danger,  # 🔴 70% 交接線 (紅色) -> GPU 自動渲染: 透明 平滑過渡至 紅色
+      s_brake,  # 🟡 80% 微煞線 (橘色) -> GPU 自動渲染: 紅色 平滑過渡至 橘色
+      s_exit,  # 🟢 100% 退出線 (綠色) -> GPU 自動渲染: 橘色 平滑過渡至 綠色
+      s_exit_end,  # 退出線後轉回透明
+      0.999,
       1.0,
     ]
-    colors = [c_clear, c_clear, c_red, c_red, c_yellow, c_yellow, c_green, c_green, c_clear, c_clear]
 
+    # 對應的漸層顏色陣列 - 嚴格保持 8 個顏色以防崩潰
+    colors = [c_clear, c_clear, c_red, c_orange, c_green, c_clear, c_clear, c_clear]
+
+    # 繪製路面漸變多邊形
     grad = Gradient(start=(0.0, 1.0), end=(0.0, 0.0), colors=colors, stops=stops)
     draw_polygon(self._rect, self._path.projected_points, gradient=grad)
 
-    # 3️⃣ 繪製 5 條【右側釘死】的實體標記線與文字
-    # 傳入的顏色我都調成 200 或 220 左右的 Alpha 值，讓線條稍微有點半透明不刺眼
-    draw_mark(exit_dist, rl.Color(255, 60, 60, 200), 10, f"{tr('exit_dist')}：{exit_dist:.1f}m")
-    draw_mark(danger_dist, rl.Color(255, 150, 0, 200), 8, f"{tr('safety_dist')}：{danger_dist:.1f}m")
-    draw_mark(safety_dist, rl.Color(255, 215, 0, 200), 6, f"{tr('danger_dist')}：{safety_dist:.1f}m")
-    draw_mark(target_dist, rl.Color(0, 255, 150, 200), 5, f"{tr('target_dist')}：{target_dist:.1f}m")
+    # 4️⃣ 繪製實體標記線與距離文字 (釘死在路徑右側)
+    def draw_mark(dist, color, thickness, label):
+      # 🛡️ 超視距隱藏防護：若線段遠於畫面極限，直接不畫，防止擠在天平線上閃爍
+      if dist > max_path_x:
+        return
 
-    if has_lead:
-      draw_mark(lead_dist, rl.Color(255, 255, 255, 220), 6, f"{tr('leadDist')}：{lead_dist:.1f}m")
+      idx = np.searchsorted(path_x, dist)
+      idx = np.clip(idx, 0, len(proj_pts) // 2 - 1)
+      # 取得路徑左右兩側的投影點
+      p_l, p_r = proj_pts[idx], proj_pts[len(proj_pts) - 1 - idx]
+      # 畫出橫跨軌跡的橫線
+      rl.draw_line_ex(rl.Vector2(p_l[0], p_l[1]), rl.Vector2(p_r[0], p_r[1]), thickness, color)
+      if label:
+        sz = measure_text_cached(self._font_bold, label, 30, 0)
+        pos = rl.Vector2(p_r[0] + 8, p_r[1] - sz.y / 2)
+        # 繪製文字陰影增強可讀性
+        rl.draw_text_ex(self._font_bold, label, rl.Vector2(pos.x + 1, pos.y + 1), 30, 0, rl.BLACK)
+        rl.draw_text_ex(self._font_bold, label, pos, 30, 0, color)
+
+    # 依序畫出所有動態邊界標記線
+    draw_mark(exit_dist, rl.Color(255, 255, 255, 150), 4, f"退出：{exit_dist:.1f}m")
+    draw_mark(brake_dist, rl.Color(255, 215, 0, 200), 8, f"微煞：{brake_dist:.1f}m")
+    draw_mark(danger_dist, rl.Color(255, 60, 60, 220), 10, f"交接：{danger_dist:.1f}m")

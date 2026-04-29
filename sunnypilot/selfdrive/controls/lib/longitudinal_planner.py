@@ -18,7 +18,7 @@ from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolve
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
-from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_module import AdaptiveCoastingModule
+from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_module import AdaptiveCoastingModule, EXIT_PERCENT, COAST_END_PERCENT, SAFE_DIST_PERCENT
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
@@ -174,28 +174,25 @@ class LongitudinalPlannerSP:
         idx = enum_value
         controller.write_to_msg(targets_list[idx])
 
-    # AdaptiveCoastingModule
+    # AdaptiveCoastingModule (ACM) 資料寫入邏輯
     adaptiveCoastingModule = longitudinalPlanSP.adaptiveCoastingModule
     adaptiveCoastingModule.active = self.acm.active
     adaptiveCoastingModule.state = self.acm.state
 
+    # 寫入物理距離資料 (轉為 float 確保通訊格式正確)
     adaptiveCoastingModule.leadDist = float(self.acm.leadDist)
     adaptiveCoastingModule.targetDist = float(self.acm.targetDist)
-    adaptiveCoastingModule.dynamicSafety = float(self.acm.dynamicSafety)
-    adaptiveCoastingModule.dynamicDanger = float(self.acm.dynamicDanger)
-    adaptiveCoastingModule.stockControl = float(self.acm.stockControl)
-
     adaptiveCoastingModule.distPercent = float(self.acm.distPercent)
 
-    adaptiveCoastingModule.ttaAccelValue = float(self.acm.ttaAccelValue)
-    adaptiveCoastingModule.ttaLimitValue = float(self.acm.ttaLimitValue)
-    adaptiveCoastingModule.speedRatio = float(self.acm.speedRatio)
-    adaptiveCoastingModule.fadeFactor = float(self.acm.fadeFactor)
-    adaptiveCoastingModule.mpcBlendRatio = float(self.acm.mpcBlendRatio)
+    # 寫入動態邊界參數
+    adaptiveCoastingModule.exitPercent = float(self.acm.exitPercent)
+    adaptiveCoastingModule.coastEndPercent = float(self.acm.coastEndPercent)
+    adaptiveCoastingModule.safeDistPercent = float(self.acm.safeDistPercent)
 
+    # 寫入控制決策與極限值
+    adaptiveCoastingModule.ttaLimitValue = float(self.acm.ttaLimitValue)
     adaptiveCoastingModule.mpcAccel = float(self.acm.mpcAccel)
     adaptiveCoastingModule.acmAccel = float(self.acm.acmAccel)
-
 
     # Dynamic Experimental Control
     dec = longitudinalPlanSP.dec

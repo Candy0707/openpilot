@@ -1,349 +1,287 @@
 import numpy as np
 from cereal import messaging, custom
-from openpilot.common.swaglog import cloudlog
-from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE
-
 from openpilot.common.constants import CV
+
+# 🌟 直接匯入 MPC 原廠核心公式、變數與前車動能緩衝函數，確保距離計算 100% 同步
+from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE, get_safe_obstacle_distance, get_stopped_equivalence_factor
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
+
+# 🟢 綁定 custom.capnp 3 大核心狀態
+# (0: disabled 關閉, 1: coasting 滑行, 2: braking 煞車)
+AcmState = custom.LongitudinalPlanSP.AdaptiveCoastingModule.State
 
 # ==========================================
 # ⚙️ 全域變數定義區 (Global Configurations)
 # ==========================================
 
-# 1. 狀態機與邊界基準 (百分比)
-COAST_START_PCT = 0.95      # 🟢 滑行起點 (95%)
-DANGER_PCT      = 0.75      # 🔴 煞車終點 / MPC 交接點 (75%)
-EXIT_PERCENT    = 1.00      # ⚪ 退出點 (100%)
+# --- 1. 距離與狀態機閾值 (百分比) ---
+EXIT_PERCENT = 1.00  # ⚪ 退出點：當實體距離大於目標距離 100% 時，空間極度充裕，徹底休眠不干涉
+COAST_START_PERCENT = 0.98  # 🟢 進入點：距離小於 98% 時，ACM 開始作動，進入純滑行狀態
+COAST_END_PERCENT = 0.80  # 🟡 警戒線：距離小於 80% 時，結束純滑行，開始套用 TTA 線性微煞車
+SAFE_DIST_PERCENT = 0.70  # 🔴 交接線：跌破 70% 代表微煞車失敗或前車急煞，立刻交還控制權給 MPC
 
-# 2. 車速與動態邊界線性插值參數
-V_LOW  = 20.0 * CV.KPH_TO_MS  # 🚗 低速判定基準 (20 km/h)
-V_HIGH = 80.0 * CV.KPH_TO_MS  # 🏎️ 高速判定基準 (80 km/h)
+# --- 2. 加速度動作極限變數 (m/s²) ---
+COAST_MAX_BRAKE = -0.4  # 🌊 滑行極限：無車狀態下，強制抹平原廠 0.0 到 -0.4 之間的神經質微煞車
+MIN_RECOVERY_ACCEL = -1.0  # 🛡️ 煞車極限：TTA 算出的微煞車力道，最重不允許超過 -1.0，確保不會有點頭頓挫
+MAX_RECOVERY_ACCEL = 0.0  # 🐢 加速極限：微煞車區間內，最高加速度鎖死在 0.0，絕對不允許系統補油門
+MPC_FALLBACK_ACCEL = -1.2  # 💣 緊急交接線：掃描未來軌跡時，若發現原廠將給出小於 -1.2 的重煞，立刻退出保命
 
-SAFETY_PCT_LOW  = 0.75        # 低速時滑行線 (75%) -> 75%~95% 全滑行，無微煞車區
-SAFETY_PCT_HIGH = 0.80        # 高速時滑行線 (80%) -> 80%~95% 滑行，75%~80% 微煞車
-MIN_BRAKE_ZONE_M = 3.0        # 📏 舒適煞車物理底線 (滑行線 - 煞車線 > 3 公尺)
+# --- 3. 意圖預測與訊號濾波參數 ---
+TRAJECTORY_HORIZON = 6  # 🔭 未來預判：掃描原廠 MPC 未來 6 個軌跡點 (約涵蓋未來 0.6 秒的預測)
+INTENT_LOOKAHEAD = 3  # 🧠 意圖確認：在 6 個軌跡點中，只要有 3 個點具備加速特徵，即觸發意圖
+INTENT_V_LOW = 0.0  # 📏 意圖濾波下限：時速  0 m/s 時 (用於動態決定確認幀數)
+INTENT_V_HIGH = 20.0  # 📏 意圖濾波上限：時速 20 m/s (72 km/h) 時 (用於動態決定確認幀數)
+INTENT_FRAMES_LOW = 1  # ⚡ 低速起步幀數：靜止或低速時，只需 1 幀即可確認前車起步，追求極致敏捷與零延遲
+INTENT_FRAMES_HIGH = 20  # 🛡️ 高速巡航幀數：高速時需連續 20 幀才確認加速意圖，防止風吹草動造成誤判放行
+FILTER_ALPHA = 0.2  # 📡 雷達平滑係數：20% 新雷達數據 + 80% 歷史數據，有效撫平毫米波雷達的雜訊跳動
+LEAD_LOST_TICKS = 5  # 🔒 丟失容忍度：雷達若瞬間沒看到車，容忍 5 幀 (約0.25秒) 內不解除有車狀態，防閃爍
 
-# 3. 加速度與 TTA 極限參數
-MIN_RECOVERY_ACCEL  = ACCEL_MIN  # 煞車極限
-MAX_RECOVERY_ACCEL  =  0.0       # 加速極限
-MPC_FALLBACK_ACCEL  = -1.2       # 緊急重煞交接閾值
-TARGET_V_REL        =  0.6       # 🎯 TTA 目標速差 (保留微小速差，滑順收尾)
-TTA_MULTIPLIER      =  1.2       # 🚀 TTA 力道放大器
-FADE_SPAN_RATIO     =  0.5       # 平滑過渡比例 (前 50% 漸進介入)
+# --- 4. TTA 線性煞車魔法與物理基準 ---
+DEFAULT_T_FOLLOW = 1.6  # ⏱️ 預設跟車秒數：當無法從系統讀取設定時的保底跟車時間
+TARGET_V_REL = 0.6  # 🎯 TTA 目標速差：保留微小的相對速度差，讓煞車收尾能平滑貼近前車
+TTA_TIME_RATIO = 0.8  # ⏳ 時間壓縮魔法：將時間壓縮為 0.8 倍，放軟初期煞車力道
+TTA_MULTIPLIER = 1.2  # 🚀 力道放大魔法：放大基礎數學公式算出的力道，克服變速箱與車重慣性，使煞車更扎實
+MIN_BRAKE_ZONE_M = 3.0  # 🧱 低速市區防線：(80%~70% 的物理長度) 若小於 3m，代表目前在低速市區，ACM 進入微煞區時直接退出
 
-# 4. 意圖預測與訊號濾波參數
-TRAJECTORY_HORIZON  = 6
-INTENT_LOOKAHEAD    = 3
-INTENT_V_LOW        =  0.0 * CV.KPH_TO_MS # 🛑 意圖判定低速錨點 (補回)
-INTENT_V_HIGH       = 80.0 * CV.KPH_TO_MS # 🚄 意圖判定高速錨點 (補回)
-INTENT_FRAMES_LOW   = 1
-INTENT_FRAMES_HIGH  = 20
-DEFAULT_T_FOLLOW    = 1.6
-FILTER_ALPHA        = 0.2
-LEAD_LOST_TICKS     = 5
-EMA_ALPHA_ACCEL     = 0.4
-EMA_ALPHA_DECEL     = 0.8
-
-# 5. 車速動態打折參數 (Gain Scheduling)
-DISCOUNT_V_ARR      = [0.0, 80.0]
-DISCOUNT_RATIO_ARR  = [0.0, 1.0]
-
-ACM_DEBUG = True
-
-# 🟢 直接對接 custom.capnp 中定義的 Enum
-AcmState = custom.LongitudinalPlanSP.AdaptiveCoastingModule.State
+# --- 5. 動態滑行權重參數 (Lerp Blend) ---
+BLEND_V_MIN = 6.0  # ⚖️ 動態權重下限：時速 6 m/s 時，ACM 滑行權重為 0% (完全依賴原廠 MPC)
+BLEND_V_MAX = 20.0  # ⚖️ 動態權重上限：時速 20 m/s (72 km/h) 時，ACM 滑行權重為 100% (強制輸出 0.0)
 
 
 class AdaptiveCoastingModule:
-    """
-    自適應滑行管理模組 (ACM) - TTA 舒適煞車與解耦狀態機版
-    """
-    def __init__(self):
+  """
+  自適應滑行管理模組 (ACM) - 中高速專武最終版
+  特色：三大純淨狀態、延遲 3m 低速實體防線、動態速度權重融合、無延遲加速意圖、線性舒適煞車、零延遲直通輸出
+  """
+
+  def __init__(self):
+    # 邏輯控制旗標
+    self.acm_active = False  # 記錄 ACM 當下是否具備修改軌跡的資格
+    self.intent_accelerating = False  # 記錄是否偵測到前車的加速意圖
+    self.accel_intent_counter = 0  # 加速意圖連續發生幀數的計數器
+
+    # 雷達訊號與 EMA 濾波記憶體
+    self.filtered_d_rel = 0.0  # 平滑處理後的前車距離
+    self.filtered_v_rel = 0.0  # 平滑處理後的前車相對速度
+    self.lead_status_prev = False  # 記錄上一幀的雷達有無抓到車
+    self.lead_lost_counter = 0  # 丟失前車的容忍倒數計時器
+    self.has_lead_locked = False  # 最終系統認定的「有效前車狀態」
+    self.last_valid_d_rel = 0.0  # 備份最後有效的距離 (供雷達閃爍時盲算使用)
+    self.last_valid_v_rel = 0.0  # 備份最後有效的速差 (供雷達閃爍時盲算使用)
+
+    # 介面 (UI) 綁定變數
+    self.state = AcmState.disabled  # 當前 ACM 核心狀態 (對應 capnp)
+    self.leadDist = 0.0  # 當前真實前車距離 (公尺)
+    self.targetDist = 0.0  # 100% 目標安全距離 (公尺)
+    self.distPercent = 0.0  # 當前距離百分比 (用來驅動狀態機)
+    self.ttaLimitValue = 0.0  # 算出的 TTA 微煞車力道 (供 UI 顯示除錯)
+    self.mpcAccel = 0.0  # 原始原廠加速度指令
+    self.acmAccel = 0.0  # 經過 ACM 介入後的最終加速度指令
+    self.exitPercent = EXIT_PERCENT
+    self.coastEndPercent = COAST_END_PERCENT
+    self.safeDistPercent = SAFE_DIST_PERCENT
+
+  def update(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float) -> list[float]:
+    # 取出雷達資料與複製軌跡陣列
+    lead = sm['radarState'].leadOne
+    result = list(a_desired_trajectory)
+
+    # 每幀初始化 UI 顯示數值
+    self.ttaLimitValue = 0.0
+    self.mpcAccel = a_desired_trajectory[0]
+
+    # ==========================================
+    # 📡 步驟 1：雷達訊號預處理與 EMA 濾波
+    # ==========================================
+    if lead.status:
+      # 雷達抓到車，重置丟失計數，鎖定有車狀態
+      self.lead_lost_counter = 0
+      self.has_lead_locked = True
+
+      if not self.lead_status_prev:
+        # 若前一幀無車，瞬間同步真實數據，避免濾波爬升太慢導致延遲
+        self.filtered_d_rel, self.filtered_v_rel = lead.dRel, lead.vRel
+      else:
+        # 正常狀態下執行 EMA 指數移動平均，消除雷達微小跳動雜訊
+        self.filtered_d_rel = (FILTER_ALPHA * lead.dRel) + ((1.0 - FILTER_ALPHA) * self.filtered_d_rel)
+        self.filtered_v_rel = (FILTER_ALPHA * lead.vRel) + ((1.0 - FILTER_ALPHA) * self.filtered_v_rel)
+
+      self.lead_status_prev = True
+      # 更新備份有效數據
+      self.last_valid_d_rel, self.last_valid_v_rel = self.filtered_d_rel, self.filtered_v_rel
+    else:
+      # 雷達沒看到車，啟動丟失倒數
+      if self.has_lead_locked:
+        self.lead_lost_counter += 1
+      # 滿 5 幀依然無車，才正式宣告前方淨空，清除所有狀態
+      if self.lead_lost_counter >= LEAD_LOST_TICKS:
+        self.has_lead_locked, self.lead_status_prev, self.intent_accelerating = False, False, False
+        self.accel_intent_counter = 0
+
+    # ==========================================
+    # 🧮 步驟 2：物理運算與 Bypass 退出判定
+    # ==========================================
+    bypass_acm = False  # 控制是否要將權限交還原廠 MPC 的最高旗標
+    raw_a_calc = 0.0  # 預先初始化 TTA 煞車值
+    is_emergency = False  # 緊急狀況旗標
+    acm_weight = 0.0  # 動態滑行權重
+
+    tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
+
+    # 🌟 修改點：完美重現 MPC 真實物理動態跟車距離公式 (真・動態跟車)
+    # 原因：原先只使用 get_safe_obstacle_distance 會將前車視為「靜止磚牆」，導致目標距離在高速時被過度放大，UI 比例縮水至 20%。
+    # 解法：大量套用 long_mpc.py 的原生函數。真實跟車距離 = (自車對靜止物體的煞停距離) - (前車的動能煞停緩衝)
+    if self.has_lead_locked:
+      # 1. 透過雷達的相對速度，反推前車的真實物理速度 (v_lead)，最低限制為 0
+      v_lead = max(0.0, v_ego + self.last_valid_v_rel)
+
+      # 2. 呼叫 MPC 原生函數，精準扣除前車的動能煞車緩衝
+      # 原廠 get_safe_obstacle_distance 內部為：(v_ego**2)/(2*COMFORT_BRAKE) + v_ego*tf + STOP_DISTANCE
+      # 原廠 get_stopped_equivalence_factor 內部為：(v_lead**2)/(2*COMFORT_BRAKE)
+      # 兩者相減，完美等同於：((v_ego**2 - v_lead**2) / (2 * COMFORT_BRAKE)) + (v_ego * tf) + STOP_DISTANCE
+      # 這樣算出來的數值，就是 MPC 真正用來跟著前方「移動車輛」的浮動目標距離
+      mpc_desired_dist = get_safe_obstacle_distance(v_ego, tf) - get_stopped_equivalence_factor(v_lead)
+    else:
+      # 3. 無車狀態下，回歸原廠最嚴格的絕對安全防線 (預防前方突然出現靜止磚牆)
+      mpc_desired_dist = get_safe_obstacle_distance(v_ego, tf)
+
+    # 確保最終目標距離不低於我們設定的 6m 絕對防線 (供 UI 繪製與後續除法使用)
+    self.targetDist = max(mpc_desired_dist, STOP_DISTANCE)
+
+    if self.has_lead_locked:
+      self.leadDist = self.last_valid_d_rel
+      # 回歸純粹的物理比例相除，確保距離跨越邊界時不會產生比例扭曲
+      self.distPercent = self.leadDist / self.targetDist
+
+      recent_trajectory = a_desired_trajectory[:TRAJECTORY_HORIZON]
+
+      # 🧠 [加速意圖鎖定] (線性插值過濾)
+      # 根據當下車速，決定需要幾幀來確認前車正在加速
+      intent_v_ratio = np.clip((v_ego - INTENT_V_LOW) / (INTENT_V_HIGH - INTENT_V_LOW), 0.0, 1.0)
+      dynamic_intent_frames = int(round(INTENT_FRAMES_LOW + intent_v_ratio * (INTENT_FRAMES_HIGH - INTENT_FRAMES_LOW)))
+
+      # 🟢 啟動開關：原廠給出加速軌跡 且 前車物理上正在遠離
+      moment_accel = sum(1 for a in recent_trajectory if a > 0.05) >= INTENT_LOOKAHEAD and self.last_valid_v_rel > 0.05
+      # 🔴 關閉開關：原廠給出減速軌跡 或 前車物理上正在靠近
+      moment_decel = sum(1 for a in recent_trajectory if a < -0.05) >= INTENT_LOOKAHEAD or self.last_valid_v_rel < -0.05
+
+      if moment_accel:
+        self.accel_intent_counter += 1
+      else:
+        self.accel_intent_counter = 0
+
+      # 計數器達標，確認加速意圖
+      if self.accel_intent_counter >= dynamic_intent_frames:
+        self.intent_accelerating = True
+
+      # 如果發現原廠想減速，或距離已經被拉開，立刻收回加速特權
+      if moment_decel or self.distPercent >= COAST_END_PERCENT:
         self.intent_accelerating = False
         self.accel_intent_counter = 0
 
-        self.filtered_d_rel = 0.0
-        self.filtered_v_rel = 0.0
-        self.lead_status_prev = False
-        self.lead_lost_counter = 0
-        self.has_lead_locked = False
-        self.last_valid_d_rel = 0.0
-        self.last_valid_v_rel = 0.0
-        self.last_a_target_array = []
-        self.last_log_state = ""
+      # 💣 [緊急退出防線] TTC 防撞與軌跡重煞監控
+      # 當 TTC 過低或原廠預測軌跡中有任何點低於 -1.2 時，準備立刻退出交還 MPC
+      ttc_val = (self.leadDist / abs(self.last_valid_v_rel)) if self.last_valid_v_rel < -0.5 else 999.0
+      is_emergency = (ttc_val < (tf * 1.2)) or any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory)
 
-        # 提供給 longitudinal_planner 讀寫的實體變數 (CamelCase)
-        self.active = False
-        self.state = AcmState.noLead
-        self.leadDist = 0.0
-        self.targetDist = 0.0
-        self.dynamicSafety = 0.0
-        self.dynamicDanger = 0.0
-        self.stockControl = 0.0
-        self.distPercent = 0.0
-        self.ttaAccelValue = 0.0
-        self.ttaLimitValue = 0.0
-        self.speedRatio = 1.0
-        self.fadeFactor = 0.0
-        self.mpcBlendRatio = 0.0
-        self.mpcAccel = 0.0
-        self.acmAccel = 0.0
+      # 🧮 [計算 TTA 線性微煞車]
+      # 計算距離跌破 70% 死亡線，還剩下多少真實的物理緩衝空間
+      safe_buffer_dist = max(self.leadDist - (self.targetDist * SAFE_DIST_PERCENT), 0.0)
+      safe_v_rel = max(abs(self.last_valid_v_rel), 1e-3)  # 取絕對速差，避免除以零
 
-    def update(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float) -> list[float]:
-        # 1. 訊號預處理
-        self._reset_frame_variables()
-        self._update_radar_signals(sm['radarState'].leadOne)
+      # 🪄 魔法 1：時間壓縮 (欺騙公式時間只剩一半，逼出早期線性煞車力道)
+      tta = (safe_buffer_dist / safe_v_rel) * TTA_TIME_RATIO
 
-        # 2. 物理與危險計算
-        emergency_fallback = False
-        emergency_str = ""
-        if self.has_lead_locked:
-            self._calc_dynamic_boundaries(v_ego, t_follow_override)
-            emergency_fallback, emergency_str = self._check_emergencies(a_desired_trajectory, v_ego, t_follow_override)
-            self._eval_acceleration_intent(a_desired_trajectory, v_ego)
+      # 基礎 TTA 物理減速度計算
+      base_a_calc = -(TARGET_V_REL - self.last_valid_v_rel) / max(tta, 1.0)
 
-            # 🟢 人類最舒適的 TTA 動態追蹤演算法
-            self._calc_tta_and_blending(a_desired_trajectory[0], v_ego)
-        else:
-            self.intent_accelerating = False
-            self.accel_intent_counter = 0
+      # 🪄 魔法 2：力道放大器 (讓煞車更扎實，克服車輛慣性)
+      raw_a_calc = base_a_calc * TTA_MULTIPLIER
 
-        # 3. 🚦 狀態機判定 (更新 self.state 與 self.active)
-        self._determine_state_and_active(emergency_fallback)
+      # ⚖️ [計算滑行動態權重 (Lerp Blend)]
+      # 時速 <= 6m/s = 0.0 (100% MPC), 時速 >= 20m/s = 1.0 (100% ACM 0.0滑行)
+      acm_weight = np.clip((v_ego - BLEND_V_MIN) / (BLEND_V_MAX - BLEND_V_MIN), 0.0, 1.0)
 
-        # 4. 軌跡派發與處理
-        result, zone_str = self._process_trajectory(a_desired_trajectory, v_ego, emergency_str)
+    # 🌟 [ACM 實體防線與退出總結]
+    if not self.has_lead_locked:
+      self.acm_active = False
+    else:
+      # 計算 80%~70% 微煞車區間的物理實體公尺數
+      brake_zone_length = self.targetDist * (COAST_END_PERCENT - SAFE_DIST_PERCENT)
 
-        return self._log_and_return(zone_str, result, v_ego, a_desired_trajectory[0])
+      # 只要符合以下任一條件，全部導向 Bypass (將控制權平滑交還原廠 MPC)
+      if self.targetDist <= STOP_DISTANCE:
+        bypass_acm = True  # 🛑 絕對距離防線：目標距離 <= 6m 時，禁止啟動 ACM
+      elif self.distPercent >= EXIT_PERCENT:
+        bypass_acm = True  # ⚪ 空間充裕，徹底休眠
+      elif self.distPercent < SAFE_DIST_PERCENT:
+        bypass_acm = True  # 🔴 跌破危險線，交還原廠處理重煞
+      elif is_emergency:
+        bypass_acm = True  # 💣 緊急狀況 (TTC過低或原廠重煞)，立刻讓權保命
+      elif self.intent_accelerating:
+        bypass_acm = True  # 🚀 偵測到起步或加速，放行原廠補油門
+      # 🧱 延遲市區防線：只有真正跌破 80% 準備進入微煞區時，才檢查 3m 區間防線
+      elif self.distPercent < COAST_END_PERCENT and brake_zone_length < MIN_BRAKE_ZONE_M:
+        bypass_acm = True
+      elif self.distPercent <= COAST_START_PERCENT:
+        self.acm_active = True  # 🟢 距離恰好，正式啟用 ACM 介入
+      else:
+        if not self.acm_active:
+          bypass_acm = True  # 處於遲滯區，且原本沒啟動，則繼續保持退出
 
     # ==========================================
-    # 🧩 1. 狀態機轉移中心 (State Determination)
+    # 🎨 步驟 3：統一軌跡修飾 (已移除 EMA 濾波器)
     # ==========================================
+    action_triggered = False
 
-    def _determine_state_and_active(self, emergency_fallback):
-        """集中處理所有的狀態切換邏輯，統一更新 state 與 active"""
-        if not self.has_lead_locked:
-            self.state = AcmState.noLead
-            self.active = False
-            return
+    # 對未來預測軌跡逐點執行邏輯修飾
+    for i in range(len(result)):
+      raw_mpc_a = result[i]
+      a_target = raw_mpc_a
 
-        if emergency_fallback or self.distPercent < self.dynamicDanger:
-            self.state = AcmState.takeover
-        elif self.intent_accelerating:
-            self.state = AcmState.smoothAccel
-        elif self.dynamicDanger <= self.distPercent < self.dynamicSafety:
-            self.state = AcmState.smoothDecel
-        else:
-            self.state = AcmState.coasting
+      if bypass_acm:
+        self.state = AcmState.disabled
+      elif not self.has_lead_locked:
+        self.state = AcmState.disabled
+        # 無車狀態下，微幅抹平原廠的神經質煞車 (防幽靈減速)
+        if COAST_MAX_BRAKE <= a_target < 0.0:
+          a_target = 0.0
+      else:
+        # 🟢 狀態 1：動態融合滑行區 (80% ~ 100%)
+        if COAST_END_PERCENT <= self.distPercent < EXIT_PERCENT:
+          self.state = AcmState.coasting
+          # 動態權重融合：高速時 a_target 逼近 0.0，低速時 a_target 逼近原廠 raw_mpc_a
+          a_target = (acm_weight * 0.0) + ((1.0 - acm_weight) * raw_mpc_a)
 
-        if self.distPercent >= EXIT_PERCENT or emergency_fallback:
-            self.active = False
-        elif self.distPercent <= COAST_START_PCT:
-            self.active = True
+        # 🔴 狀態 2：微煞車區 (70% ~ 80%)
+        elif SAFE_DIST_PERCENT <= self.distPercent < COAST_END_PERCENT:
+          self.state = AcmState.braking
+          # 套用算出的線性微煞車力道，並用 np.clip 嚴格限定在 -1.0 到 0.0 之間
+          tta_constrained = max(MIN_RECOVERY_ACCEL, min(raw_a_calc, MAX_RECOVERY_ACCEL))
+          self.ttaLimitValue = tta_constrained
 
-    # ==========================================
-    # 🧩 2. 獨立狀態機處理器 (State Handlers)
-    # ==========================================
+          # 安全競爭機制：比較原廠 MPC 指令與 TTA 指令，取其小者 (煞車較重者)
+          # 這確保當原廠 MPC 判定需要更強煞車時，ACM 不會誤將其放軟
+          a_target = min(raw_mpc_a, self.ttaLimitValue)
 
-    def _dispatch_state_action(self, raw_mpc_a, v_ego, emergency_str):
-        """將單一軌跡點派發給對應的狀態處理器"""
-        if self.state == AcmState.noLead:
-            return self._state_no_lead(raw_mpc_a)
-        elif self.state == AcmState.takeover:
-            return self._state_takeover(raw_mpc_a, emergency_str)
-        elif self.state == AcmState.smoothAccel:
-            return self._state_smooth_accel(raw_mpc_a)
-        elif self.state == AcmState.smoothDecel:
-            return self._state_smooth_decel(raw_mpc_a)
-        elif self.state == AcmState.coasting:
-            return self._state_coasting(raw_mpc_a, v_ego)
+      # 只要最終決定的加速度與原廠不同，就點亮介入燈號
+      if a_target != raw_mpc_a:
+        action_triggered = True
 
-        return "", raw_mpc_a
+      # 🛡️ 終極硬體防護：用 numpy clip 將數值限制在車輛硬體能承受的極限範圍內
+      a_target = np.clip(a_target, ACCEL_MIN, ACCEL_MAX)
 
-    def _state_no_lead(self, raw_mpc_a):
-        a_target = 0.0 if -0.4 <= raw_mpc_a < 0.0 else raw_mpc_a
-        return "🟢 無車狀態(執行抹平)", a_target
+      # 直接將結果寫回陣列 (零延遲輸出)
+      result[i] = a_target
 
-    def _state_takeover(self, raw_mpc_a, emergency_str):
-        zone_str = emergency_str if emergency_str else "🟠 交接MPC"
-        return zone_str, raw_mpc_a
+      # 將第一點的最終結果供 UI 介面讀取
+      if i == 0:
+        self.acmAccel = a_target
 
-    def _state_smooth_accel(self, raw_mpc_a):
-        return "🛑 加速意圖", raw_mpc_a
+    # 更新系統最終啟動狀態
+    self.active = action_triggered if not bypass_acm else False
 
-    def _state_smooth_decel(self, raw_mpc_a):
-        return "🟡 平滑退讓", self.ttaLimitValue
+    # 先使用原生數據，等數值確定正確後，在移除
+    # result = list(a_desired_trajectory)
 
-    def _state_coasting(self, raw_mpc_a, v_ego):
-        """🟢 單純滑行區：依據車速給予不同的滑行權限"""
-        if self.distPercent >= EXIT_PERCENT:
-            return "⚪ 跟車距離外", raw_mpc_a
-
-        if v_ego < V_LOW:
-            return "🟢 低速滑行(防點頭)", min(0.0, raw_mpc_a)
-        else:
-            return "🟢 高速滑行(純滑行)", 0.0
-
-    # ==========================================
-    # 🧩 3. 軌跡處理與濾波
-    # ==========================================
-
-    def _process_trajectory(self, a_desired_trajectory, v_ego, emergency_str):
-        """將軌跡陣列送入狀態機並進行非對稱 EMA 濾波"""
-        result = list(a_desired_trajectory)
-        init_history = not self.last_a_target_array or len(self.last_a_target_array) != len(result)
-        if init_history:
-            self.last_a_target_array = [0.0] * len(result)
-
-        log_zone_str = ""
-
-        for i in range(len(result)):
-            raw_mpc_a = result[i]
-
-            # 將 raw_mpc_a 丟進狀態機派發器，取出最終決定的加速度
-            zone_str, a_target = self._dispatch_state_action(raw_mpc_a, v_ego, emergency_str)
-
-            # 最終安全鉗制與濾波
-            a_target = np.clip(a_target, ACCEL_MIN, ACCEL_MAX)
-            if not init_history:
-                alpha = EMA_ALPHA_ACCEL if a_target > self.last_a_target_array[i] else EMA_ALPHA_DECEL
-                a_target = (alpha * a_target) + ((1.0 - alpha) * self.last_a_target_array[i])
-
-            if i == 0:
-                log_zone_str = zone_str
-                self.mpcAccel = raw_mpc_a
-                self.acmAccel = a_target
-
-            self.last_a_target_array[i] = a_target
-            result[i] = a_target
-
-        return result, log_zone_str
-
-    # ==========================================
-    # 🧩 4. 基礎訊號與物理邊界計算
-    # ==========================================
-
-    def _reset_frame_variables(self):
-        self.ttaAccelValue = 0.0
-        self.ttaLimitValue = 0.0
-        self.distPercent = 0.0
-        self.targetDist = 0.0
-        self.dynamicSafety = 0.0
-        self.dynamicDanger = 0.0
-        self.stockControl = 0.0
-        self.fadeFactor = 0.0
-        self.mpcBlendRatio = 0.0
-        self.speedRatio = 1.0
-
-    def _update_radar_signals(self, lead):
-        if lead.status:
-            self.lead_lost_counter = 0
-            self.has_lead_locked = True
-            if not self.lead_status_prev:
-                self.filtered_d_rel = lead.dRel
-                self.filtered_v_rel = lead.vRel
-            else:
-                self.filtered_d_rel = (FILTER_ALPHA * lead.dRel) + ((1.0 - FILTER_ALPHA) * self.filtered_d_rel)
-                self.filtered_v_rel = (FILTER_ALPHA * lead.vRel) + ((1.0 - FILTER_ALPHA) * self.filtered_v_rel)
-            self.lead_status_prev = True
-            self.last_valid_d_rel = self.filtered_d_rel
-            self.last_valid_v_rel = self.filtered_v_rel
-        else:
-            if self.has_lead_locked:
-                self.lead_lost_counter += 1
-            if self.lead_lost_counter >= LEAD_LOST_TICKS:
-                self.has_lead_locked = False
-                self.lead_status_prev = False
-                self.intent_accelerating = False
-                self.accel_intent_counter = 0
-
-    def _calc_dynamic_boundaries(self, v_ego, t_follow_override):
-        """📏 以物理距離為目標，自動推算雙邊界與區域 B"""
-        self.leadDist = self.last_valid_d_rel
-        tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
-
-        self.targetDist = max(v_ego * tf, 1.0)
-        dynamic_d_rel = max(self.leadDist - STOP_DISTANCE, 0.0)
-        self.distPercent = dynamic_d_rel / self.targetDist
-
-        v_ratio = np.clip((v_ego - V_LOW) / (V_HIGH - V_LOW), 0.0, 1.0)
-        safety_pct = SAFETY_PCT_LOW + v_ratio * (SAFETY_PCT_HIGH - SAFETY_PCT_LOW)
-
-        coast_start_m = self.targetDist * COAST_START_PCT
-        danger_dist_m = self.targetDist * DANGER_PCT
-        safety_dist_m = self.targetDist * safety_pct
-
-        # 🛡️ 舒適物理底線：如果有微煞車區，保證其長度 > 3m
-        if safety_pct > DANGER_PCT:
-            if (safety_dist_m - danger_dist_m) < MIN_BRAKE_ZONE_M:
-                safety_dist_m = danger_dist_m + MIN_BRAKE_ZONE_M
-
-        safety_dist_m = min(safety_dist_m, coast_start_m - 0.1)
-
-        self.dynamicSafety = safety_dist_m / self.targetDist
-        self.dynamicDanger = danger_dist_m / self.targetDist
-        self.stockControl = self.dynamicDanger * 0.8
-
-    def _check_emergencies(self, a_desired_trajectory, v_ego, t_follow_override):
-        tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
-        ttc = (self.leadDist / abs(self.last_valid_v_rel)) if self.last_valid_v_rel < -0.5 else 999.0
-        if ttc < (tf * 1.2):
-            return True, "🛑 強制退出(TTC防撞)"
-        elif any(a < MPC_FALLBACK_ACCEL for a in a_desired_trajectory[:TRAJECTORY_HORIZON]):
-            return True, "🛑 強制退出(原廠重煞)"
-        return False, ""
-
-    def _eval_acceleration_intent(self, a_desired_trajectory, v_ego):
-        recent_traj = a_desired_trajectory[:TRAJECTORY_HORIZON]
-        intent_v_ratio = np.clip((v_ego - INTENT_V_LOW) / (INTENT_V_HIGH - INTENT_V_LOW), 0.0, 1.0)
-        dynamic_intent_frames = int(round(INTENT_FRAMES_LOW + intent_v_ratio * (INTENT_FRAMES_HIGH - INTENT_FRAMES_LOW)))
-
-        moment_accel = sum(1 for a in recent_traj if a > 0.05) >= INTENT_LOOKAHEAD and self.last_valid_v_rel > 0.05
-        moment_decel = sum(1 for a in recent_traj if a < -0.05) >= INTENT_LOOKAHEAD or self.last_valid_v_rel < 0.05
-
-        self.accel_intent_counter = self.accel_intent_counter + 1 if moment_accel else 0
-
-        if self.accel_intent_counter >= dynamic_intent_frames:
-            self.intent_accelerating = True
-
-        if moment_decel or self.distPercent >= self.dynamicSafety:
-            self.intent_accelerating = False
-            self.accel_intent_counter = 0
-
-    def _calc_tta_and_blending(self, current_mpc_a, v_ego):
-        """🧮 動態追蹤演算法：經典 TTA 速度匹配與 MPC 漸進融合"""
-        dynamic_d_rel = max(self.leadDist - STOP_DISTANCE, 0.0)
-        safe_buffer_dist = max(dynamic_d_rel - (self.targetDist * self.dynamicDanger), 0.1)
-
-        safe_v_rel = max(abs(self.last_valid_v_rel), 1e-3)
-        tta = safe_buffer_dist / safe_v_rel
-
-        # 🟢 回歸經典的 TTA 公式 (分子正是速度差！)
-        self.ttaAccelValue = - (TARGET_V_REL - self.last_valid_v_rel) / max(tta, 1.0)
-
-        v_ego_kph = v_ego * CV.MS_TO_KPH
-        self.speedRatio = float(np.interp(v_ego_kph, DISCOUNT_V_ARR, DISCOUNT_RATIO_ARR))
-        self.ttaAccelValue *= TTA_MULTIPLIER * self.speedRatio
-
-        fade_span = (self.dynamicSafety - self.dynamicDanger) * FADE_SPAN_RATIO
-        self.fadeFactor = np.clip((self.dynamicSafety - self.distPercent) / max(fade_span, 1e-5), 0.0, 1.0)
-
-        smooth_a = self.ttaAccelValue * self.fadeFactor
-        self.ttaLimitValue = np.clip(smooth_a, MIN_RECOVERY_ACCEL, MAX_RECOVERY_ACCEL)
-
-        if self.distPercent < self.dynamicSafety:
-            blend_span = self.dynamicSafety - self.dynamicDanger
-            self.mpcBlendRatio = np.clip((self.dynamicSafety - self.distPercent) / max(blend_span, 1e-5), 0.0, 1.0)
-            if self.mpcBlendRatio > 0.0:
-                self.ttaLimitValue = ((1.0 - self.mpcBlendRatio) * self.ttaLimitValue) + (self.mpcBlendRatio * current_mpc_a)
-
-    def _log_and_return(self, state_str: str, current_result: list[float], v_ego: float, raw_mpc_a: float) -> list[float]:
-        if ACM_DEBUG and (state_str != self.last_log_state or self.active):
-            cloudlog.debug(
-                f"[{self.__class__.__name__}] 啟動:{self.active} | 狀態:{state_str} | 加速意圖:{self.intent_accelerating} | "
-                f"剩餘距離:{self.distPercent*100:.1f}% | 退讓位置:{self.dynamicSafety*100:.1f}% | 煞車位置:{self.dynamicDanger*100:.1f}% | "
-                f"車速:{v_ego * CV.MS_TO_KPH:.1f} | 速差:{self.last_valid_v_rel:.1f} | "
-                f"TTA計算煞車:{self.ttaAccelValue:.2f} | 最終覆寫:{raw_mpc_a:.2f} -> {current_result[0]:.2f}"
-            )
-            self.last_log_state = state_str
-        return current_result
+    return result

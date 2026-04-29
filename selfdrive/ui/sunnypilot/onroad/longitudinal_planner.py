@@ -21,11 +21,17 @@ class LongitudinalPlanRenderer(Widget):
     if sm.updated['longitudinalPlanSP']:
       plan = sm['longitudinalPlanSP']
 
-      # 取得 source 數值 (例如: plan.longitudinalPlanSource)
-      source_val = plan.longitudinalPlanSource
+      state_val = plan.adaptiveCoastingModule.state
+      leadDist = plan.adaptiveCoastingModule.leadDist
+      targetDist = plan.adaptiveCoastingModule.targetDist
+      distPercent = plan.adaptiveCoastingModule.distPercent * 100
 
       # 使用我們定義的 Data 類別轉換
-      self.source_text = f"Source: {source_val}"
+      self.state_text = f"state: {state_val}"
+      self.leadDist_text = f"leadDist: {leadDist:.1f} m"
+      self.targetDist_text = f"targetDist: {targetDist:.1f} m"
+      self.distPercent_text = f"distPercent: {distPercent:.2f} %"
+      self.source_text = f"{self.state_text} | {self.leadDist_text} | {self.targetDist_text} | {self.distPercent_text}"
 
   def _render(self, rect: rl.Rectangle) -> None:
     # 設定顯示位置（跟隨傳入的動態 rect 區塊）
@@ -36,7 +42,7 @@ class LongitudinalPlanRenderer(Widget):
 
     # 【關鍵修正】加上 rect.x 與 rect.y 作為起點基準
     x = int(rect.x + (rect.width / 2) - (text_size.x / 2))
-    y = int(rect.y + margin)
+    y = int(rect.height - text_size.y - margin)
 
     # 畫一個半透明背景框，增加閱讀性
     bg_rect = rl.Rectangle(x - 10, y - 5, text_size.x + 20, text_size.y + 10)

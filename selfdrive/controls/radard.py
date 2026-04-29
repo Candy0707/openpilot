@@ -400,6 +400,7 @@ def main() -> None:
   sm = messaging.SubMaster(['modelV2', 'carState', 'liveTracks'], poll='modelV2')
   pm = messaging.PubMaster(['radarState'])
 
+  from openpilot.sunnypilot.selfdrive.controls.radard_ext import RadarDSP as RadarD
   RD = RadarD(CP, CP_SP, CP.radarDelay)
 
   while 1:

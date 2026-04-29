@@ -157,8 +157,8 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     self.a_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.a_solution)
     self.j_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC[:-1], self.mpc.j_solution)
 
-    # 後處理模組
-    self.a_desired_trajectory = LongitudinalPlannerSP.update_a_desired_trajectory(self, sm, self.a_desired_trajectory, v_ego, t_follow_override)
+    # 後處理模組-暫時關閉後處理模組
+    # self.a_desired_trajectory = LongitudinalPlannerSP.update_a_desired_trajectory(self, sm, self.a_desired_trajectory, v_ego, t_follow_override)
 
     # TODO counter is only needed because radar is glitchy, remove once radar is gone
     self.fcw = self.mpc.crash_cnt > 2 and not sm['carState'].standstill
