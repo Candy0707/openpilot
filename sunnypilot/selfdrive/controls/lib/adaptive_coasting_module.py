@@ -6,7 +6,7 @@ from openpilot.common.constants import CV
 from openpilot.selfdrive.controls.lib.longitudinal_mpc_lib.long_mpc import STOP_DISTANCE, get_safe_obstacle_distance, get_stopped_equivalence_factor
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
 
-# 🟢 綁定 custom.capnp 3 大核心狀態
+# 🟢 直接綁定 custom.capnp 3 大核心狀態
 # (0: disabled 關閉, 1: coasting 滑行, 2: braking 煞車)
 AcmState = custom.LongitudinalPlanSP.AdaptiveCoastingModule.State
 
@@ -15,43 +15,40 @@ AcmState = custom.LongitudinalPlanSP.AdaptiveCoastingModule.State
 # ==========================================
 
 # --- 1. 距離與狀態機閾值 (百分比) ---
-EXIT_PERCENT = 1.00  # ⚪ 退出點：當實體距離大於目標距離 100% 時，空間極度充裕，徹底休眠不干涉
-COAST_START_PERCENT = 0.98  # 🟢 進入點：距離小於 98% 時，ACM 開始作動，進入純滑行狀態
-COAST_END_PERCENT = 0.80  # 🟡 警戒線：距離小於 80% 時，結束純滑行，開始套用 TTA 線性微煞車
-SAFE_DIST_PERCENT = 0.70  # 🔴 交接線：跌破 70% 代表微煞車失敗或前車急煞，立刻交還控制權給 MPC
+EXIT_PERCENT          = 1.00  # ⚪ 退出點：當實體距離大於目標距離 100% 時，空間極度充裕，徹底休眠不干涉
+COAST_START_PERCENT   = 0.98  # 🟢 進入點：距離小於 98% 時，ACM 開始作動，進入純滑行狀態
+COAST_END_PERCENT     = 0.80  # 🟡 警戒線：距離小於 80% 時，結束純滑行，開始套用 TTA 線性微煞車
+BLEND_TTA_MPC_PERCENT = 0.75  # 🟠 融合線：距離小於 75% 時，TTA 力道開始線性淡出，無縫交接給原廠 MPC
+SAFE_DIST_PERCENT     = 0.70  # 🔴 交接線：跌破 70% 代表危險，不做任何加減速限制，完全信任原廠重煞保命
 
 # --- 2. 加速度動作極限變數 (m/s²) ---
-COAST_MAX_BRAKE = -0.4  # 🌊 滑行極限：無車狀態下，強制抹平原廠 0.0 到 -0.4 之間的神經質微煞車
-MIN_RECOVERY_ACCEL = -1.0  # 🛡️ 煞車極限：TTA 算出的微煞車力道，最重不允許超過 -1.0，確保不會有點頭頓挫
-MAX_RECOVERY_ACCEL = 0.0  # 🐢 加速極限：微煞車區間內，最高加速度鎖死在 0.0，絕對不允許系統補油門
-MPC_FALLBACK_ACCEL = -1.2  # 💣 緊急交接線：掃描未來軌跡時，若發現原廠將給出小於 -1.2 的重煞，立刻退出保命
+COAST_MAX_BRAKE       = -0.4  # 🌊 滑行極限：無車狀態下，強制抹平原廠 0.0 到 -0.4 之間的神經質微煞車
+MIN_RECOVERY_ACCEL    = -1.0  # 🛡️ 煞車極限：TTA 算出的微煞車力道，最重不允許超過 -1.0，確保不會有點頭頓挫
+MAX_RECOVERY_ACCEL    =  0.0  # 🐢 加速極限：微煞車區間內，最高加速度鎖死在 0.0，絕對不允許系統補油門
+MPC_FALLBACK_ACCEL    = -1.0  # 💣 緊急交接線：掃描未來軌跡時，若發現原廠將給出小於 -1.0 的重煞，立刻退出保命 (與TTA極限無縫接軌)
 
 # --- 3. 意圖預測與訊號濾波參數 ---
-TRAJECTORY_HORIZON = 6  # 🔭 未來預判：掃描原廠 MPC 未來 6 個軌跡點 (約涵蓋未來 0.6 秒的預測)
-INTENT_LOOKAHEAD = 3  # 🧠 意圖確認：在 6 個軌跡點中，只要有 3 個點具備加速特徵，即觸發意圖
-INTENT_V_LOW = 0.0  # 📏 意圖濾波下限：時速  0 m/s 時 (用於動態決定確認幀數)
-INTENT_V_HIGH = 20.0  # 📏 意圖濾波上限：時速 20 m/s (72 km/h) 時 (用於動態決定確認幀數)
-INTENT_FRAMES_LOW = 1  # ⚡ 低速起步幀數：靜止或低速時，只需 1 幀即可確認前車起步，追求極致敏捷與零延遲
-INTENT_FRAMES_HIGH = 20  # 🛡️ 高速巡航幀數：高速時需連續 20 幀才確認加速意圖，防止風吹草動造成誤判放行
-FILTER_ALPHA = 0.2  # 📡 雷達平滑係數：20% 新雷達數據 + 80% 歷史數據，有效撫平毫米波雷達的雜訊跳動
-LEAD_LOST_TICKS = 5  # 🔒 丟失容忍度：雷達若瞬間沒看到車，容忍 5 幀 (約0.25秒) 內不解除有車狀態，防閃爍
+TRAJECTORY_HORIZON    = 6     # 🔭 未來預判：掃描原廠 MPC 未來 6 個軌跡點 (約涵蓋未來 0.6 秒的預測)
+INTENT_LOOKAHEAD      = 3     # 🧠 意圖確認：在 6 個軌跡點中，只要有 3 個點具備加速特徵，即觸發意圖
+INTENT_V_LOW          = 0.0   # 📏 意圖濾波下限：時速  0 m/s 時 (用於動態決定確認幀數)
+INTENT_V_HIGH         = 20.0  # 📏 意圖濾波上限：時速 20 m/s (72 km/h) 時 (用於動態決定確認幀數)
+INTENT_FRAMES_LOW     = 1     # ⚡ 低速起步幀數：靜止或低速時，只需 1 幀即可確認前車起步，追求極致敏捷與零延遲
+INTENT_FRAMES_HIGH    = 20    # 🛡️ 高速巡航幀數：高速時需連續 20 幀才確認加速意圖，防止風吹草動造成誤判放行
+FILTER_ALPHA          = 0.2   # 📡 雷達平滑係數：20% 新雷達數據 + 80% 歷史數據，有效撫平毫米波雷達的雜訊跳動
+TARGET_DIST_ALPHA     = 0.05  # 🎯 目標距離濾波：吸收 95% 雜訊，僅採納 5% 新趨勢，徹底斬斷動能公式帶來的瘋狂跳動
+LEAD_LOST_TICKS       = 5     # 🔒 丟失容忍度：雷達若瞬間沒看到車，容忍 5 幀 (約0.25秒) 內不解除有車狀態，防閃爍
 
 # --- 4. TTA 線性煞車魔法與物理基準 ---
-DEFAULT_T_FOLLOW = 1.6  # ⏱️ 預設跟車秒數：當無法從系統讀取設定時的保底跟車時間
-TARGET_V_REL = 0.6  # 🎯 TTA 目標速差：保留微小的相對速度差，讓煞車收尾能平滑貼近前車
-TTA_TIME_RATIO = 0.8  # ⏳ 時間壓縮魔法：將時間壓縮為 0.8 倍，放軟初期煞車力道
-TTA_MULTIPLIER = 1.2  # 🚀 力道放大魔法：放大基礎數學公式算出的力道，克服變速箱與車重慣性，使煞車更扎實
-MIN_BRAKE_ZONE_M = 3.0  # 🧱 低速市區防線：(80%~70% 的物理長度) 若小於 3m，代表目前在低速市區，ACM 進入微煞區時直接退出
-
-# --- 5. 動態滑行權重參數 (Lerp Blend) ---
-BLEND_V_MIN = 6.0  # ⚖️ 動態權重下限：時速 6 m/s 時，ACM 滑行權重為 0% (完全依賴原廠 MPC)
-BLEND_V_MAX = 20.0  # ⚖️ 動態權重上限：時速 20 m/s (72 km/h) 時，ACM 滑行權重為 100% (強制輸出 0.0)
-
+DEFAULT_T_FOLLOW      = 1.6   # ⏱️ 預設跟車秒數：當無法從系統讀取設定時的保底跟車時間
+TARGET_V_REL          = 0.6   # 🎯 TTA 目標速差：保留微小的相對速度差，讓煞車收尾能平滑貼近前車
+TTA_TIME_RATIO        = 0.8   # ⏳ 時間壓縮魔法：將時間壓縮為 0.8 倍，放軟初期煞車力道
+TTA_MULTIPLIER        = 1.2   # 🚀 力道放大魔法：放大基礎數學公式算出的力道，克服變速箱與車重慣性，使煞車更扎實
+MIN_BRAKE_ZONE_M      = 3.0   # 🧱 低速市區防線：(80%~70% 的物理長度) 若小於 3m，代表目前在低速市區，ACM 進入微煞區時直接退出
 
 class AdaptiveCoastingModule:
   """
   自適應滑行管理模組 (ACM) - 中高速專武最終版
-  特色：三大純淨狀態、延遲 3m 低速實體防線、動態速度權重融合、無延遲加速意圖、線性舒適煞車、零延遲直通輸出
+  特色：三大純淨狀態、延遲 3m 低速實體防線、目標距離濾波、無延遲加速意圖、線性舒適煞車、零延遲直通輸出
   """
 
   def __init__(self):
@@ -63,6 +60,7 @@ class AdaptiveCoastingModule:
     # 雷達訊號與 EMA 濾波記憶體
     self.filtered_d_rel = 0.0  # 平滑處理後的前車距離
     self.filtered_v_rel = 0.0  # 平滑處理後的前車相對速度
+    self.filtered_target_dist = 0.0  # 新增：目標距離專用平滑變數 (抗跳動)
     self.lead_status_prev = False  # 記錄上一幀的雷達有無抓到車
     self.lead_lost_counter = 0  # 丟失前車的容忍倒數計時器
     self.has_lead_locked = False  # 最終系統認定的「有效前車狀態」
@@ -124,29 +122,28 @@ class AdaptiveCoastingModule:
     bypass_acm = False  # 控制是否要將權限交還原廠 MPC 的最高旗標
     raw_a_calc = 0.0  # 預先初始化 TTA 煞車值
     is_emergency = False  # 緊急狀況旗標
-    acm_weight = 0.0  # 動態滑行權重
 
     tf = t_follow_override if t_follow_override is not None else DEFAULT_T_FOLLOW
 
     # 🌟 修改點：完美重現 MPC 真實物理動態跟車距離公式 (真・動態跟車)
-    # 原因：原先只使用 get_safe_obstacle_distance 會將前車視為「靜止磚牆」，導致目標距離在高速時被過度放大，UI 比例縮水至 20%。
-    # 解法：大量套用 long_mpc.py 的原生函數。真實跟車距離 = (自車對靜止物體的煞停距離) - (前車的動能煞停緩衝)
     if self.has_lead_locked:
       # 1. 透過雷達的相對速度，反推前車的真實物理速度 (v_lead)，最低限制為 0
       v_lead = max(0.0, v_ego + self.last_valid_v_rel)
 
       # 2. 呼叫 MPC 原生函數，精準扣除前車的動能煞車緩衝
-      # 原廠 get_safe_obstacle_distance 內部為：(v_ego**2)/(2*COMFORT_BRAKE) + v_ego*tf + STOP_DISTANCE
-      # 原廠 get_stopped_equivalence_factor 內部為：(v_lead**2)/(2*COMFORT_BRAKE)
-      # 兩者相減，完美等同於：((v_ego**2 - v_lead**2) / (2 * COMFORT_BRAKE)) + (v_ego * tf) + STOP_DISTANCE
-      # 這樣算出來的數值，就是 MPC 真正用來跟著前方「移動車輛」的浮動目標距離
-      mpc_desired_dist = get_safe_obstacle_distance(v_ego, tf) - get_stopped_equivalence_factor(v_lead)
+      raw_target_dist = get_safe_obstacle_distance(v_ego, tf) - get_stopped_equivalence_factor(v_lead)
     else:
-      # 3. 無車狀態下，回歸原廠最嚴格的絕對安全防線 (預防前方突然出現靜止磚牆)
-      mpc_desired_dist = get_safe_obstacle_distance(v_ego, tf)
+      # 3. 無車狀態下，回歸原廠最嚴格的絕對安全防線
+      raw_target_dist = get_safe_obstacle_distance(v_ego, tf)
 
-    # 確保最終目標距離不低於我們設定的 6m 絕對防線 (供 UI 繪製與後續除法使用)
-    self.targetDist = max(mpc_desired_dist, STOP_DISTANCE)
+    # 套用目標距離濾波 (徹底斬斷雷達速差造成的百分比瘋狂跳動)
+    if self.filtered_target_dist == 0.0 or not self.has_lead_locked:
+      self.filtered_target_dist = raw_target_dist # 初次啟動或無車時，瞬間同步
+    else:
+      self.filtered_target_dist = (TARGET_DIST_ALPHA * raw_target_dist) + ((1.0 - TARGET_DIST_ALPHA) * self.filtered_target_dist)
+
+    # 確保最終目標距離不低於原廠靜止防撞絕對防線
+    self.targetDist = max(self.filtered_target_dist, STOP_DISTANCE)
 
     if self.has_lead_locked:
       self.leadDist = self.last_valid_d_rel
@@ -179,8 +176,7 @@ class AdaptiveCoastingModule:
         self.intent_accelerating = False
         self.accel_intent_counter = 0
 
-      # 💣 [緊急退出防線] TTC 防撞與軌跡重煞監控
-      # 當 TTC 過低或原廠預測軌跡中有任何點低於 -1.2 時，準備立刻退出交還 MPC
+      # 💣 [緊急退出防線] TTC 防撞與軌跡重煞監控 (門檻對齊 TTA 極限，改為 -1.0 完美接軌)
       ttc_val = (self.leadDist / abs(self.last_valid_v_rel)) if self.last_valid_v_rel < -0.5 else 999.0
       is_emergency = (ttc_val < (tf * 1.2)) or any(a < MPC_FALLBACK_ACCEL for a in recent_trajectory)
 
@@ -198,10 +194,6 @@ class AdaptiveCoastingModule:
       # 🪄 魔法 2：力道放大器 (讓煞車更扎實，克服車輛慣性)
       raw_a_calc = base_a_calc * TTA_MULTIPLIER
 
-      # ⚖️ [計算滑行動態權重 (Lerp Blend)]
-      # 時速 <= 6m/s = 0.0 (100% MPC), 時速 >= 20m/s = 1.0 (100% ACM 0.0滑行)
-      acm_weight = np.clip((v_ego - BLEND_V_MIN) / (BLEND_V_MAX - BLEND_V_MIN), 0.0, 1.0)
-
     # 🌟 [ACM 實體防線與退出總結]
     if not self.has_lead_locked:
       self.acm_active = False
@@ -210,14 +202,15 @@ class AdaptiveCoastingModule:
       brake_zone_length = self.targetDist * (COAST_END_PERCENT - SAFE_DIST_PERCENT)
 
       # 只要符合以下任一條件，全部導向 Bypass (將控制權平滑交還原廠 MPC)
+      # 70% 以下不做任何加減速限制，完全信任原廠重煞防線
       if self.targetDist <= STOP_DISTANCE:
         bypass_acm = True  # 🛑 絕對距離防線：目標距離 <= 6m 時，禁止啟動 ACM
       elif self.distPercent >= EXIT_PERCENT:
         bypass_acm = True  # ⚪ 空間充裕，徹底休眠
       elif self.distPercent < SAFE_DIST_PERCENT:
-        bypass_acm = True  # 🔴 跌破危險線，交還原廠處理重煞
+        bypass_acm = True  # 🔴 跌破 70% 危險線，完全信任原廠保命重煞
       elif is_emergency:
-        bypass_acm = True  # 💣 緊急狀況 (TTC過低或原廠重煞)，立刻讓權保命
+        bypass_acm = True  # 💣 緊急狀況 (TTC過低或原廠給出小於 -1.0 重煞)，立刻讓權保命
       elif self.intent_accelerating:
         bypass_acm = True  # 🚀 偵測到起步或加速，放行原廠補油門
       # 🧱 延遲市區防線：只有真正跌破 80% 準備進入微煞區時，才檢查 3m 區間防線
@@ -230,7 +223,7 @@ class AdaptiveCoastingModule:
           bypass_acm = True  # 處於遲滯區，且原本沒啟動，則繼續保持退出
 
     # ==========================================
-    # 🎨 步驟 3：統一軌跡修飾 (已移除 EMA 濾波器)
+    # 🎨 步驟 3：統一軌跡修飾 (極致滑行與無縫交接)
     # ==========================================
     action_triggered = False
 
@@ -247,22 +240,30 @@ class AdaptiveCoastingModule:
         if COAST_MAX_BRAKE <= a_target < 0.0:
           a_target = 0.0
       else:
-        # 🟢 狀態 1：動態融合滑行區 (80% ~ 100%)
+        # 🟢 狀態 1：極致純滑行區 (80% ~ 100%)
         if COAST_END_PERCENT <= self.distPercent < EXIT_PERCENT:
           self.state = AcmState.coasting
-          # 動態權重融合：高速時 a_target 逼近 0.0，低速時 a_target 逼近原廠 raw_mpc_a
-          a_target = (acm_weight * 0.0) + ((1.0 - acm_weight) * raw_mpc_a)
+          # 強制 0.0 純滑行 (完全不使用 max，徹底切斷微煞車帶來極致溜車感)
+          a_target = 0.0
 
-        # 🔴 狀態 2：微煞車區 (70% ~ 80%)
+        # 🔴 狀態 2：微煞車與完美過渡區 (70% ~ 80%)
         elif SAFE_DIST_PERCENT <= self.distPercent < COAST_END_PERCENT:
           self.state = AcmState.braking
           # 套用算出的線性微煞車力道，並用 np.clip 嚴格限定在 -1.0 到 0.0 之間
           tta_constrained = max(MIN_RECOVERY_ACCEL, min(raw_a_calc, MAX_RECOVERY_ACCEL))
           self.ttaLimitValue = tta_constrained
 
-          # 安全競爭機制：比較原廠 MPC 指令與 TTA 指令，取其小者 (煞車較重者)
-          # 這確保當原廠 MPC 判定需要更強煞車時，ACM 不會誤將其放軟
-          a_target = min(raw_mpc_a, self.ttaLimitValue)
+          # 🟠 無縫接軌魔法 (75% ~ 70%)
+          if self.distPercent >= BLEND_TTA_MPC_PERCENT:
+            # 80% ~ 75%：100% 採用 TTA 微煞車，並與原廠競爭 (取較重者)
+            a_target = min(raw_mpc_a, tta_constrained)
+          else:
+            # 75% ~ 70%：TTA 力道逐漸淡出，MPC 力道逐漸接管
+            # 權重計算：接近 75% 時 blend_weight 趨近 1.0(純TTA)，接近 70% 時趨近 0.0(純MPC)
+            blend_weight = (self.distPercent - SAFE_DIST_PERCENT) / (BLEND_TTA_MPC_PERCENT - SAFE_DIST_PERCENT)
+            blended_a = (blend_weight * tta_constrained) + ((1.0 - blend_weight) * raw_mpc_a)
+            # 依然保持安全競爭機制，確保過渡期間煞車力道充足
+            a_target = min(raw_mpc_a, blended_a)
 
       # 只要最終決定的加速度與原廠不同，就點亮介入燈號
       if a_target != raw_mpc_a:
@@ -270,8 +271,6 @@ class AdaptiveCoastingModule:
 
       # 🛡️ 終極硬體防護：用 numpy clip 將數值限制在車輛硬體能承受的極限範圍內
       a_target = np.clip(a_target, ACCEL_MIN, ACCEL_MAX)
-
-      # 直接將結果寫回陣列 (零延遲輸出)
       result[i] = a_target
 
       # 將第一點的最終結果供 UI 介面讀取
@@ -280,8 +279,5 @@ class AdaptiveCoastingModule:
 
     # 更新系統最終啟動狀態
     self.active = action_triggered if not bypass_acm else False
-
-    # 先使用原生數據，等數值確定正確後，在移除
-    # result = list(a_desired_trajectory)
 
     return result
