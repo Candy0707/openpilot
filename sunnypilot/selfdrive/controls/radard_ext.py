@@ -6,55 +6,59 @@ from cereal import messaging, car
 from opendbc.car import structs
 
 # ==============================================================================
-# 1. 引入整個 radard 模組進行 Monkey Patch
+# 1. 引入整個 radard 模組進行 Monkey Patch (動態替換)
 # ==============================================================================
 from openpilot.selfdrive.controls import radard
 
 # 2. 正常引入我們需要的元件與原始函數
-from openpilot.selfdrive.controls.radard import KalmanParams, Track, RadarD, match_vision_to_track, get_RadarState_from_vision, get_custom_yrel, RADAR_TO_CAMERA
+from openpilot.selfdrive.controls.radard import (
+    KalmanParams, Track, RadarD, match_vision_to_track, 
+    get_RadarState_from_vision, get_custom_yrel, RADAR_TO_CAMERA
+)
 
 # 3. 引入 cloudlog 用於記錄我們自訂的提早鎖定事件
 from openpilot.common.swaglog import cloudlog
 
 # ==============================================================================
-# 提早鎖定 (Early Lock) 擴充模組參數設定 - 終極乘數融合版
+# 提早鎖定 (Early Lock) 擴充模組參數設定 - 終極純淨管線版
 # ==============================================================================
 # 📐 階段一與二：空間遲滯與物理打分邊界
-LANE_WIDTH_FALLBACK = 1.5  # 預測車道基準單側半寬 (m)，無實體線時使用
-LANE_HYSTERESIS_MARGIN = 0.5  # 邊界外的遲滯容錯預度 (m)，完美消滅邊緣閃爍
-FUZZY_BOUNDS = [0.5, 1.5]  # 物理誤差 (公尺 或 m/s): 0.5以內給滿分1.0，大於1.5給零分
+LANE_WIDTH_FALLBACK = 1.5           # 預測車道基準單側半寬 (m)，無實體線時使用
+LANE_HYSTERESIS_MARGIN = 0.5        # 邊界外的遲滯容錯預度 (m)，完美消滅邊緣抽搐閃爍
+FUZZY_BOUNDS = [0.5, 1.5]           # 物理誤差 (m 或 m/s): 0.5 以內給滿分 1.0，大於 1.5 總分歸零
 
 # 🧠 階段三：EMA 基礎學習率設定
-ALPHA_BASE = 0.2  # 常規上升學習率 (約需 0.4 秒鎖定)
-ALPHA_DOWN = 0.1  # 常規下降與短路過濾時的衰減學習率
+ALPHA_BASE = 0.2                    # 常規上升學習率 (確保真車在 0.2~0.4 秒內穩定鎖定)
+ALPHA_DOWN = 0.1                    # 常規下降與短路過濾時的衰減學習率 (極速踢出雜訊)
 
-# 🔥 階段三：威脅乘數融合矩陣 (限制最高 1.2 倍，即保留空間讓 EMA 平滑爬升)
-BRAKE_THRES_RANGE = [-3.0, -1.2]  # 急煞觸發區間 (m/s²)
-MULT_RANGE = [1.2, 1.0]  # 對應威脅倍率 (從最高 1.2 緩降至 1.0)
-CUTIN_DIST_LIMIT = 40.0  # 評估切入威脅的最大縱向有效距離 (m)
-DYNAMIC_SPEED_PCT = 0.2  # 動態相對速度閥值比例 (以當前車速的 20% 為基準)
+# 🔥 階段三：威脅乘數融合矩陣 (限制最高 1.2 倍，保留空間讓 EMA 平滑爬升)
+BRAKE_THRES_RANGE = [-3.0, -1.2]    # 急煞觸發區間 (m/s²)
+MULT_RANGE = [1.2, 1.0]             # 對應威脅倍率 (從最高 1.2 緩降至 1.0)
+CUTIN_DIST_LIMIT = 40.0             # 評估切入威脅的最大縱向有效距離 (m)
+DYNAMIC_SPEED_PCT = 0.2             # 動態相對速度閥值比例 (以當前車速的 20% 為基準)
 
 # 🐢 階段四：慢速與靜止防護網 (基於電腦視覺物理極限的反轉門檻)
-CAM_PROB_SPEED_RANGE = [10.0, 25.0]  # 動態相機門檻車速區間 (約 36 ~ 90 km/h)
-CAM_PROB_RANGE = [0.5, 0.3]  # 動態相機審查門檻 (低速 0.5 嚴格防市區雜訊，高速 0.3 寬鬆)
-STATIC_EMA_CAP = 0.6  # 目標未達審查門檻時，EMA 絕對不可超越的天花板
+CAM_PROB_SPEED_RANGE = [10.0, 25.0] # 動態相機門檻車速區間 (約 36 ~ 90 km/h)
+CAM_PROB_RANGE = [0.5, 0.3]         # 動態相機審查門檻 (市區低速要求 0.5 嚴格把關，高速放寬至 0.3)
+STATIC_EMA_CAP = 0.6                # 目標未達審查門檻時，EMA 絕對不可超越的天花板
 
 # 🎛️ 階段五：全局反向插值映射
-EMA_VAL_RANGE = [0.4, 0.8]  # 本地 EMA 信心度 X 軸
-PROB_THRES_RANGE = [0.5, 0.3]  # 映射出對應的「視覺提早放行門檻」 Y 軸
+EMA_VAL_RANGE = [0.4, 0.8]          # 本地 EMA 信心度 X 軸 (0.4 起跳，0.8 達峰值)
+PROB_THRES_RANGE = [0.5, 0.3]       # 映射出對應的「視覺提早放行門檻」 Y 軸 (最高可強勢拉低至 0.3)
 
 
 class TrackSP(Track):
   """
   繼承自原始 Track，加入非對稱 EMA 信心度、模糊邏輯打分與動態威脅乘數評估能力。
-  採用高內聚力的物件導向設計，將複雜管線拆解為獨立方法。
+  採用高內聚力的物件導向設計，將複雜管線拆解為獨立方法，確保資料流純潔無狀態。
   """
 
   def __init__(self, identifier: int, v_lead: float, kalman_params: KalmanParams):
     super().__init__(identifier, v_lead, kalman_params)
     # 針對 leadOne(0) 與 leadTwo(1) 紀錄跨幀狀態
-    # 【重大修正】：初始信心度設定為生效門檻邊緣 0.4，而非 0.0。
-    # 確保新 ID (閃爍或切入) 能在第一幀突破門檻發揮作用，並透過衰減率淘汰雜訊。
+    # 【核心機制：極速起跑點】初始信心度設定為生效門檻邊緣 0.4。
+    # 完美利用數學斜率與實車卡鉗物理遲滯：確保新 ID (閃爍或切入) 能在第一幀就突破門檻發揮作用，
+    # 且若為雜訊則會在一幀內跌出 0.4 門檻並迅速衰減死亡。完全拔除複雜的跨幀記憶體負擔。
     self.ema_confidence = {0: 0.4, 1: 0.4}
     self.is_out_of_lane = False
 
@@ -117,10 +121,10 @@ class TrackSP(Track):
   def _apply_slow_protection(self, v_ego: float, cam_prob: float, current_ema: float) -> float:
     """
     【階段四：慢速與靜止防護網】
-    針對絕對車速低於 20% 的慢速目標，嚴格實施相機門檻審查，根除對靜止物引發幽靈急煞的可能。
+    針對絕對車速低於 20% 的慢速目標，嚴格實施相機門檻審查，根除對靜止金屬物引發幽靈急煞的可能。
     """
     abs_v_lead = abs(self.vRel + v_ego)
-    dynamic_v_limit = max(1.0, DYNAMIC_SPEED_PCT * v_ego)  # 絕對車速判定門檻
+    dynamic_v_limit = max(1.0, DYNAMIC_SPEED_PCT * v_ego)  # 絕對車速判定門檻 (保底 1.0 m/s)
 
     if abs_v_lead < dynamic_v_limit:
       # 視覺物理極限插值：市區低速要求嚴格(0.5)，高速公路相對寬鬆(0.3)
@@ -150,9 +154,9 @@ class TrackSP(Track):
     if not is_valid_spatial:
       fuzzy_score = 0.0
 
-    # ⚡ 短路過濾機制 (Short-Circuit Fast Decay)
-    # 【重大修正】：加入 self.measured 雷達實體驗證機制，防堵硬體內部運算殘影。
-    # 如果非實體雷達回波，或物理誤差過大 (完全無價值目標)，直接跳過所有高階插值運算！
+    # ⚡ 終極短路過濾機制 (Short-Circuit Fast Decay)
+    # 嚴格綁定 self.measured (雷達實體電磁波驗證)，防堵硬體內部運算殘影。
+    # 如果非實體雷達回波，或物理誤差過大 (完全無價值目標)，直接跳過所有高階插值運算，套用衰減！
     if not self.measured or fuzzy_score == 0.0:
       self.ema_confidence[lead_idx] = ALPHA_DOWN * 0.0 + (1 - ALPHA_DOWN) * self.ema_confidence[lead_idx]
       return
@@ -184,6 +188,7 @@ def get_lead_ext(
 ) -> dict[str, Any]:
   """
   擴充的前車評估函數：導入多階段過濾、反向動態門檻，並提供乾淨的候選名單移交給原廠邏輯。
+  絕對遵守「不竄改 dRel 等原始物理數據」的鐵律，將極限減速計算權力 100% 交還給底層控制器。
   """
   lead_idx = 0 if low_speed_override else 1
   max_ema_confidence = 0.0
@@ -198,7 +203,7 @@ def get_lead_ext(
   # ==============================================================================
   # 【階段五：全局門檻映射】
   # 使用反向線性插值，將全場最高的 EMA 信心度無縫映射為視覺門檻。
-  # EMA 越高，原廠視覺把關門檻就被我們降得越低。
+  # EMA 越高，原廠視覺把關門檻就被我們降得越低。若 EMA <= 0.4，則死守原廠 0.5 門檻。
   # ==============================================================================
   current_prob_thres = float(np.interp(max_ema_confidence, EMA_VAL_RANGE, PROB_THRES_RANGE))
 
@@ -211,7 +216,7 @@ def get_lead_ext(
 
   # ========================================================================
   # 下方為原廠 get_lead 判斷邏輯移植
-  # 將 0.5 替換為 dynamic current_prob_thres，並餵給它乾淨的 valid_tracks
+  # 將死板的 0.5 替換為 dynamic current_prob_thres，並餵給它乾淨的 valid_tracks
   # ========================================================================
 
   # Determine leads, this is where the essential logic happens
@@ -222,6 +227,7 @@ def get_lead_ext(
 
   lead_dict = {'status': False}
   if track is not None:
+    # 取得原始物理數據，絕不進行竄改覆寫
     lead_dict = track.get_RadarState(lead_msg.prob)
     lead_dict = get_custom_yrel(CP, CP_SP, lead_dict, lead_msg)
 
@@ -236,6 +242,11 @@ def get_lead_ext(
   elif (track is None) and ready and (lead_msg.prob > current_prob_thres):
     lead_dict = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego)
 
+  # ==============================================================================
+  # 🛡️ 原廠底線救援 (Low Speed Override Fallback)
+  # 解決市區極低速跟停時，相機可能因為逆光而「瞎掉」導致防護網誤判無車的問題。
+  # 只要雷達確認正前方極近距離有慢速目標，強制寫入最終輸出，完美防止危險蠕行。
+  # ==============================================================================
   if low_speed_override:
     low_speed_tracks = [c for c in tracks.values() if c.potential_low_speed_lead(v_ego)]
     if len(low_speed_tracks) > 0:
