@@ -53,7 +53,9 @@ class TrackSP(Track):
   def __init__(self, identifier: int, v_lead: float, kalman_params: KalmanParams):
     super().__init__(identifier, v_lead, kalman_params)
     # 針對 leadOne(0) 與 leadTwo(1) 紀錄跨幀狀態
-    self.ema_confidence = {0: 0.0, 1: 0.0}
+    # 【重大修正】：初始信心度設定為生效門檻邊緣 0.4，而非 0.0。
+    # 確保新 ID (閃爍或切入) 能在第一幀突破門檻發揮作用，並透過衰減率淘汰雜訊。
+    self.ema_confidence = {0: 0.4, 1: 0.4}
     self.is_out_of_lane = False
 
   def _check_spatial_boundaries(self, vision_y: float) -> bool:
@@ -149,8 +151,9 @@ class TrackSP(Track):
       fuzzy_score = 0.0
 
     # ⚡ 短路過濾機制 (Short-Circuit Fast Decay)
-    # 如果物理誤差過大 (完全無價值目標)，直接跳過所有高階插值運算！
-    if fuzzy_score == 0.0:
+    # 【重大修正】：加入 self.measured 雷達實體驗證機制，防堵硬體內部運算殘影。
+    # 如果非實體雷達回波，或物理誤差過大 (完全無價值目標)，直接跳過所有高階插值運算！
+    if not self.measured or fuzzy_score == 0.0:
       self.ema_confidence[lead_idx] = ALPHA_DOWN * 0.0 + (1 - ALPHA_DOWN) * self.ema_confidence[lead_idx]
       return
 
