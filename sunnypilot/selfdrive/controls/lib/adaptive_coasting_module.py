@@ -53,6 +53,7 @@ class AdaptiveCoastingModule:
 
   def __init__(self):
     # 邏輯控制旗標
+    self.active = False  # 🌟 修復當機：預留屬性讓 longitudinal_planner 提早讀取不出錯
     self.acm_active = False  # 記錄 ACM 當下是否具備修改軌跡的資格
     self.intent_accelerating = False  # 記錄是否偵測到前車的加速意圖
     self.accel_intent_counter = 0  # 加速意圖連續發生幀數的計數器
