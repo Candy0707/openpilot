@@ -2,8 +2,6 @@ name: cereal validation
 
 on:
   push:
-    branches:
-      - master
   pull_request:
     paths:
       - 'cereal/**'

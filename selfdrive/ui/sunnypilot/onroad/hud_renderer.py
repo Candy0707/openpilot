@@ -18,8 +18,6 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.turn_signal import TurnSignalContr
 from openpilot.selfdrive.ui.sunnypilot.onroad.circular_alerts import CircularAlertsRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.speed_renderer import SpeedRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.radar_ui import RadarUiRenderer
-from openpilot.selfdrive.ui.sunnypilot.onroad.longitudinal_planner import LongitudinalPlanRenderer
-from openpilot.selfdrive.ui.sunnypilot.onroad.trend_ui import TrendRenderer
 
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.selfdrive.ui.onroad.hud_renderer import HudRenderer, UI_CONFIG, FONT_SIZES, COLORS, CRUISE_DISABLED_CHAR
@@ -34,7 +32,6 @@ class HudRendererSP(HudRenderer):
   def __init__(self):
     super().__init__()
     self.developer_ui = DeveloperUiRenderer()
-    self.trend_ui = TrendRenderer()
     self.road_name_renderer = RoadNameRenderer()
     self.rocket_fuel = RocketFuel()
     self.speed_limit_renderer = SpeedLimitRenderer()
@@ -42,7 +39,6 @@ class HudRendererSP(HudRenderer):
     self.turn_signal_controller = TurnSignalController()
     self.circular_alerts_renderer = CircularAlertsRenderer()
     self.speed_renderer = SpeedRenderer()
-    self.longitudinal_plan_renderer = LongitudinalPlanRenderer()
     self._torque_bar = TorqueBar(scale=3.0, always=True)
 
     self.pcm_cruise_speed: bool = True
@@ -67,7 +63,6 @@ class HudRendererSP(HudRenderer):
     self.turn_signal_controller.update()
     self.circular_alerts_renderer.update()
     self.speed_renderer.update()
-    self.longitudinal_plan_renderer.update()
 
   def _get_icbm_status(self):
     if not self.pcm_cruise_speed and ui_state.sm['carControl'].enabled:
@@ -146,7 +141,6 @@ class HudRendererSP(HudRenderer):
       self._torque_bar.render(torque_rect)
 
     self.developer_ui.render(rect)
-    self.trend_ui.render(rect)
     self.radar_ui.render(rect)
     self.road_name_renderer.render(rect)
     self.speed_limit_renderer.render(rect)
@@ -155,7 +149,6 @@ class HudRendererSP(HudRenderer):
     self.turn_signal_controller.render(rect)
     self.circular_alerts_renderer.render(rect)
     self.rocket_fuel.render(rect, ui_state.sm)
-    self.longitudinal_plan_renderer.render(rect)
 
   def set_model_renderer(self, model_renderer):
     self.model_renderer = model_renderer

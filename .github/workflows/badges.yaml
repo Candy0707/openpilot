@@ -1,7 +1,7 @@
 name: badges
 on:
   schedule:
-    - cron: '0 * * * *'
+    - cron: "0 * * * *"
   workflow_dispatch:
 
 env:
@@ -11,7 +11,7 @@ jobs:
   badges:
     name: create badges
     runs-on: ubuntu-latest
-    if: github.repository == 'sunnypilot/sunnypilot'
+    if: github.repository == 'Candy0707/openpilot'
     permissions:
       contents: write
     steps:
@@ -23,13 +23,13 @@ jobs:
       run: |
         python3 selfdrive/ui/translations/create_badges.py
 
-        rm .gitattributes
+          rm .gitattributes
 
-        git checkout --orphan badges
-        git rm -rf --cached .
-        git config user.email "badge-researcher@sunnypilot.ai"
-        git config user.name "Badge Researcher"
+          git checkout --orphan badges
+          git rm -rf --cached .
+          git config user.email "badge-researcher@sunnypilot.ai"
+          git config user.name "Badge Researcher"
 
-        git add translation_badge.svg
-        git commit -m "Add/Update badges"
-        git push -f origin HEAD
+          git add translation_badge.svg
+          git commit -m "Add/Update badges"
+          git push -f origin HEAD

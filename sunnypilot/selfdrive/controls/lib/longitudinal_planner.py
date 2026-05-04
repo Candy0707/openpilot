@@ -5,7 +5,6 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 
-import numpy as np
 from cereal import messaging, custom
 from opendbc.car import structs
 from openpilot.common.constants import CV
@@ -18,7 +17,6 @@ from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolve
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
-from openpilot.sunnypilot.selfdrive.controls.lib.adaptive_coasting_module import AdaptiveCoastingModule, EXIT_PERCENT, COAST_END_PERCENT, SAFE_DIST_PERCENT
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
@@ -42,7 +40,6 @@ class LongitudinalPlannerSP:
     self.generation = int(model_bundle.generation) if (model_bundle := get_active_bundle()) else None
     self.source = LongitudinalPlanSource.cruise
     self.e2e_alerts_helper = E2EAlertsHelper()
-    self.acm = AdaptiveCoastingModule()
     self.dtsc = DynamicTurnSpeedController(CP, mpc)
     self.pdm = PathDeviationMonitor(CP, mpc)
 
@@ -127,12 +124,6 @@ class LongitudinalPlannerSP:
     self.output_v_target, self.output_a_target = targets[self.source]
     return self.output_v_target, self.output_a_target
 
-  def update_a_desired_trajectory(self, sm: messaging.SubMaster, a_desired_trajectory: list[float], v_ego: float, t_follow_override: float):
-    # 1. 執行 ACM 邏輯
-    a_desired_trajectory = self.acm.update(sm, a_desired_trajectory, v_ego, t_follow_override)
-
-    return np.array(a_desired_trajectory)
-
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
     self.dec.update(sm)
@@ -173,26 +164,6 @@ class LongitudinalPlannerSP:
       if controller is not None and hasattr(controller, 'write_to_msg'):
         idx = enum_value
         controller.write_to_msg(targets_list[idx])
-
-    # AdaptiveCoastingModule (ACM) 資料寫入邏輯
-    adaptiveCoastingModule = longitudinalPlanSP.adaptiveCoastingModule
-    adaptiveCoastingModule.active = self.acm.active
-    adaptiveCoastingModule.state = self.acm.state
-
-    # 寫入物理距離資料 (轉為 float 確保通訊格式正確)
-    adaptiveCoastingModule.leadDist = float(self.acm.leadDist)
-    adaptiveCoastingModule.targetDist = float(self.acm.targetDist)
-    adaptiveCoastingModule.distPercent = float(self.acm.distPercent)
-
-    # 寫入動態邊界參數
-    adaptiveCoastingModule.exitPercent = float(self.acm.exitPercent)
-    adaptiveCoastingModule.coastEndPercent = float(self.acm.coastEndPercent)
-    adaptiveCoastingModule.safeDistPercent = float(self.acm.safeDistPercent)
-
-    # 寫入控制決策與極限值
-    adaptiveCoastingModule.ttaLimitValue = float(self.acm.ttaLimitValue)
-    adaptiveCoastingModule.mpcAccel = float(self.acm.mpcAccel)
-    adaptiveCoastingModule.acmAccel = float(self.acm.acmAccel)
 
     # Dynamic Experimental Control
     dec = longitudinalPlanSP.dec
