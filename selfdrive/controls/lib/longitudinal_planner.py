@@ -148,9 +148,8 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     self.mpc.set_weights(prev_accel_constraint, personality=sm['selfdriveState'].personality)
     self.mpc.set_cur_state(self.v_desired_filter.x, self.a_desired)
     a_cruise_min_override = LongitudinalPlannerSP.get_cruise_min_accel(self, v_ego)
-    t_follow_override = LongitudinalPlannerSP.get_t_follow(self, v_ego)
     self.mpc.update(
-      sm['radarState'], v_cruise, personality=sm['selfdriveState'].personality, a_cruise_min_override=a_cruise_min_override, t_follow_override=t_follow_override
+      sm['radarState'], v_cruise, personality=sm['selfdriveState'].personality, a_cruise_min_override=a_cruise_min_override
     )
 
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)

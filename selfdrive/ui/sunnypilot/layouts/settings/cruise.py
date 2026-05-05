@@ -100,11 +100,6 @@ class CruiseLayout(Widget):
       button_width=380,
     )
 
-    self.dynamicfollow_toggle = toggle_item_sp(
-      title=tr("Enable Dynamic Follow"),
-      description=tr(""),
-      param="DynamicFollow")
-
     self.dynamicturnspeedcontroller_toggle = toggle_item_sp(
       title=tr("Enable Dynamic Turn Speed Controller"),
       description=tr(""),

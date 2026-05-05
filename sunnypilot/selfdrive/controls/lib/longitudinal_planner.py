@@ -18,7 +18,6 @@ from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
 
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
-from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_follow import FollowDistanceController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
 from openpilot.sunnypilot.selfdrive.controls.lib.path_deviation_monitor.path_deviation_monitor import PathDeviationMonitor
 from opendbc.car.interfaces import ACCEL_MIN
@@ -33,7 +32,6 @@ class LongitudinalPlannerSP:
     self.resolver = SpeedLimitResolver()
     self.dec = DynamicExperimentalController(CP, mpc)
     self.accel_controller = AccelPersonalityController()
-    self.dynamic_follow = FollowDistanceController()
     self.scc = SmartCruiseControl()
     self.resolver = SpeedLimitResolver()
     self.sla = SpeedLimitAssist(CP, CP_SP)
@@ -72,11 +70,6 @@ class LongitudinalPlannerSP:
   def get_cruise_min_accel(self, v_ego: float) -> float | None:
     if self.accel_controller.is_enabled():
       return self.accel_controller.get_min_accel(v_ego)
-    return None
-
-  def get_t_follow(self, v_ego: float) -> float | None:
-    if self.dynamic_follow.is_enabled():
-      return self.dynamic_follow.get_follow_distance_multiplier(v_ego)
     return None
 
   def update_targets(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float) -> tuple[float, float]:
@@ -129,7 +122,6 @@ class LongitudinalPlannerSP:
     self.dec.update(sm)
     self.e2e_alerts_helper.update(sm, self.events_sp)
     self.accel_controller.update(sm)
-    self.dynamic_follow.update()
     self.dtsc.update(sm)
     self.pdm.update(sm)
 

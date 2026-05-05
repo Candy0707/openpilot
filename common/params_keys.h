@@ -136,11 +136,10 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
 
     // --- sunnypilot params --- //
     {"AccelPersonality", {PERSISTENT | BACKUP, INT, std::to_string(static_cast<int>(cereal::LongitudinalPlanSP::AccelerationPersonality::NORMAL))}},
-    {"AccelPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "1"}},
-    {"DynamicFollow", {PERSISTENT | BACKUP, BOOL, "1"}},
-    {"DynamicTurnSpeedController", {PERSISTENT | BACKUP, BOOL, "1"}},
-    {"PathDeviationMonitor", {PERSISTENT | BACKUP, BOOL, "1"}},
-    {"htd_enabled", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"AccelPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"DynamicTurnSpeedController", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"PathDeviationMonitor", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"htd_enabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"htd_turn_angle_threshold", {PERSISTENT | BACKUP, INT, "90"}},
     {"ApiCache_DriveStats", {PERSISTENT, JSON}},
     {"AutoLaneChangeBsmDelay", {PERSISTENT | BACKUP, BOOL, "0"}},
