@@ -122,7 +122,6 @@ class CruiseLayout(Widget):
       self.sla_settings_button,
       self.accelpersonality_toggle,
       self.accelpersonality_mode,
-      self.dynamicfollow_toggle,
       self.dynamicturnspeedcontroller_toggle,
       self.pathdeviationmonitor_toggle,
     ]
