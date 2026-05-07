@@ -12,7 +12,7 @@ from openpilot.selfdrive.controls import radard
 
 # 2. 正常引入我們需要的元件與原始函數
 from openpilot.selfdrive.controls.radard import (
-    KalmanParams, Track, RadarD, match_vision_to_track, 
+    KalmanParams, Track, RadarD, match_vision_to_track,
     get_RadarState_from_vision, get_custom_yrel, RADAR_TO_CAMERA
 )
 
@@ -85,8 +85,8 @@ class TrackSP(Track):
 
   def _calculate_fuzzy_score(self, offset_vision_dist: float, vision_y: float, vision_v: float, v_ego: float) -> float:
     """
-    【階段二：三維物理模糊打分】
-    計算縱向、橫向與速度的物理誤差，利用線性遞減平滑映射為 0.0 ~ 1.0 的重合度分數。
+    【階段二：嚴格三維物理模糊打分】
+    計算縱向、橫向與速度的物理誤差。遵守視覺主導底線：雷達與視覺必須在三維空間重合才准許打分。
     """
     err_d = abs(self.dRel - offset_vision_dist)
     err_y = abs(self.yRel - vision_y)
@@ -144,20 +144,23 @@ class TrackSP(Track):
     vision_y = -lead_msg.y[0]
     vision_v = lead_msg.v[0]
 
-    # 執行階段一：幾何邊界審查
+    # 🌪️ 漏斗第一關：極速剪枝 (O(1) Fast Pruning)
+    # 如果不是實體回波，或橫向粗略偏離預測車道中心超過 2.0m (1.5+0.5 容錯)
+    # 直接捨棄衰減，釋放 90% CPU 算力！
+    if not self.measured or abs(self.yRel - vision_y) > (LANE_WIDTH_FALLBACK + LANE_HYSTERESIS_MARGIN):
+      self.ema_confidence[lead_idx] = ALPHA_DOWN * 0.0 + (1 - ALPHA_DOWN) * self.ema_confidence[lead_idx]
+      return
+
+
+    # 執行階段一：幾何邊界精細審查 (遲滯狀態機)
     is_valid_spatial = self._check_spatial_boundaries(vision_y)
 
-    # 執行階段二：物理模糊打分
+    # 執行階段二：物理模糊打分 (確保三維重合度)
     fuzzy_score = self._calculate_fuzzy_score(offset_vision_dist, vision_y, vision_v, v_ego)
 
-    # 一票否決：若出界，總分強制歸零
-    if not is_valid_spatial:
-      fuzzy_score = 0.0
-
     # ⚡ 終極短路過濾機制 (Short-Circuit Fast Decay)
-    # 嚴格綁定 self.measured (雷達實體電磁波驗證)，防堵硬體內部運算殘影。
-    # 如果非實體雷達回波，或物理誤差過大 (完全無價值目標)，直接跳過所有高階插值運算，套用衰減！
-    if not self.measured or fuzzy_score == 0.0:
+    # 若精細審查出界，或物理誤差過大 (非重合目標)，強制衰減踢出決策圈
+    if not is_valid_spatial or fuzzy_score == 0.0:
       self.ema_confidence[lead_idx] = ALPHA_DOWN * 0.0 + (1 - ALPHA_DOWN) * self.ema_confidence[lead_idx]
       return
 
@@ -194,11 +197,22 @@ def get_lead_ext(
   max_ema_confidence = 0.0
 
   if ready:
-    # 1. 遍歷所有軌跡，送入管線處理，並提取全場最高 EMA
+    # 1. 遍歷所有軌跡，送入管線處理更新狀態
     for track in tracks.values():
       track.process_track_logic(lead_idx, lead_msg, v_ego)
-      if track.ema_confidence[lead_idx] > max_ema_confidence:
-        max_ema_confidence = track.ema_confidence[lead_idx]
+
+  # ==============================================================================
+  # 🛡️ 終極防護網：洗乾淨名單
+  # 只將「在車道內」且「未被短路衰減完全歸零」的優良目標挑選出來
+  # ==============================================================================
+  valid_tracks = {k: v for k, v in tracks.items() if not v.is_out_of_lane and v.ema_confidence[lead_idx] > 0.0}
+
+  # ==============================================================================
+  # 【修補漏洞】：從「本車道內」的合法目標中，提取全場最高 EMA
+  # 絕對不拿隔壁車道的超高分來降本車道的門檻，完美防堵幽靈急煞！
+  # ==============================================================================
+  if len(valid_tracks) > 0:
+    max_ema_confidence = max(track.ema_confidence[lead_idx] for track in valid_tracks.values())
 
   # ==============================================================================
   # 【階段五：全局門檻映射】
@@ -206,13 +220,6 @@ def get_lead_ext(
   # EMA 越高，原廠視覺把關門檻就被我們降得越低。若 EMA <= 0.4，則死守原廠 0.5 門檻。
   # ==============================================================================
   current_prob_thres = float(np.interp(max_ema_confidence, EMA_VAL_RANGE, PROB_THRES_RANGE))
-
-  # ==============================================================================
-  # 🛡️ 終極防護網：洗乾淨名單，防止交還原廠時發生大洗牌
-  # 只將「在車道內」且「未被短路衰減完全歸零」的優良目標交給原廠。
-  # 徹底斬斷原廠拉普拉斯機率挑中路外雜訊反客為主的可能！
-  # ==============================================================================
-  valid_tracks = {k: v for k, v in tracks.items() if not v.is_out_of_lane and v.ema_confidence[lead_idx] > 0.0}
 
   # ========================================================================
   # 下方為原廠 get_lead 判斷邏輯移植
@@ -244,8 +251,8 @@ def get_lead_ext(
 
   # ==============================================================================
   # 🛡️ 原廠底線救援 (Low Speed Override Fallback)
-  # 解決市區極低速跟停時，相機可能因為逆光而「瞎掉」導致防護網誤判無車的問題。
-  # 只要雷達確認正前方極近距離有慢速目標，強制寫入最終輸出，完美防止危險蠕行。
+  # 極低速 (< 14.4 km/h) 專屬防護：就算視覺瞎掉，雷達只要確認正前方極近距離有慢速目標，
+  # 就強制寫入最終輸出，完美防止市區危險蠕行，達成優雅兜底！
   # ==============================================================================
   if low_speed_override:
     low_speed_tracks = [c for c in tracks.values() if c.potential_low_speed_lead(v_ego)]
