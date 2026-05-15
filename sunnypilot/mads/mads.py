@@ -161,6 +161,7 @@ class ModularAssistiveDrivingSystem:
       self.events.remove(EventName.speedTooLow)
       self.events.remove(EventName.cruiseDisabled)
       self.events.remove(EventName.manualRestart)
+      self.events.remove(EventName.espActive)
 
     # --- 依賴 htd_allowed 觸發暫停狀態 (紫盤) ---
     # 只要 HTD 判定不允許轉向，就觸發 transition_paused_state 讓 MADS 進入待命
