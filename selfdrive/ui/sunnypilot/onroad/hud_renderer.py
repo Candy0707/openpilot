@@ -18,6 +18,7 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.turn_signal import TurnSignalContr
 from openpilot.selfdrive.ui.sunnypilot.onroad.circular_alerts import CircularAlertsRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.speed_renderer import SpeedRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.radar_ui import RadarUiRenderer
+from openpilot.selfdrive.ui.sunnypilot.onroad.visual_ui import VisualUiRenderer
 
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.selfdrive.ui.onroad.hud_renderer import HudRenderer, UI_CONFIG, FONT_SIZES, COLORS, CRUISE_DISABLED_CHAR
@@ -25,7 +26,7 @@ from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 
-SLA_ACTIVE_COLOR = rl.Color(0x91, 0x9b, 0x95, 0xff)
+SLA_ACTIVE_COLOR = rl.Color(0x91, 0x9B, 0x95, 0xFF)
 
 
 class HudRendererSP(HudRenderer):
@@ -63,6 +64,7 @@ class HudRendererSP(HudRenderer):
     self.turn_signal_controller.update()
     self.circular_alerts_renderer.update()
     self.speed_renderer.update()
+    self.visual_ui._update_state()
 
   def _get_icbm_status(self):
     if not self.pcm_cruise_speed and ui_state.sm['carControl'].enabled:
@@ -93,8 +95,8 @@ class HudRendererSP(HudRenderer):
     if self.is_cruise_set:
       set_speed_color = COLORS.WHITE
       if long_plan_sp.speedLimit.assist.active:
-        set_speed_color = SLA_ACTIVE_COLOR if long_override else rl.Color(0, 0xff, 0, 0xff)
-        max_color = SLA_ACTIVE_COLOR if long_override else rl.Color(0x80, 0xd8, 0xa6, 0xff)
+        set_speed_color = SLA_ACTIVE_COLOR if long_override else rl.Color(0, 0xFF, 0, 0xFF)
+        max_color = SLA_ACTIVE_COLOR if long_override else rl.Color(0x80, 0xD8, 0xA6, 0xFF)
       else:
         if ui_state.status == UIStatus.ENGAGED:
           max_color = COLORS.ENGAGED
@@ -142,6 +144,7 @@ class HudRendererSP(HudRenderer):
 
     self.developer_ui.render(rect)
     self.radar_ui.render(rect)
+    self.visual_ui._render(rect)
     self.road_name_renderer.render(rect)
     self.speed_limit_renderer.render(rect)
     self._draw_set_speed(rect)
@@ -153,3 +156,4 @@ class HudRendererSP(HudRenderer):
   def set_model_renderer(self, model_renderer):
     self.model_renderer = model_renderer
     self.radar_ui = RadarUiRenderer(model_renderer)
+    self.visual_ui = VisualUiRenderer(self.model_renderer)

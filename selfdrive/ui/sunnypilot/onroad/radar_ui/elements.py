@@ -28,6 +28,10 @@ class RadarData:
     self.Points = []
 
     for point in radar:
+      # 過濾未驗證的點
+      if not point.measured:
+        continue
+
       # 根據距離決定顏色
       color = self.radar_point_color(point.dRel, point.yRel) if point.measured else rl.Color(128, 128, 128, 100)
 
