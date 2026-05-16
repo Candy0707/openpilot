@@ -1606,17 +1606,12 @@ msgstr "使用公制"
 #: openpilot/selfdrive/ui/layouts/sidebar.py:72
 #: openpilot/selfdrive/ui/layouts/sidebar.py:144
 #: selfdrive/ui/layouts/settings/toggles.py:17
-msgid ""
-"Use the openpilot system for adaptive cruise control and lane keep driver "
+msgid "Use the openpilot system for adaptive cruise control and lane keep driver "
 "assistance. Your attention is required at all times to use this feature."
-msgstr ""
-"使用 openpilot 進行 ACC 與車道維持輔助。使用此功能時，您必須始終保持專注。"
-msgid ""
-
-"Use the sunnypilot system for adaptive cruise control and lane keep driver "
+msgstr "使用 openpilot 進行 ACC 與車道維持輔助。使用此功能時，您必須始終保持專注。"
+msgid "Use the sunnypilot system for adaptive cruise control and lane keep driver "
 "assistance. Your attention is required at all times to use this feature."
-msgstr ""
-"使用 sunnypilot 進行 ACC 與車道維持輔助。使用此功能時，您必須始終保持專注。"
+msgstr "使用 sunnypilot 進行 ACC 與車道維持輔助。使用此功能時，您必須始終保持專注。"
 
 
 #: selfdrive/ui/layouts/sidebar.py:72 selfdrive/ui/layouts/sidebar.py:144
@@ -2231,7 +2226,7 @@ msgstr "設定車道轉彎的最大速度。預設值為 19 英里/小時。"
 #: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:81
 #, python-format
 msgid "Use Lane Turn Desires"
-msgstr "使用變換車道功能"
+msgstr "使用轉彎預測功能(方向燈)"
 
 #: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:82
 #, python-format
@@ -2304,21 +2299,817 @@ msgid "Only available when vehicle is off, or always offroad mode is on"
 msgstr "僅當車輛熄火或始終開啟 offroad 模式時可用"
 
 #, python-format
-msgid "exit_dist"
-msgstr "離開距離"
+msgid "Automatic Lane Centering is OFF"
+msgstr "自動車道置中功能已關閉"
 
 #, python-format
-msgid "safety_dist"
-msgstr "煞車距離"
+msgid "Manual Steering Required"
+msgstr "需要手動轉向"
 
 #, python-format
-msgid "danger_dist"
-msgstr "滑行距離"
+msgid "Smart/Adaptive Cruise Control: OFF"
+msgstr "自適應巡航控制：關閉"
 
 #, python-format
-msgid "target_dist"
-msgstr "目標距離"
+msgid "Manual Speed Control Required"
+msgstr "需要手動控制速度"
 
 #, python-format
-msgid "leadDist"
-msgstr "前車距離"
+msgid "Brake Hold Active"
+msgstr "煞車保持開啟"
+
+#, python-format
+msgid "Gear not D"
+msgstr "未在前進檔位(D)"
+
+#, python-format
+msgid "Door Open"
+msgstr "車門開啟"
+
+#, python-format
+msgid "Seatbelt Unlatched"
+msgstr "未繫安全帶"
+
+#, python-format
+msgid "Parking Brake Engaged"
+msgstr "駐車煞車(手煞車)未解除"
+
+#, python-format
+msgid "Controls Mismatch: Lateral"
+msgstr "控制不匹配：橫向"
+
+#, python-format
+msgid "Experimental Mode Switched"
+msgstr "實驗模式切換"
+
+#, python-format
+msgid "Pedal Pressed"
+msgstr "油門已採下"
+
+#, python-format
+msgid "Turning Left"
+msgstr "左轉"
+
+#, python-format
+msgid "Turning Right"
+msgstr "右轉"
+
+#, python-format
+msgid "Enable the beloved MADS feature. Disable toggle to revert back to stock sunnypilot engagement/disengagement."
+msgstr "啟用 MADS 功能，停用此切換按鈕可恢復至 SunnyPilot 預設的啟用/停用狀態。。"
+
+#, python-format
+msgid "This platform supports limited MADS settings."
+msgstr "該平台支援 MADS 設定有限。"
+
+#, python-format
+msgid "This platform supports all MADS settings."
+msgstr "該平台支援 MADS 所有設定。"
+
+#, python-format
+msgid "Start the vehicle to check vehicle compatibility."
+msgstr "啟動車輛以檢查車輛相容性。"
+
+#, python-format
+msgid "Modular Assistive Driving System (MADS)"
+msgstr "模組化輔助駕駛系統（MADS）"
+
+#, python-format
+msgid "Customize MADS"
+msgstr "自訂 MADS"
+
+#, python-format
+msgid "Customize Lane Change"
+msgstr "自訂車道變換"
+
+#, python-format
+msgid "BlinkerPauseLateralControl"
+msgstr "方向燈暫停側向控制"
+
+#, python-format
+msgid "Pause lateral control with blinker when traveling below the desired speed selected."
+msgstr "當車速低於設定的目標速度時，使用方向燈暫停橫向控制。"
+
+#, python-format
+msgid "Pause Lateral Control with Blinker"
+msgstr "暫停側向控制（方向燈）"
+
+#, python-format
+msgid "BlinkerMinLateralControlSpeed"
+msgstr "方向燈最小橫向控制速度"
+
+#, python-format
+msgid "Minimum Speed to Pause Lateral Control"
+msgstr "橫向控制暫停的最低速度"
+
+#, python-format
+msgid "BlinkerLateralReengageDelay"
+msgstr "方向燈側向重新接合延遲"
+
+#, python-format
+msgid "Post-Blinker Delay"
+msgstr "轉向燈後延遲"
+
+#, python-format
+msgid "Enable Human Turn Detection(HTD)"
+msgstr "啟用手動轉彎偵測"
+
+#, python-format
+msgid "Unavailable during cruise control.Automatically pause steering when the driver applies large manual steering input, then smoothly resume."
+msgstr "巡航控制期間不可用。當駕駛員進行大幅度手動轉向時，自動暫停轉向，然後平穩恢復。"
+
+#, python-format
+msgid "HTD Trigger angle"
+msgstr "觸發角度"
+
+#, python-format
+msgid "Driver steering angle that triggers HTD (degrees)."
+msgstr "觸發 HTD 的駕駛轉向角度（度）。"
+
+#, python-format
+msgid "Enforce Torque Lateral Control"
+msgstr "加強扭力橫向控制"
+
+#, python-format
+msgid "Enable this to enforce sunnypilot to steer with Torque lateral control."
+msgstr "啟用此功能可強制 sunnypilot 使用扭力橫向控制進行轉向。"
+
+#, python-format
+msgid "Customize Torque Params"
+msgstr "自訂扭矩參數"
+
+#, python-format
+msgid "Neural Network Lateral Control (NNLC)"
+msgstr "神經網路橫向控制(NNLC)"
+
+# ==============================================================================
+# 車道變換設定 (Lane Change Settings)
+# 來源檔案: lane_change_settings.py
+# ==============================================================================
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 返回按鈕
+msgid "Back"
+msgstr "返回"
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 方向燈自動變換車道功能標題
+msgid "Auto Lane Change by Blinker"
+msgstr "方向燈自動變換車道"
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 方向燈自動變換車道功能詳細描述
+msgid ""
+"Set a timer to delay the auto lane change operation when the blinker is used. "
+"No nudge on the steering wheel is required to auto lane change if a timer is set. Default is Nudge.<br>"
+"Please use caution when using this feature. Only use the blinker when traffic and road conditions permit."
+msgstr ""
+"設定使用方向燈時，延遲自動變換車道操作的計時器。"
+"若設定了計時器，變換車道時便無需輕推方向盤。預設為需要輕推（Nudge）。<br>"
+"使用此功能請務必小心。僅在交通與路況允許時才使用方向燈。"
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 計時器選項 - 關閉
+msgid "Off"
+msgstr "關閉"
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 計時器選項 - 需要輕推方向盤
+msgid "Nudge"
+msgstr "輕推方向盤"
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 計時器選項 - 無須輕推方向盤
+msgid "Nudgeless"
+msgstr "無須輕推"
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 秒數單位
+msgid "s"
+msgstr "秒"
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 盲點延遲功能標題
+msgid "Auto Lane Change: Delay with Blind Spot"
+msgstr "自動變換車道：盲點延遲"
+
+#: openpilot/system/ui/sunnypilot/lane_change_settings.py
+# 說明: 盲點延遲功能詳細描述
+msgid ""
+"Toggle to enable a delay timer for seamless lane changes when blind spot monitoring "
+"(BSM) detects a obstructing vehicle, ensuring safe maneuvering."
+msgstr ""
+"啟用延遲計時器，當盲點偵測 (BSM) 偵測到障礙車輛時暫緩變換車道，確保行車安全。"
+
+
+# ==============================================================================
+# MADS 輔助駕駛設定 (MADS Settings)
+# 來源檔案: mads_settings.py
+# ==============================================================================
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 轉向模式選項 - 保持啟用
+msgid "Remain Active"
+msgstr "保持啟用"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 轉向模式選項詳細說明 - 保持啟用
+msgid "Remain Active: ALC will remain active when the brake pedal is pressed."
+msgstr "保持啟用：踩下煞車踏板時，自動車道置中 (ALC) 將保持啟用。"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 轉向模式選項 - 暫停
+msgid "Pause"
+msgstr "暫停"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 轉向模式選項詳細說明 - 暫停
+msgid "Pause: ALC will pause when the brake pedal is pressed."
+msgstr "暫停：踩下煞車踏板時，自動車道置中 (ALC) 將暫停。"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 轉向模式選項 - 解除
+msgid "Disengage"
+msgstr "解除"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 轉向模式選項詳細說明 - 解除
+msgid "Disengage: ALC will disengage when the brake pedal is pressed."
+msgstr "解除：踩下煞車踏板時，自動車道置中 (ALC) 將解除。"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: MADS 主巡航連動功能標題
+msgid "Toggle with Main Cruise"
+msgstr "與巡航系統連動"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 針對無 LFA/LKAS 按鈕車款的警告說明
+msgid "Note: For vehicles without LFA/LKAS button, disabling this will prevent lateral control engagement."
+msgstr "注意：對於沒有 LFA/LKAS 按鈕的車輛，停用此選項將無法啟用橫向控制。"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 統一啟用模式 (UEM) 標題
+msgid "Unified Engagement Mode (UEM)"
+msgstr "一律啟用模式 (UEM)"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 統一啟用模式行為說明
+msgid "Engage lateral and longitudinal control with cruise control engagement."
+msgstr "啟用巡航控制時，一併啟用橫向與縱向控制。"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 煞車踩下時的轉向模式
+msgid "Steering Mode on Brake Pedal"
+msgstr "煞車踩下時的轉向模式"
+
+#: openpilot/system/ui/sunnypilot/mads_settings.py
+# 說明: 煞車踩下時的轉向模式
+msgid "Choose how Automatic Lane Centering (ALC) behaves after the brake pedal is manually pressed in sunnypilot."
+msgstr "在 sunnypilot 中，選擇手動踩下煞車踏板後自動車道居中 (ALC) 的行為方式。"
+
+# ==============================================================================
+# 扭矩控制設定 (Torque Settings)
+# 來源檔案: torque_settings.py
+# ==============================================================================
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 返回按鈕
+msgid "Back"
+msgstr "返回"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 扭矩控制版本選項標題
+msgid "Torque Control Tune Version"
+msgstr "扭矩控制調校版本"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 扭矩控制版本選項的詳細描述 (已修正加入 tr 函數的字串)
+msgid "Select the version of Torque Control Tune to use."
+msgstr "選擇要使用的扭矩控制調校版本。"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 選取按鈕文字
+msgid "SELECT"
+msgstr "選取"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 自動調校功能標題
+msgid "Self-Tune"
+msgstr "自動調校"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 自動調校功能詳細描述
+msgid "Enables self-tune for Torque lateral control for platforms that do not use Torque lateral control by default."
+msgstr "為預設不使用扭矩橫向控制的平台，啟用扭矩橫向控制自動調校。"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 寬鬆自動調校設定標題
+msgid "Less Restrict Settings for Self-Tune (Beta)"
+msgstr "較寬鬆的自動調校設定 (Beta)"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 寬鬆自動調校設定描述
+msgid "Less strict settings when using Self-Tune. This allows torqued to be more forgiving when learning values."
+msgstr "使用自動調校時放寬限制。這能讓扭矩控制在學習數值時有更大的容錯空間。"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 自訂調校功能標題
+msgid "Enable Custom Tuning"
+msgstr "啟用自訂調校"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 自訂調校功能詳細描述
+msgid "Enables custom tuning for Torque lateral control. Modifying Lateral Acceleration Factor and Friction below will override the offline values indicated in the YAML files within \"opendbc/car/torque_data\". The values will also be used live when \"Manual Real-Time Tuning\" toggle is enabled."
+msgstr "啟用扭矩橫向控制的自訂調校。修改下方的「橫向加速度係數」與「摩擦力」將會覆蓋 \"opendbc/car/torque_data\" 中 YAML 檔案的離線數值。當啟用「手動即時調校」時，這些數值也會即時生效。"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 手動即時調校標題
+msgid "Manual Real-Time Tuning"
+msgstr "手動即時調校"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 手動即時調校詳細描述
+msgid "Enforces the torque lateral controller to use the fixed values instead of the learned values from Self-Tune. Enabling this toggle overrides Self-Tune values."
+msgstr "強制扭矩橫向控制器使用固定數值，而非自動調校的學習數值。啟用此功能將覆蓋自動調校的結果。"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 橫向加速度係數標題
+msgid "Lateral Acceleration Factor"
+msgstr "橫向加速度係數"
+
+#: openpilot/system/ui/sunnypilot/torque_settings.py
+# 說明: 摩擦力設定標題
+msgid "Friction"
+msgstr "摩擦力設定"
+
+# ==============================================================================
+# 巡航控制設定 (Cruise Settings)
+# 來源檔案: cruise.py
+# ==============================================================================
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 智慧巡航按鈕管理功能標題
+msgid "Intelligent Cruise Button Management (ICBM) (Alpha)"
+msgstr "智慧巡航按鈕管理 (ICBM) (Alpha)"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: ICBM 功能詳細描述
+msgid "When enabled, sunnypilot will attempt to manage the built-in cruise control buttons by emulating button presses for limited longitudinal control."
+msgstr "啟用後，sunnypilot 將嘗試透過模擬按鈕按下來管理內建的巡航控制按鈕，以實現有限的縱向控制。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: ICBM 平台不支援提示
+msgid "Intelligent Cruise Button Management is currently unavailable on this platform."
+msgstr "智慧巡航按鈕管理目前在此平台上無法使用。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 需停用縱向控制以啟用 ICBM 提示
+msgid "Disable the sunnypilot Longitudinal Control (alpha) toggle to allow Intelligent Cruise Button Management."
+msgstr "停用 sunnypilot 縱向控制 (alpha) 切換，以允許使用智慧巡航按鈕管理。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 縱向控制為預設設定之提示
+msgid "sunnypilot Longitudinal Control is the default longitudinal control for this platform."
+msgstr "sunnypilot 縱向控制是此平台的預設縱向控制。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 自訂 ACC 短按/長按增量功能描述
+msgid "Enable custom Short & Long press increments for cruise speed increase/decrease."
+msgstr "啟用自訂短按與長按增量，用於巡航速度的增減。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 功能限制提示 - 需啟用縱向控制
+msgid "This feature can only be used with sunnypilot longitudinal control enabled."
+msgstr "此功能僅能在啟用 sunnypilot 縱向控制時使用。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 功能限制提示 - 車輛不支援
+msgid "This feature is not supported on this platform due to vehicle limitations."
+msgstr "由於車輛限制，此平台不支援此功能。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 智慧巡航控制 - 視覺功能標題
+msgid "Smart Cruise Control - Vision"
+msgstr "智慧巡航控制 - 視覺"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 智慧巡航控制 - 視覺功能描述
+msgid "Use vision path predictions to estimate the appropriate speed to drive through turns ahead."
+msgstr "使用視覺路徑預測來估計通過前方彎道的適當速度。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 智慧巡航控制 - 圖資功能標題
+msgid "Smart Cruise Control - Map"
+msgstr "智慧巡航控制 - 圖資"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 智慧巡航控制 - 圖資功能描述
+msgid "Use map data to estimate the appropriate speed to drive through turns ahead."
+msgstr "使用圖資資料來估計通過前方彎道的適當速度。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 自訂 ACC 速度增量功能標題
+msgid "Custom ACC Speed Increments"
+msgstr "自訂 ACC 速度增量"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 短按增量設定標題
+msgid "Short Press Increment"
+msgstr "短按增量"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 長按增量設定標題
+msgid "Long Press Increment"
+msgstr "長按增量"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 速限設定按鈕標題
+msgid "Speed Limit"
+msgstr "速限"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 動態實驗控制功能標題
+msgid "Enable Dynamic Experimental Control"
+msgstr "啟用動態實驗控制"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 動態實驗控制功能描述
+msgid "Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal."
+msgstr "啟用此切換，允許模型決定何時自動使用 sunnypilot ACC 或 sunnypilot 端到端縱向控制。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 加速風格控制功能標題
+msgid "Enable AccelPersonality Control"
+msgstr "啟用加速風格控制 (AccelPersonality) "
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 加速風格選擇清單標題
+msgid "Accel Personality"
+msgstr "加速風格"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 加速風格選項 - 運動
+msgid "Sport"
+msgstr "運動"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 加速風格選項 - 一般
+msgid "Normal"
+msgstr "一般"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 加速風格選項 - 節能
+msgid "ECO"
+msgstr "節能"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 動態彎道速度控制器標題
+msgid "Enable Dynamic Turn Speed Controller"
+msgstr "啟用動態彎道速度(DTSC)"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/cruise.py
+# 說明: 路徑偏移監控標題
+msgid "Enable Path Deviation Monitor"
+msgstr "啟用路徑偏移監控(PDM)"
+
+
+# ==============================================================================
+# 速限策略設定 (Speed Limit Policy)
+# 來源檔案: speed_limit_policy.py
+# ==============================================================================
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 速限來源選單標題
+msgid "Speed Limit Source"
+msgstr "速限來源"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項 - 僅限車輛
+msgid "Car Only"
+msgstr "僅限車輛"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項 - 僅限圖資
+msgid "Map Only"
+msgstr "僅限圖資"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項 - 車輛優先
+msgid "Car First"
+msgstr "車輛優先"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項 - 圖資優先
+msgid "Map First"
+msgstr "圖資優先"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項 - 綜合
+msgid "Combined"
+msgstr "綜合"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項說明 - 僅限車輛
+msgid "Car Only: Use Speed Limit data only from Car"
+msgstr "僅限車輛：僅使用來自車輛的速限資料"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項說明 - 僅限圖資
+msgid "Map Only: Use Speed Limit data only from OpenStreetMaps"
+msgstr "僅限圖資：僅使用來自 OpenStreetMaps 的速限資料"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項說明 - 車輛優先
+msgid "Car First: Use Speed Limit data from Car if available, else use from OpenStreetMaps"
+msgstr "車輛優先：若可用則優先使用車輛的速限資料，否則使用 OpenStreetMaps"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項說明 - 圖資優先
+msgid "Map First: Use Speed Limit data from OpenStreetMaps if available, else use from Car"
+msgstr "圖資優先：若可用則優先使用 OpenStreetMaps 的速限資料，否則使用車輛資料"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_policy.py
+# 說明: 策略選項說明 - 綜合
+msgid "Combined: Use combined Speed Limit data from Car & OpenStreetMaps"
+msgstr "綜合：使用結合車輛與 OpenStreetMaps 的速限資料"
+
+
+# ==============================================================================
+# 速限詳細設定 (Speed Limit Settings)
+# 來源檔案: speed_limit_settings.py
+# ==============================================================================
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 速限模式選項 - 資訊
+msgid "Info"
+msgstr "資訊"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 速限模式選項 - 警告
+msgid "Warning"
+msgstr "警告"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 速限模式選項 - 輔助
+msgid "Assist"
+msgstr "輔助"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 偏移類型選項 - 無
+msgid "None"
+msgstr "無"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 偏移類型選項 - 固定值
+msgid "Fixed"
+msgstr "固定值"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 偏移類型選項 - 百分比符號
+msgid "%"
+msgstr "%"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 模式選項說明 - 關閉
+msgid "Off: Disables the Speed Limit functions."
+msgstr "關閉：停用速限相關功能。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 模式選項說明 - 資訊
+msgid "Information: Displays the current road's speed limit."
+msgstr "資訊：顯示當前道路的速限。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 模式選項說明 - 警告
+msgid "Warning: Provides a warning when exceeding the current road's speed limit."
+msgstr "警告：當超過當前道路的速限時提供警告。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 模式選項說明 - 輔助
+msgid "Assist: Adjusts the vehicle's cruise speed based on the current road's speed limit when operating the +/- buttons."
+msgstr "輔助：操作 +/- 按鈕時，根據當前道路的速限調整車輛的巡航速度。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 自訂速限來源按鈕標題
+msgid "Customize Source"
+msgstr "自訂來源"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 速限偏移值標題
+msgid "Speed Limit Offset"
+msgstr "速限偏移值"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 偏移類型說明 - 無
+msgid "None: No Offset"
+msgstr "無：無偏移值"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 偏移類型說明 - 固定值
+msgid "Fixed: Adds a fixed offset [Speed Limit + Offset]"
+msgstr "固定值：增加固定的偏移值 [速限 + 偏移值]"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/speed_limit_settings.py
+# 說明: 偏移類型說明 - 百分比
+msgid "Percent: Adds a percent offset [Speed Limit + (Offset % Speed Limit)]"
+msgstr "百分比：增加百分比偏移值 [速限 + (偏移值 % 速限)]"
+
+# ==============================================================================
+# 視覺設定 (Visuals Settings)
+# 來源檔案: visuals.py
+# ==============================================================================
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 追蹤前車箭頭下方的指標功能啟用時的描述
+msgid "Display useful metrics below the chevron that tracks the lead car only applicable to cars with sunnypilot longitudinal control."
+msgstr "在追蹤前車的箭頭下方顯示有用的指標，僅適用於具備 sunnypilot 縱向控制的車款。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 追蹤前車箭頭下方的指標功能停用時的描述（不支援縱向控制）
+msgid "This feature requires sunnypilot longitudinal control to be available."
+msgstr "此功能需要 sunnypilot 縱向控制可用。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 盲點警示功能標題
+msgid "Show Blind Spot Warnings"
+msgstr "顯示盲點警示"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 盲點警示功能詳細描述
+msgid "Enabling this will display warnings when a vehicle is detected in your blind spot as long as your car has BSM supported."
+msgstr "只要您的車輛支援 BSM，啟用此功能將在您的盲點偵測到車輛時顯示警示。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 轉向弧線功能標題
+msgid "Steering Arc"
+msgstr "啟用 轉向扭矩 動態顯示"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 轉向弧線功能詳細描述
+msgid "Display steering arc on the driving screen when lateral control is enabled."
+msgstr "啟用橫向控制時，在駕駛畫面上顯示轉向扭矩。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: Tesla 彩虹模式功能標題
+msgid "Enable Tesla Rainbow Mode"
+msgstr "啟用 Tesla 彩虹模式"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: Tesla 彩虹模式功能詳細描述
+msgid "A beautiful rainbow effect on the path the model wants to take. It does not affect driving in any way."
+msgstr "在模型預測的路徑上顯示美麗的彩虹效果。這完全不會影響駕駛。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 靜止計時器功能標題
+msgid "Enable Standstill Timer"
+msgstr "啟用靜止計時器"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 靜止計時器功能詳細描述
+msgid "Show a timer on the HUD when the car is at a standstill."
+msgstr "當車輛靜止時，在 HUD 上顯示計時器。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 顯示道路名稱功能標題
+msgid "Display Road Name"
+msgstr "顯示道路名稱"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 顯示道路名稱功能詳細描述
+msgid "Displays the name of the road the car is traveling on.<br>The OpenStreetMap database of the location must be downloaded from the OSM panel to fetch the road name."
+msgstr "顯示車輛正在行駛的道路名稱。<br>必須從 OSM 面板下載該位置的 OpenStreetMap 資料庫才能獲取道路名稱。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 綠燈提示功能標題
+msgid "Green Traffic Light Alert (Beta)"
+msgstr "綠燈提示 (Beta)"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 綠燈提示功能詳細描述
+msgid "A chime and on-screen alert will play when the traffic light you are waiting for turns green and you have no vehicle in front of you.<br>Note: This chime is only designed as a notification. It is the driver's responsibility to observe their environment and make decisions accordingly."
+msgstr "當您等待的交通號誌變綠且前方無車輛時，將播放提示音並在螢幕上顯示警示。<br>Note: 此提示音僅設計為通知。駕駛人有責任觀察周遭環境並做出相應決定。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 前車起步提示功能標題
+msgid "Lead Departure Alert (Beta)"
+msgstr "前車起步警示 (Beta)"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 前車起步提示功能詳細描述
+msgid "A chime and on-screen alert will play when you are stopped, and the vehicle in front of you start moving.<br>Note: This chime is only designed as a notification. It is the driver's responsibility to observe their environment and make decisions accordingly."
+msgstr "當您處於停止狀態且前車開始移動時，將播放提示音並在螢幕上顯示警示。<br>Note: 此提示音僅設計為通知。駕駛人有責任觀察周遭環境並做出相應決定。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 永遠顯示真實車速功能標題
+msgid "Speedometer: Always Display True Speed"
+msgstr "時速表：永遠顯示真實車速"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 永遠顯示真實車速功能詳細描述
+msgid "For applicable vehicles, always display the true vehicle current speed from wheel speed sensors."
+msgstr "對於適用的車款，永遠顯示來自輪速感測器的真實車輛當前速度。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 在駕駛畫面隱藏時速表功能標題
+msgid "Speedometer: Hide from Onroad Screen"
+msgstr "時速表：在駕駛畫面上隱藏"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 在駕駛畫面隱藏時速表功能詳細描述
+msgid "When enabled, the speedometer on the onroad screen is not displayed."
+msgstr "啟用時，將不會在駕駛畫面上顯示時速表。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 顯示方向燈功能標題
+msgid "Display Turn Signals"
+msgstr "顯示方向燈"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 顯示方向燈功能詳細描述
+msgid "When enabled, visual turn indicators are drawn on the HUD."
+msgstr "啟用時，將在 HUD 上繪製視覺化方向燈指示器。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 即時加速條功能標題
+msgid "Real-time Acceleration Bar"
+msgstr "即時加速條"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 即時加速條功能詳細描述
+msgid "Show an indicator on the left side of the screen to display real-time vehicle acceleration and deceleration. This displays what the car is currently doing, not what the planner is requesting."
+msgstr "在螢幕左側顯示指示器，以顯示即時的車輛加速和減速。這顯示的是車輛目前正在做什麼，而不是系統規劃要求的內容。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 在前車追蹤箭頭下方顯示指標之按鈕標題
+msgid "Display Metrics Below Chevron"
+msgstr "在箭頭下方顯示指標"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 通用選項 - 關閉
+msgid "Off"
+msgstr "關閉"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 選項 - 距離
+msgid "Distance"
+msgstr "距離"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 選項 - 速度
+msgid "Speed"
+msgstr "速度"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 選項 - 時間
+msgid "Time"
+msgstr "時間"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 選項 - 全部
+msgid "All"
+msgstr "全部"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 開發者介面選單標題
+msgid "Developer UI"
+msgstr "開發者介面"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 開發者介面選單描述
+msgid "Display real-time parameters and metrics from various sources."
+msgstr "顯示來自各種來源的即時參數和指標。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 位置選項 - 底部
+msgid "Bottom"
+msgstr "底部"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 位置選項 - 右側
+msgid "Right"
+msgstr "右側"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 位置選項 - 右側與底部
+msgid "Right & Bottom"
+msgstr "右側與底部"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 雷達資訊介面選單標題
+msgid "Radar Info UI"
+msgstr "雷達資訊介面"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 雷達資訊介面選單描述
+msgid "Display Radar Points and Info."
+msgstr "顯示雷達點位和資訊。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 選項 - 點位
+msgid "Point"
+msgstr "點位"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/visuals.py
+# 說明: 選項 - 資訊
+msgid "Info"
+msgstr "資訊"

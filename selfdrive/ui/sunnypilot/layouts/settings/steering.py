@@ -84,13 +84,13 @@ class SteeringLayout(Widget):
     # --- 新增 HTD 功能 ---
     self._htd_enabled = toggle_item_sp(
       param="htd_enabled",
-      title=lambda: tr("Enable Human Turn Detection"),
+      title=lambda: tr("Enable Human Turn Detection(HTD)"),
       description=lambda: tr("Unavailable during cruise control.Automatically pause steering when the driver applies large manual steering input, then smoothly resume."),
     )
 
     self._htd_turn_angle_threshold = option_item_sp(
       param="htd_turn_angle_threshold",
-      title=lambda: tr("Trigger angle"),
+      title=lambda: tr("HTD Trigger angle"),
       description=lambda: tr("Driver steering angle that triggers HTD (degrees)."),
       min_value=60,
       max_value=120,
