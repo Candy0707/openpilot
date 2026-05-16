@@ -11,9 +11,10 @@ class VisualUiRenderer(Widget):
   VisualUiRenderer 專門負責視覺模型 (ModelV2) 相關的 UI 渲染。
   功能特色：
   1. 使用 for 迴圈遍歷所有有效前車目標 (leadsV3)。
-  2. 【多重軌道擴張避讓】：文字像衛星一樣在車輛周圍找空位，內圈客滿自動往外圈擴張，確保 100% 零重疊。
-  3. 【動態向量箭頭轉向】：找到完美空位後，加粗箭頭會精準從文字底端指向目標車輛中心，羽翼自動旋轉。
-  4. 實作自訂的信心度顏色漸變系統 (紅 -> 黃 -> 綠)。
+  2. 【空間去重過濾】：自動過濾 1.0 x 1.0 公尺範圍內的重複追蹤點，確保單一車輛不重複標示。
+  3. 【多重軌道擴張避讓】：文字像衛星一樣在車輛周圍找空位，內圈客滿自動往外圈擴張，確保 100% 零重疊。
+  4. 【動態向量箭頭轉向】：找到完美空位後，加粗箭頭會精準從文字底端指向目標車輛中心，羽翼自動旋轉。
+  5. 實作自訂的信心度顏色漸變系統 (紅 -> 黃 -> 綠)。
   """
 
   def __init__(self, model_renderer):
@@ -31,7 +32,7 @@ class VisualUiRenderer(Widget):
   def _update_state(self) -> None:
     """
     更新狀態函式：每個影格都會被呼叫，負責從 cereal (sm) 抓取最新的 ModelV2 資料，
-    並將所有有效的 leadsV3 目標打包存入清單中。
+    經過空間去重過濾後，將有效的 leadsV3 目標打包存入清單中。
     """
     sm = ui_state.sm
 
@@ -50,13 +51,31 @@ class VisualUiRenderer(Widget):
 
         # 確保該目標擁有完整的 3D 座標數據 (x 為縱向距離，y 為橫向偏移)
         if len(lead.x) > 0 and len(lead.y) > 0:
-          # 將有用的前車資訊打包成字典，加進清單中
+          lead_x = lead.x[0]
+          lead_y = lead.y[0]
+
+          # =========================================================
+          # 🚀 空間去重機制 (1.0 x 1.0 公尺範圍過濾)
+          # =========================================================
+          # 檢查這個新點是否與已經加入清單中的點距離過近 (X與Y皆在 ±0.5 公尺內)
+          is_duplicate = False
+          for existing_lead in self.leads_list:
+            # abs() 計算絕對誤差，如果長寬都在 0.5 公尺內，代表在同一個 1x1 的方塊中
+            if abs(lead_x - existing_lead['x']) <= 0.5 and abs(lead_y - existing_lead['y']) <= 0.5:
+              is_duplicate = True
+              break
+
+          # 如果確認是同一台車的重複追蹤點，就跳過不加入清單
+          if is_duplicate:
+            continue
+
+          # 通過過濾，將有用的前車資訊打包成字典，加進清單中
           self.leads_list.append(
             {
               'index': i,  # 在 leadsV3 中的陣列索引
               'prob': lead.prob,  # 信心度 (0.0 ~ 1.0)
-              'x': lead.x[0],  # 縱向相對距離
-              'y': lead.y[0],  # 橫向相對偏移
+              'x': lead_x,  # 縱向相對距離
+              'y': lead_y,  # 橫向相對偏移
             }
           )
 
@@ -135,7 +154,7 @@ class VisualUiRenderer(Widget):
       text_height = size.y
 
       # =========================================================
-      # 🚀 多重軌道擴張避讓演算法 (Multi-Orbit Expansion)
+      # 多重軌道擴張避讓演算法 (Multi-Orbit Expansion)
       # =========================================================
       # 設定基礎環繞軌道的半徑 (比車身稍微大一點，預留箭頭空間)
       base_orbit_radius = max(80, (box_height // 2) + 60)
@@ -192,7 +211,7 @@ class VisualUiRenderer(Widget):
         if final_text_rect is not None:
           break  # 成功找到位置，跳出軌道擴張迴圈
 
-      # 如果擴張了 5 圈還是找不到 (幾乎不可能發生的極端塞車情況)，強制使用最外圈正上方
+      # 如果擴張了 5 圈還是找不到，強制使用最外圈正上方
       if final_text_rect is None:
         final_radius = base_orbit_radius + (max_orbits * orbit_step)
         fallback_y = target_center_y - final_radius - (text_height / 2)
@@ -240,8 +259,5 @@ class VisualUiRenderer(Widget):
       # =========================================================
       # 繪製最終的信心度文字
       # =========================================================
-      # (可選功能) 若白天強光下文字不清楚，可以取消註解下一行，畫個半透明黑底
-      # rl.draw_rectangle_rounded(rl.Rectangle(text_x - 5, text_y - 5, text_width + 10, text_height + 10), 0.2, 8, rl.Color(0, 0, 0, 128))
-
       # 使用粗體字型與動態漸變色，畫在算好的環繞軌道空位上
       rl.draw_text_ex(self._font_bold, text, rl.Vector2(text_x, text_y), self.label_size, 0, color)
