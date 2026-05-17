@@ -23,9 +23,9 @@ ACCEL_PERSONALITY_OPTIONS = [AccelPersonality.eco, AccelPersonality.normal, Acce
 A_MAX_BP = [0.0, 4.0, 8.0, 16.0, 40.0]
 # 各種個性化設定下的最大加速度值 (對應 A_MAX_BP)
 A_MAX_V = {
-  AccelPersonality.eco:    [1.80, 1.80, 1.20, 0.40, 0.08],
-  AccelPersonality.normal: [1.80, 1.80, 1.35, 0.50, 0.15],
-  AccelPersonality.sport:  [1.80, 1.80, 1.50, 0.70, 0.25],
+  AccelPersonality.eco:    [1.00, 1.00, 1.20, 0.40, 0.08],
+  AccelPersonality.normal: [1.50, 1.50, 1.35, 0.50, 0.15],
+  AccelPersonality.sport:  [2.00, 2.00, 1.50, 0.70, 0.25],
 }
 
 # 滑行阻力 (Coast Drag) 的中斷點 (車速, 單位: m/s)
@@ -50,7 +50,7 @@ A_MIN_FLOOR_V = {
 # 控制模型常數設定
 # ==============================================================================
 DEFICIT_TO_FLOOR = 8.5  # 當車速低於巡航速度在此範圍內時，逐漸過渡到煞車底線
-COAST_DEADBAND = 1.0    # 巡航死區 (m/s)，在此速差範圍內優先進入滑行狀態以維持車速穩定
+COAST_DEADBAND = 0.5    # 巡航死區 (m/s)，在此速差範圍內優先進入滑行狀態以維持車速穩定
 RAMP_OFF_RANGE = 3.0    # 接近巡航速度時，加速度上限開始線性遞減的緩衝範圍 (m/s)
 
 # 非對稱變化率限制 (Rate Limiting)
