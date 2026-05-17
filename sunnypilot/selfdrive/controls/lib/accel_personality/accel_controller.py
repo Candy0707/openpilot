@@ -7,6 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 
 from cereal import custom
 import numpy as np
+from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
 from openpilot.common.params import Params
 
@@ -50,7 +51,7 @@ A_MIN_FLOOR_V = {
 # ==============================================================================
 DEFICIT_TO_FLOOR = 8.5  # 當車速低於巡航速度在此範圍內時，逐漸過渡到煞車底線
 COAST_DEADBAND = 1.0    # 巡航死區 (m/s)，在此速差範圍內優先進入滑行狀態以維持車速穩定
-RAMP_OFF_RANGE = 5.0    # 接近巡航速度時，加速度上限開始線性遞減的緩衝範圍 (m/s)
+RAMP_OFF_RANGE = 3.0    # 接近巡航速度時，加速度上限開始線性遞減的緩衝範圍 (m/s)
 
 # 非對稱變化率限制 (Rate Limiting)
 A_MIN_TIGHTEN_RATE = 1.5  # 煞車加重時的變化率上限 (m/s³，對應原本的 MAX_DECEL_INCREASE_RATE)
@@ -104,7 +105,7 @@ class AccelPersonalityController:
     # 從開源車輛狀態 (carState) 獲取設定的巡航速度，並將時速 (km/h) 轉換為秒速 (m/s)
     if sm is not None:
       try:
-        self._v_cruise = float(sm['carState'].vCruise) * (1000.0 / 3600.0)
+        self._v_cruise = float(sm['carState'].vCruise) * CV.KPH_TO_MS
       except Exception:
         pass
 
