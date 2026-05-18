@@ -64,7 +64,7 @@ class HudRendererSP(HudRenderer):
     self.turn_signal_controller.update()
     self.circular_alerts_renderer.update()
     self.speed_renderer.update()
-    # self.visual_ui._update_state()
+    self.visual_ui._update_state()
 
   def _get_icbm_status(self):
     if not self.pcm_cruise_speed and ui_state.sm['carControl'].enabled:
@@ -144,7 +144,7 @@ class HudRendererSP(HudRenderer):
 
     self.developer_ui.render(rect)
     self.radar_ui.render(rect)
-    # self.visual_ui._render(rect)
+    self.visual_ui._render(rect)
     self.road_name_renderer.render(rect)
     self.speed_limit_renderer.render(rect)
     self._draw_set_speed(rect)
@@ -156,4 +156,4 @@ class HudRendererSP(HudRenderer):
   def set_model_renderer(self, model_renderer):
     self.model_renderer = model_renderer
     self.radar_ui = RadarUiRenderer(model_renderer)
-    # self.visual_ui = VisualUiRenderer(self.model_renderer)
+    self.visual_ui = VisualUiRenderer(self.model_renderer)
