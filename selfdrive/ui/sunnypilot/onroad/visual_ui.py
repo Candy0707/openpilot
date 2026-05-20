@@ -233,7 +233,7 @@ class VisualUiRenderer(Widget):
 
       # 箭頭起點 (Base)：從計算出的軌道邊緣出發
       # 為了不讓線條穿過文字，起點設定在稍微靠近目標的位置 (半徑內縮 20 像素)
-      arrow_base = rl.Vector2(target_center_x + (final_radius - 20) * math.cos(final_angle), target_center_y + (final_radius - 20) * math.sin(final_angle))
+      arrow_base = rl.Vector2(target_center_x + (final_radius - 20) * math.cos(final_angle), target_center_y + (final_radius - 40) * math.sin(final_angle))
 
       # 繪製加粗的箭頭主幹 (線寬設為 5.0，視覺極為醒目)
       rl.draw_line_ex(arrow_base, arrow_tip, 5.0, color)
