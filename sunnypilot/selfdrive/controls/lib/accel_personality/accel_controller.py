@@ -113,7 +113,7 @@ class AccelPersonalityController:
 
         # 取得前車狀態
         lead_one = sm['radarState'].leadOne
-        self._force_early_coast = if lead_one.status and lead_one.vRel < -0.5
+        self._force_early_coast = lead_one.status and lead_one.vRel < -0.5
       except Exception:
         pass
 
