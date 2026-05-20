@@ -92,6 +92,9 @@ class AccelPersonalityController:
     self._cache_v_cruise: float | None = None
     self._cache_a_min = self._a_min
     self._cache_a_max = self._a_max
+    
+    # [新增] 狀態標記：是否觸發提早滑行
+    self._force_early_coast = False
 
   def update(self, sm=None):
     """
@@ -101,6 +104,9 @@ class AccelPersonalityController:
     # 每個 cycle 重設快取
     self._cache_v = None
     self._cache_v_cruise = None
+    
+    # 每個週期重設滑行狀態，確保條件不滿足時能恢復正常控制
+    self._force_early_coast = False
 
     # 從開源車輛狀態 (carState) 獲取設定的巡航速度，並將時速 (km/h) 轉換為秒速 (m/s)
     if sm is not None:
@@ -108,6 +114,20 @@ class AccelPersonalityController:
         self._v_cruise = float(sm['carState'].vCruise) * CV.KPH_TO_MS
       except Exception:
         pass
+        
+      # ==============================================================================
+      # [新增] 讀取雷達訊號，判斷是否需要提早滑行以達到省油與舒適目的
+      # ==============================================================================
+      try:
+        if 'radarState' in sm:
+          lead_one = sm['radarState'].leadOne
+          # 條件：雷達有明確鎖定前車 (status) 且 我們正在逼近前車 (vRel < -0.5 m/s)
+          # 此條件完美涵蓋「前車正在減速」或「前車已靜止」的情境，避免依賴 aLeadK 導致誤判
+          if lead_one.status and lead_one.vRel < -0.5:
+            self._force_early_coast = True
+      except Exception:
+        pass
+      # ==============================================================================
 
     # 定期刷新外部參數，避免每幀讀取 Params 造成 I/O 負擔
     if self.frame % PARAM_REFRESH_FRAMES == 0:
@@ -179,6 +199,7 @@ class AccelPersonalityController:
     self._a_max = 1.50
     self._cache_v = None
     self._cache_v_cruise = None
+    self._force_early_coast = False
 
   def get_accel_limits(self, v_ego: float) -> tuple[float, float]:
     """
@@ -268,6 +289,18 @@ class AccelPersonalityController:
 
     # 2. 應用巡航死區修正
     t_min, t_max = self._apply_coast_deadband(v_ego, t_min, t_max)
+    
+    # ==============================================================================
+    # [修改開始] 提早滑行攔截邏輯 (配置於死區修正後，確保最高執行優先權)
+    # ==============================================================================
+    # 如果偵測到前方有車且相對速度小於 -0.5 (代表正在逼近)
+    if self._force_early_coast:
+        # 強制將加速上限壓至 -0.001 (純滑行數值)
+        # 這會阻斷 Planner 的補油門指令，強迫系統優先依賴慣性滑行減速
+        t_max = -1e-3
+    # ==============================================================================
+    # [修改結束]
+    # ==============================================================================
 
     # 3. 首次執行直接賦值
     if self._first:
