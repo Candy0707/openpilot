@@ -13,7 +13,8 @@ class RadarModelWrapper:
 
   def map_to_screen(self, dRel, yRel, z=0.0):
     try:
-      screen_pt = self._model._map_to_screen(dRel, yRel, z)
+      offset = self.model_renderer._path_offset_z
+      screen_pt = self._model._map_to_screen(dRel, yRel, offset)
     except Exception as e:
       return None
     return screen_pt

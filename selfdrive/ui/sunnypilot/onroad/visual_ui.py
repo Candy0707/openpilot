@@ -118,9 +118,9 @@ class VisualUiRenderer(Widget):
       box_width = max(30, min(int((1.8 / distance) * 1000), 400))
       box_height = int(box_width * 0.8)
 
-      # 目標車輛中心點 (以此為圓心進行軌道環繞)
+      # 目標車輛中心點
       target_center_x = x
-      target_center_y = y - (box_height // 2)
+      target_center_y = y
 
       # =========================================================
       # 顏色漸變計算 (50%以上綠色，30~50%黃漸變到綠，30%以下紅漸變到黃)
@@ -147,7 +147,7 @@ class VisualUiRenderer(Widget):
       # 文字準備與初始排版測量 (格式如：lead[0]\n30%)
       # =========================================================
       prob_percent = prob * 100
-      text = f"lead[{lead_info['index']}]\n{prob_percent:.0f}%"
+      text = f"lead[{lead_info['index']}]{prob_percent:.0f}%"
 
       size = measure_text_cached(self._font_bold, text, self.label_size, 0)
       text_width = size.x
