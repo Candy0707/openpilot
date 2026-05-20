@@ -104,6 +104,9 @@ class AccelPersonalityController:
     # 每個 cycle 重設快取
     self._cache_v = None
     self._cache_v_cruise = None
+    
+    # 每個週期重設滑行狀態，確保條件不滿足或進入低速精準跟車時能恢復正常控制
+    self._force_early_coast = False
 
     # 從開源車輛狀態 (carState) 獲取設定的巡航速度，並將時速 (km/h) 轉換為秒速 (m/s)
     if sm is not None:
@@ -112,8 +115,19 @@ class AccelPersonalityController:
         self._v_cruise = float(sm['carState'].vCruise) * CV.KPH_TO_MS
 
         # 取得前車狀態
-        lead_one = sm['radarState'].leadOne
-        self._force_early_coast = lead_one.status and lead_one.vRel < -0.5
+        if 'radarState' in sm:
+          lead_one = sm['radarState'].leadOne
+          
+          # ==============================================================================
+          # [修改與修正] 修正 Python 語法錯誤，並補上「前車距離需大於 10m」之限制
+          # ==============================================================================
+          # 條件包含：
+          # 1. 雷達鎖定前車 (lead_one.status)
+          # 2. 相對速度小於 -0.5 m/s (我們比前車快，快速逼近中)
+          # 3. 距離前車大於 10 公尺 (lead_one.dRel > 10.0)，避開低速蠕行與精準煞停死區
+          self._force_early_coast = bool(lead_one.status and lead_one.vRel < -0.5 and lead_one.dRel > 10.0)
+          # ==============================================================================
+          
       except Exception:
         pass
 
@@ -281,10 +295,10 @@ class AccelPersonalityController:
     # ==============================================================================
     # [修改開始] 提早滑行攔截邏輯 (配置於死區修正後，確保最高執行優先權)
     # ==============================================================================
-    # 如果偵測到前方有車且相對速度小於 -0.5 (代表正在逼近)
+    # 如果滿足觸發條件（有前車、正逼近、且車距超過 10 公尺）
     if self._force_early_coast:
-        # 強制將加速上限壓至 -0.001 (純滑行數值)
-        # 這會阻斷 Planner 的補油門指令，強迫系統優先依賴慣性滑行減速
+        # 強制將加速上限壓至 -1e-3 (Toyota 專屬純引擎煞車滑行數值)
+        # 這會阻斷 Planner 在中高速接近慢車時試圖補油門的動作，釋放動能完美滑行
         t_max = -1e-3
     # ==============================================================================
     # [修改結束]
