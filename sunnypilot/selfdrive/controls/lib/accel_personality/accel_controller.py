@@ -93,7 +93,7 @@ class AccelPersonalityController:
     self._cache_a_min = self._a_min
     self._cache_a_max = self._a_max
     
-    # [新增] 狀態標記：是否觸發提早滑行
+    # 狀態標記：是否觸發提早滑行
     self._force_early_coast = False
 
   def update(self, sm=None):
@@ -104,30 +104,18 @@ class AccelPersonalityController:
     # 每個 cycle 重設快取
     self._cache_v = None
     self._cache_v_cruise = None
-    
-    # 每個週期重設滑行狀態，確保條件不滿足時能恢復正常控制
-    self._force_early_coast = False
 
     # 從開源車輛狀態 (carState) 獲取設定的巡航速度，並將時速 (km/h) 轉換為秒速 (m/s)
     if sm is not None:
       try:
+        # 取得巡航速度
         self._v_cruise = float(sm['carState'].vCruise) * CV.KPH_TO_MS
+
+        # 取得前車狀態
+        lead_one = sm['radarState'].leadOne
+        self._force_early_coast = if lead_one.status and lead_one.vRel < -0.5
       except Exception:
         pass
-        
-      # ==============================================================================
-      # [新增] 讀取雷達訊號，判斷是否需要提早滑行以達到省油與舒適目的
-      # ==============================================================================
-      try:
-        if 'radarState' in sm:
-          lead_one = sm['radarState'].leadOne
-          # 條件：雷達有明確鎖定前車 (status) 且 我們正在逼近前車 (vRel < -0.5 m/s)
-          # 此條件完美涵蓋「前車正在減速」或「前車已靜止」的情境，避免依賴 aLeadK 導致誤判
-          if lead_one.status and lead_one.vRel < -0.5:
-            self._force_early_coast = True
-      except Exception:
-        pass
-      # ==============================================================================
 
     # 定期刷新外部參數，避免每幀讀取 Params 造成 I/O 負擔
     if self.frame % PARAM_REFRESH_FRAMES == 0:
