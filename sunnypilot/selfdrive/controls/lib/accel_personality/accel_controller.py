@@ -92,7 +92,7 @@ class AccelPersonalityController:
     self._cache_v_cruise: float | None = None
     self._cache_a_min = self._a_min
     self._cache_a_max = self._a_max
-    
+
     # 狀態標記：是否觸發提早滑行
     self._force_early_coast = False
 
@@ -104,7 +104,7 @@ class AccelPersonalityController:
     # 每個 cycle 重設快取
     self._cache_v = None
     self._cache_v_cruise = None
-    
+
     # 每個週期重設滑行狀態，確保條件不滿足或進入低速精準跟車時能恢復正常控制
     self._force_early_coast = False
 
@@ -117,17 +117,26 @@ class AccelPersonalityController:
         # 取得前車狀態
         if 'radarState' in sm:
           lead_one = sm['radarState'].leadOne
-          
+
           # ==============================================================================
-          # [修改與修正] 修正 Python 語法錯誤，並補上「前車距離需大於 10m」之限制
+          # [修改] 導入動態相對速度閾值 (使用 np.interp 線性插值)
           # ==============================================================================
+          # 獲取當前車速 (v_ego)
+          v_ego = float(sm['carState'].vEgo)
+
+          # 根據車速動態計算逼近閾值：
+          # 當 v_ego <= 16 m/s 時，逼近速差門檻為 0.5 m/s
+          # 當 v_ego >= 22 m/s 時，逼近速差門檻為 1.0 m/s
+          # 介於 16 ~ 22 m/s 之間時，則以線性插值平滑平移
+          v_rel_thresh = float(np.interp(v_ego, [16.0, 22.0], [0.5, 1.0]))
+
           # 條件包含：
           # 1. 雷達鎖定前車 (lead_one.status)
-          # 2. 相對速度小於 -0.5 m/s (我們比前車快，快速逼近中)
+          # 2. 相對速度小於動態計算出的負向閾值 (lead_one.vRel < -v_rel_thresh，負值代表正在逼近)
           # 3. 距離前車大於 10 公尺 (lead_one.dRel > 10.0)，避開低速蠕行與精準煞停死區
-          self._force_early_coast = bool(lead_one.status and lead_one.vRel < -0.5 and lead_one.dRel > 10.0)
+          self._force_early_coast = bool(lead_one.status and lead_one.vRel < -v_rel_thresh and lead_one.dRel > 10.0)
           # ==============================================================================
-          
+
       except Exception:
         pass
 
@@ -291,7 +300,7 @@ class AccelPersonalityController:
 
     # 2. 應用巡航死區修正
     t_min, t_max = self._apply_coast_deadband(v_ego, t_min, t_max)
-    
+
     # ==============================================================================
     # [修改開始] 提早滑行攔截邏輯 (配置於死區修正後，確保最高執行優先權)
     # ==============================================================================
