@@ -311,6 +311,7 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
     speedLimitAssist @3;
     pdm @4;
     dtsc @5;
+    lds @6;
   }
 
   struct E2eAlerts {

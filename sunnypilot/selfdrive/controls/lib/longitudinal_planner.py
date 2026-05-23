@@ -20,6 +20,7 @@ from openpilot.sunnypilot.models.helpers import get_active_bundle
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelPersonalityController
 from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_turn_speed_controller.dynamic_turn_speed_controller import DynamicTurnSpeedController
 from openpilot.sunnypilot.selfdrive.controls.lib.path_deviation_monitor.path_deviation_monitor import PathDeviationMonitor
+from openpilot.sunnypilot.selfdrive.controls.lib.lead_departure_smoother.lead_departure_smoother import LeadDepartureSmoother
 from opendbc.car.interfaces import ACCEL_MIN
 
 DecState = custom.LongitudinalPlanSP.DynamicExperimentalControl.DynamicExperimentalControlState
@@ -40,6 +41,7 @@ class LongitudinalPlannerSP:
     self.e2e_alerts_helper = E2EAlertsHelper()
     self.dtsc = DynamicTurnSpeedController(CP, mpc)
     self.pdm = PathDeviationMonitor(CP, mpc)
+    self.lds = LeadDepartureSmoother(CP, mpc)
 
     self.output_v_target = 0.0
     self.output_a_target = 0.0
@@ -103,6 +105,7 @@ class LongitudinalPlannerSP:
 
     self.dtsc.update_target(sm, v_ego, a_ego, v_cruise)
     self.pdm.update_target(sm, v_ego, a_ego, v_cruise)
+    self.lds.update_target(sm, v_ego, a_ego, v_cruise)
 
     targets = {
       LongitudinalPlanSource.cruise: (v_cruise, a_ego),
@@ -111,6 +114,7 @@ class LongitudinalPlannerSP:
       LongitudinalPlanSource.speedLimitAssist: (self.sla.output_v_target, self.sla.output_a_target),
       LongitudinalPlanSource.dtsc: (self.dtsc.output_v_target, self.dtsc.output_a_target),
       LongitudinalPlanSource.pdm: (self.pdm.output_v_target, self.pdm.output_a_target),
+      LongitudinalPlanSource.lds: (self.lds.output_v_target, self.lds.output_a_target),
     }
 
     self.source = min(targets, key=lambda k: targets[k][0])
@@ -124,6 +128,7 @@ class LongitudinalPlannerSP:
     self.accel_controller.update(sm)
     self.dtsc.update(sm)
     self.pdm.update(sm)
+    self.lds.update(sm)
 
   def publish_longitudinal_plan_sp(self, sm: messaging.SubMaster, pm: messaging.PubMaster) -> None:
     plan_sp_send = messaging.new_message('longitudinalPlanSP')
@@ -149,7 +154,6 @@ class LongitudinalPlannerSP:
     # 3. 自動動態對應：遍歷 Enum 中的每一個定義
     for name, enum_value in source.items():
       # 使用 getattr 動態從 self 抓取同名的控制器實例
-      # 例如：當 name 為 'dtsc' 時，getattr(self, 'dtsc') 等同於呼叫 self.dtsc
       controller = getattr(self, name, None)
 
       # 確保該屬性存在，且具有 write_to_msg 方法 (即繼承自 TargetsBase)
