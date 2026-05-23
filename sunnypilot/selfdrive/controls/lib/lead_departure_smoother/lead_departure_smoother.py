@@ -1,9 +1,11 @@
 import numpy as np
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX
+from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
 from openpilot.common.swaglog import cloudlog
-from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 from opendbc.car.interfaces import ACCEL_MAX, ACCEL_MIN
+from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
+
 
 class LeadDepartureSmoother(TargetsBase):
   """
@@ -41,24 +43,12 @@ class LeadDepartureSmoother(TargetsBase):
   MAX_JERK = 1.2  # 絲滑體感核心：最大允許的加加速度 (m/s^3)。鉗制此值可控制加速度增長率，消除突兀暴衝
   V_OFFSET = 1.0  # 前車速度餘裕 (m/s)，約等於 3.6 km/h。給予適度溢價，防止跟車距離越拉越遠
 
-  # 縱向安全加速度邊界控制
-  ACCEL_MAX_LIMIT = ACCEL_MAX  # 限制理想目標加速度上限 (m/s^2)
-  ACCEL_MIN_LIMIT = ACCEL_MIN  # 限制理想目標減速度下限 (m/s^2)
-
   def __init__(self, CP, mpc):
     super().__init__(CP, mpc)
 
     # 智慧型日誌控制
     self.debug_log = True
     self.log_counter = 0
-
-  def update_params(self):
-    """
-    【參數更新覆寫】
-    從系統內存參數讀取開關狀態。若參數尚不存在，則預設維持啟動 (True) 狀態，確保即裝即用。
-    """
-    param_val = self.params.get_bool(self.classname)
-    self.enable = param_val if param_val is not None else True
 
   def update_target(self, sm, v_ego, a_ego, v_cruise):
     """
@@ -82,19 +72,23 @@ class LeadDepartureSmoother(TargetsBase):
       # 前方有車：目標車速直接錨定前車速度，並加上舒適跟車餘裕 (V_OFFSET)
       raw_v_target = lead_one.vLead + self.V_OFFSET
     else:
-      # 前方淨空：目標車速直接對齊駕駛設定的巡航最高車速
-      raw_v_target = v_cruise
+      # 前方淨空：目標車速直接對齊最高巡航極限值，後續經由 min() 縮減至駕駛設定值
+      raw_v_target = V_CRUISE_MAX
 
     # 安全防禦牆：無論前車速度如何波動，計算出的原始目標速度絕對不得超越駕駛設定的巡航上限
     raw_v_target = min(raw_v_target, v_cruise)
 
     # ===========================================================
-    # 步驟 2: 判定是否啟動控制權介入 (Action Decision)
+    # 步驟 2: 判定是否啟動控制權介入 (Action Decision) - 狀態機邊界優化
     # ===========================================================
-    # 觸發條件極致精簡：
-    # 1. 當前車限速小於巡航速度時（前方有慢車，需壓制速度維持跟車）。
-    # 2. 當系統正在執行 Jerk 平滑回升，且內部目標速度尚未完全追上巡航設定值時（過渡期防護）。
-    self.action = (raw_v_target < v_cruise) or (self.v_target < v_cruise - 0.05)
+    # 為了徹底避免無車巡航時，自車車速因微幅地形波動（如逆風、微爬坡）跌落而引發的「幽靈觸發」，
+    # 我們將介入控制權交由嚴謹的雙向狀態轉換門檻管理：
+    if self.action:
+      # 【持續介入條件】：若上一幀已在限制中，只要「前方仍有慢車」或「內部規劃目標速尚未追平巡航設定」，就保持 True
+      self.action = (raw_v_target < v_cruise) or (self.v_target < v_cruise - 0.05)
+    else:
+      # 【切入介入條件】：若先前為巡航釋放狀態，只有前方出現「速度顯著低於巡航設定」的慢車目標時，才重啟 Jerk 限制
+      self.action = raw_v_target < v_cruise - 0.05
 
     # ===========================================================
     # 步驟 3: Jerk 限制器與雙階物理積分器 (Jerk-Limited Rate Control)
@@ -103,8 +97,8 @@ class LeadDepartureSmoother(TargetsBase):
       # A. 逆推當前幀所需的理想目標加速度 (要求在單幀時間 DT_MDL 內消除與原始目標的速度差)
       a_req = (raw_v_target - self.v_target) / DT_MDL
 
-      # B. 將理想加速度鉗制在車輛縱向物理安全範圍內
-      a_req = np.clip(a_req, self.ACCEL_MIN_LIMIT, self.ACCEL_MAX_LIMIT)
+      # B. 將理想加速度鉗制在車輛縱向物理安全範圍內 (完全採用介面宣告之 2.0 至 -3.5 m/s²)
+      a_req = np.clip(a_req, ACCEL_MIN, ACCEL_MAX)
 
       # C. 計算該加速度與上一幀實際規劃加速度的變更率 (即真實加加速度 Jerk)
       jerk = (a_req - self.a_target) / DT_MDL
@@ -123,7 +117,8 @@ class LeadDepartureSmoother(TargetsBase):
       self.v_target = max(0.0, min(self.v_target, v_cruise))
     else:
       # 前方完全淨空且已圓滿回升至巡航定速，釋放控制權，回歸系統預設
-      self.v_target = v_cruise
+      # 依據要求：歸還控制權時必須將內部目標車速強制重置為 V_CRUISE_MAX
+      self.v_target = V_CRUISE_MAX
       self.a_target = a_ego
 
     # ===========================================================
@@ -143,11 +138,11 @@ class LeadDepartureSmoother(TargetsBase):
     self.log_counter += 1
     if self.action or self.log_counter >= 60:
       state_str = "🛑 [平滑介入中]" if self.action else "✅ [穩態巡航/跟車]"
-      lead_str = f"有車 (前車速:{v_lead * 3.6:.1f}km/h)" if lead_status else "無車 (前方淨空)"
+      lead_str = f"有車 (前車速:{v_lead * CV.MS_TO_KPH:.1f}km/h)" if lead_status else "無車 (前方淨空)"
 
       log_msg = (
         f"[LDS V1.0.0] {state_str} 前方狀態:{lead_str} | "
-        f"原始目標速:{raw_v_target * 3.6:.1f}km/h | 核心輸出速:{self.v_target * 3.6:.1f}km/h | "
+        f"原始目標速:{raw_v_target * CV.MS_TO_KPH:.1f}km/h | 核心輸出速:{self.v_target * CV.MS_TO_KPH:.1f}km/h | "
         f"規劃加速度:{self.a_target:.3f}m/s²"
       )
       print(log_msg)
