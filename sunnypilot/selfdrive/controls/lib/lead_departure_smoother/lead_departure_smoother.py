@@ -6,10 +6,9 @@ from openpilot.common.swaglog import cloudlog
 from opendbc.car.interfaces import ACCEL_MAX, ACCEL_MIN
 from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 
-
 class LeadDepartureSmoother(TargetsBase):
   """
-  LeadDepartureSmoother - 前車駛離與跟車加加速度平滑控制器
+  LeadDepartureSmoother - 前車駛離與跟車加加速度平滑控制器 (極簡純粹版)
   Copyright (c) 2026 DragonPilot Contributors.
 
   ====================================================================================
@@ -18,30 +17,29 @@ class LeadDepartureSmoother(TargetsBase):
   本模組的核心目標：「全面防禦前車切出、駛離或加速時，系統因為瞬間產生巨大速度落差，
   而命令縱向 MPC 進行 100% 滿載輸出的突兀暴衝與貼背感。」
 
-  為了將控制邏輯精簡到極致，本模組放棄了繁瑣的狀態機跳變與車距過濾，回歸純粹的數值追隨控制：
+  本模組貫徹極簡控制哲學，不區分前車加速或減速，全權交由單一加加速度限制器進行全時平滑：
 
   1. 【全域動態目標速度鎖定 (Dynamic Target Anchoring)】
-     - 每一幀 (Frame) 直接讀取經過濾波與追蹤的優質前車訊號 (`leadOne`)。
-     - 當前方有車時：目標速度直接鎖定前車速度並補上固定的速度餘裕（+1.0 m/s），確保自車
-       具備充足的追隨渴望，絕不因為穩態誤差而被前車越拉越遠。
-     - 當前方淨空時：目標速度直接無縫切換為駕駛設定的巡航車速 (`v_cruise`)。
+     - 每一幀 (Frame) 直接讀取優質前車訊號 (`leadOne`)。
+     - 當前方有車時：輸出速度 = 前車速度 + 1.0 m/s，最大不可超過巡航車速 v_cruise。
+     - 當前方淨空時：輸出速度 = 巡航車速 v_cruise。
 
   2. 【加加速度限制器控制核心 (Jerk-Limited Rate Controller)】
-     - 當目標速度因為前方淨空或前車加速而產生斷崖式跳變時，後端完全交由物理 Jerk 限制器處理。
-     - 透過精準控制每個模型運算幀 (DT_MDL = 0.05s) 內的加速度變化率 (Jerk)：
-       a_req = (raw_v_target - v_target) / DT_MDL
-       jerk = (a_req - a_target) / DT_MDL
-       jerk_clipped = np.clip(jerk, -MAX_JERK, MAX_JERK)
-     - 經由一階與二階物理積分，將原始的階躍速度指令（Step Input）熨平成優雅絲滑的
-       S 型加速曲線（S-curve），達成真正的量產級舒適體感。
+     - 剩下的完全交由 Jerk 限制器進行平滑處理。
+     - 透過限制每個模型運算幀 (DT_MDL = 0.05s) 內的加速度變化率 (Jerk)，配合實車當前 a_ego，
+       自動將任何階躍的速度指令熨平成完美的 S 型平滑加速曲線，達到舒適回速的效果。
+
+  3. 【MPC 控制權解放 (MPC Accel Handover)】
+     - 本模組只控制車速 (v_target)，不控制加速度。全時直接回傳實車當前的 a_ego。
+     - 讓車速指令優雅交給下游 MPC 進行最終的縱向動態優化解算。
   ====================================================================================
   """
 
   # ==========================================
   # 物理常數與舒適性邊界設定
   # ==========================================
-  MAX_JERK = 1.2  # 絲滑體感核心：最大允許的加加速度 (m/s^3)。鉗制此值可控制加速度增長率，消除突兀暴衝
-  V_OFFSET = 1.0  # 前車速度餘裕 (m/s)，約等於 3.6 km/h。給予適度溢價，防止跟車距離越拉越遠
+  MAX_JERK = 1.2  # 絲滑體感核心：最大允許的加加速度 (m/s^3)。控制速度增長率，消除突兀暴衝
+  V_OFFSET = 1.0  # 前車速度餘裕 (m/s)，約等於 3.6 km/h。防止系統追車追不到且距離越拉越遠
 
   def __init__(self, CP, mpc):
     super().__init__(CP, mpc)
@@ -69,81 +67,74 @@ class LeadDepartureSmoother(TargetsBase):
     # 步驟 1: 全域目標速度判定 (Raw Target Calculation)
     # ===========================================================
     if lead_one.status:
-      # 前方有車：目標車速直接錨定前車速度，並加上舒適跟車餘裕 (V_OFFSET)
+      # 規則 1：有車，輸出速度 = 前車速度 + 1 m/s
       raw_v_target = lead_one.vLead + self.V_OFFSET
     else:
-      # 前方淨空：目標車速直接對齊最高巡航極限值，後續經由 min() 縮減至駕駛設定值
-      raw_v_target = V_CRUISE_MAX
+      # 規則 2：沒車，輸出速度 = v_cruise
+      raw_v_target = v_cruise
 
-    # 安全防禦牆：無論前車速度如何波動，計算出的原始目標速度絕對不得超越駕駛設定的巡航上限
+    # 最大不可超過 v_cruise
     raw_v_target = min(raw_v_target, v_cruise)
 
     # ===========================================================
-    # 步驟 2: 判定是否啟動控制權介入 (Action Decision) - 狀態機邊界優化
+    # 步驟 2: 判定是否啟動控制權介入 (Action Decision)
     # ===========================================================
-    # 為了徹底避免無車巡航時，自車車速因微幅地形波動（如逆風、微爬坡）跌落而引發的「幽靈觸發」，
-    # 我們將介入控制權交由嚴謹的雙向狀態轉換門檻管理：
     if self.action:
-      # 【持續介入條件】：若上一幀已在限制中，只要「前方仍有慢車」或「內部規劃目標速尚未追平巡航設定」，就保持 True
       self.action = (raw_v_target < v_cruise) or (self.v_target < v_cruise - 0.05)
     else:
-      # 【切入介入條件】：若先前為巡航釋放狀態，只有前方出現「速度顯著低於巡航設定」的慢車目標時，才重啟 Jerk 限制
-      self.action = raw_v_target < v_cruise - 0.05
+      self.action = (raw_v_target < v_cruise - 0.05)
 
     # ===========================================================
-    # 步驟 3: Jerk 限制器與雙階物理積分器 (Jerk-Limited Rate Control)
+    # 步驟 3: 萬流歸宗 ── 純粹的 Jerk 平滑控制器
     # ===========================================================
     if self.action:
-      # A. 逆推當前幀所需的理想目標加速度 (要求在單幀時間 DT_MDL 內消除與原始目標的速度差)
+      # A. 逆推當前幀所需的理想目標加速度
       a_req = (raw_v_target - self.v_target) / DT_MDL
 
-      # B. 將理想加速度鉗制在車輛縱向物理安全範圍內 (完全採用介面宣告之 2.0 至 -3.5 m/s²)
+      # B. 將理想加速度限制在車輛縱向物理安全範圍內 (2.0 至 -3.5 m/s²)
       a_req = np.clip(a_req, ACCEL_MIN, ACCEL_MAX)
 
-      # C. 計算該加速度與上一幀實際規劃加速度的變更率 (即真實加加速度 Jerk)
-      jerk = (a_req - self.a_target) / DT_MDL
+      # C. 以實車當前加速度 a_ego 為基準，計算變更率 (Jerk)
+      jerk = (a_req - a_ego) / DT_MDL
 
-      # D. 【動態金箍咒】強制將變化率鉗制在舒適加加速度 MAX_JERK 範圍內
-      # 當前車突然消失時，jerk 會是極大的正值。透過 clip 壓制它，加速度就只能以穩健、緩慢的斜率爬升
+      # D. 強制限制加加速度，不分加速減速，全由 MAX_JERK 一網打盡，自然生成 S 曲線
       jerk_clipped = np.clip(jerk, -self.MAX_JERK, self.MAX_JERK)
 
-      # E. 一階物理積分：更新內部規劃加速度
-      self.a_target += jerk_clipped * DT_MDL
+      # E. 透過 Jerk 限制後的增量更新目標車速 (我們只控制車速，不控制加速度)
+      v_acc = a_ego + jerk_clipped * DT_MDL
+      self.v_target += v_acc * DT_MDL
 
-      # F. 二階物理積分：由平滑後的加速度，積分推導出最終絲滑的目標速度指令
-      self.v_target += self.a_target * DT_MDL
+      # 直接回傳當前實車加速度，交由 MPC 算車速
+      self.a_target = a_ego
 
-      # 雙重防線：確保積分運算不產生幾何發散，死死鉗制在合理車速區間內
+      # 雙重防線：限制在合理車速區間內
       self.v_target = max(0.0, min(self.v_target, v_cruise))
     else:
-      # 前方完全淨空且已圓滿回升至巡航定速，釋放控制權，回歸系統預設
-      # 依據要求：歸還控制權時必須將內部目標車速強制重置為 V_CRUISE_MAX
+      # 規則 3：歸還控制權時必須強制重置內部目標車速為 V_CRUISE_MAX
       self.v_target = V_CRUISE_MAX
       self.a_target = a_ego
 
     # ===========================================================
-    # 步驟 4: 狀態更新、輸出與 Log 記錄
+    # 步驟 4: 狀態更新與 Log 記錄
     # ===========================================================
     if self.debug_log:
       self._print_log(lead_one.status, raw_v_target, lead_one.vLead)
 
-    # 呼叫基底類別 (TargetsBase) 的核心仲裁邏輯，自動完成與 V_CRUISE_MAX 的安全裁切並寫入最終輸出
     return super().update_target(sm, v_ego, a_ego, v_cruise)
 
   def _print_log(self, lead_status, raw_v_target, v_lead):
     """
     優雅的除錯日誌輸出機制
-    介入時每幀即時列印以利精準分析；巡航或跟車平穩時每 60 幀 (約 1 秒) 輸出一次心跳包，拒絕洗版。
     """
     self.log_counter += 1
     if self.action or self.log_counter >= 60:
       state_str = "🛑 [平滑介入中]" if self.action else "✅ [穩態巡航/跟車]"
-      lead_str = f"有車 (前車速:{v_lead * CV.MS_TO_KPH:.1f}km/h)" if lead_status else "無車 (前方淨空)"
+      lead_str = f"有車 (前車速:{v_lead * CV.MS_TO_KPH :.1f}km/h)" if lead_status else "無車 (前方淨空)"
 
       log_msg = (
-        f"[LDS V1.0.0] {state_str} 前方狀態:{lead_str} | "
+        f"[LDS V1.2.0] {state_str} 前方狀態:{lead_str} | "
         f"原始目標速:{raw_v_target * CV.MS_TO_KPH:.1f}km/h | 核心輸出速:{self.v_target * CV.MS_TO_KPH:.1f}km/h | "
-        f"規劃加速度:{self.a_target:.3f}m/s²"
+        f"實車當前加速度:{self.a_target:.3f}m/s²"
       )
       print(log_msg)
       cloudlog.debug(log_msg)
