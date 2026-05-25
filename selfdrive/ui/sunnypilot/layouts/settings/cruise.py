@@ -100,7 +100,7 @@ class CruiseLayout(Widget):
       button_width=380,
     )
 
-    self.accelpersonality_toggle = toggle_item_sp(
+    self.leaddeparturesmoother_toggle = toggle_item_sp(
       title=tr("Enable LeadDepartureSmoother Control"),
       description=tr(""),
       param="LeadDepartureSmoother")
@@ -127,6 +127,7 @@ class CruiseLayout(Widget):
       self.sla_settings_button,
       self.accelpersonality_toggle,
       self.accelpersonality_mode,
+      self.leaddeparturesmoother_toggle,
       self.dynamicturnspeedcontroller_toggle,
       self.pathdeviationmonitor_toggle,
     ]
