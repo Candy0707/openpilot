@@ -78,8 +78,12 @@ class HumanTurnDetection:
     self._last_torque = abs(steering_torque_nm)
     self._last_pressed = steering_pressed
 
+    # 判斷 HTD 是否正在作動中
+    is_htd_active = self._state != HTDState.INACTIVE
+
     # [安全鎖 4] 超速時強制失效
-    if not self._enabled or not lat_active or v_ego < MIN_SPEED_MS or v_ego > MAX_SPEED_MS:
+    # 加入 is_htd_active 判斷，解開與 MADS 的邏輯互鎖
+    if not self._enabled or (not lat_active and not is_htd_active) or v_ego < MIN_SPEED_MS or v_ego > MAX_SPEED_MS:
       if self._state != HTDState.INACTIVE:
         self._transition(HTDState.INACTIVE, "disabled_or_speed_limit")
       self._trigger_start_time = 0.0
@@ -131,7 +135,7 @@ class HumanTurnDetection:
     if condition_met:
       if self._trigger_start_time == 0.0:
         self._trigger_start_time = time.monotonic()
-      elif time.monotonic() - self._trigger_start_time >= 0.2:
+      elif time.monotonic() - self._trigger_start_time >= 0.1:
         return True
     else:
       self._trigger_start_time = 0.0
