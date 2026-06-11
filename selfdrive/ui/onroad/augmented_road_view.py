@@ -101,6 +101,8 @@ class AugmentedRoadView(CameraView, AugmentedRoadViewSP):
     # Draw colored border based on driving state
     self._draw_border(rect)
 
+    AugmentedRoadViewSP._draw_system_monitor(self, rect)
+
   def _handle_mouse_press(self, _):
     if not self._hud_renderer.user_interacting() and self._click_callback is not None:
       self._click_callback()
