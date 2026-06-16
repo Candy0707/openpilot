@@ -19,6 +19,8 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.circular_alerts import CircularAle
 from openpilot.selfdrive.ui.sunnypilot.onroad.speed_renderer import SpeedRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.radar_ui import RadarUiRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.visual_ui import VisualUiRenderer
+from openpilot.selfdrive.ui.sunnypilot.onroad.trend_ui import TrendRenderer
+
 
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
 from openpilot.selfdrive.ui.onroad.hud_renderer import HudRenderer, UI_CONFIG, FONT_SIZES, COLORS, CRUISE_DISABLED_CHAR
@@ -47,6 +49,8 @@ class HudRendererSP(HudRenderer):
     self.icbm_active_counter: int = 0
     self.speed_cluster: float = 0.0
     self.speed_conv: float = CV.MS_TO_KPH if ui_state.is_metric else CV.MS_TO_MPH
+    self.trend_ui = TrendRenderer()
+
 
   def _update_state(self) -> None:
     if ui_state.sm.recv_frame["carState"] < ui_state.started_frame:
@@ -152,6 +156,7 @@ class HudRendererSP(HudRenderer):
     self.turn_signal_controller.render(rect)
     self.circular_alerts_renderer.render(rect)
     self.rocket_fuel.render(rect, ui_state.sm)
+    self.trend_ui.render(rect)
 
   def set_model_renderer(self, model_renderer):
     self.model_renderer = model_renderer
