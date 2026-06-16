@@ -7,7 +7,7 @@ from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 
 class LeadDepartureSmoother(TargetsBase):
   """
-  LeadDepartureSmoother - 前車駛離與跟車確定性幾何拋物線軌跡生成器 (V1.7.0 萬流歸宗極簡版)
+  LeadDepartureSmoother - 前車駛離與跟車確定性幾何拋物線軌跡生成器 (V1.7.1 動態起步優化版)
   Copyright (c) 2026 DragonPilot Contributors.
 
   ====================================================================================
@@ -28,10 +28,10 @@ class LeadDepartureSmoother(TargetsBase):
      - 核心計算完全不使用相對速度 vRel，唯獨跟隨前車物理距離 (dRel)。
      - 手排車換檔踩離合器失速的 0.3 秒內，兩車實際物理距離幾乎光滑不變，故輸出穩如泰山。
 
-  3. 【雙向恆定速率限制牆 ── 一氣呵成管控穩定上升與下降】
-     - 萬流歸宗。進入介入狀態後，不論是前車切離回速、慢車插隊、還是常態跟車微幅波動，
-       純粹利用 COMFORT_ACCEL_UP 與 COMFORT_DECEL_DOWN 兩道物理牆進行一體化斜率鉗制，
-       徹底消滅任何斷崖式的速度階躍，體感呈現豪華大氣的線性起步加速與優雅收油滑行。
+  3. 【自適應動態加速牆 ── 完美解決低速起步緩慢、保留高速快適】
+     - 升級優化方案二。引入隨自車速 (v_ego) 動態查表插值的加速速率限制器。
+     - 低速起步時放寬增益至 1.2 m/s² 確保輕快不滯後；高速時收緊至 0.5 m/s² 維持細緻平穩。
+     - 搭配 COMFORT_DECEL_DOWN 減速牆，一體化管控穩定上升與下降，徹底消滅任何斷崖速度突波。
   ====================================================================================
   """
 
@@ -41,8 +41,13 @@ class LeadDepartureSmoother(TargetsBase):
   SCA_DECEL = 0.38          # 恆定舒適幾何加速度/減速度 (m/s²)。數值越小，接近前車的滑行過程越長越溫柔平滑
   SCA_SAFE_DIST = 11.5      # 幾何對齊安全車距邊界 (meter)。當在此車距時，自車目標速與前車速完美完成光滑重合
   V_TARGET_FLOOR = 1.39     # 巡航目標速度保底下限 (m/s)，等於 5.0 km/h。防止指令沉入 0 死區導致起步反應滯後
-  COMFORT_ACCEL_UP = 0.5    # 巡航速度穩定上升斜率牆 (m/s²)。前車駛離或失去目標時，每秒優雅增速 1.8 km/h，封印暴衝
   COMFORT_DECEL_DOWN = 1.0  # 巡航速度穩定下降斜率牆 (m/s²)。慢車突然切入插隊時，限制單幀指令暴跌，實現優雅收油滑行
+
+  # ------------------------------------------------------------------------------
+  # 方案二：自適應動態起步加速查表參數 (分段對齊時速 0km/h, 20km/h, 60km/h)
+  # ------------------------------------------------------------------------------
+  V_ACCEL_BP = [0.0, 10, 16]  # 自車時速中斷點廊道 (單位: m/s，對應 0, 36, 55 km/h)
+  V_ACCEL_V = [1.2, 0.8, 0.5]      # 對應允許的動態舒適加速斜率牆 (單位: m/s²)。低速大推力，高速極絲滑
 
   def __init__(self, CP, mpc):
     super().__init__(CP, mpc)
@@ -53,7 +58,7 @@ class LeadDepartureSmoother(TargetsBase):
 
   def update_target(self, sm, v_ego, a_ego, v_cruise):
     """
-    核心確定性幾何與單點速率限制控制迴圈
+    核心確定性幾何與單點動態速率限制控制迴圈
     """
     # 提取雷達狀態與第一順位主前車 (leadOne)
     radar_state = sm['radarState']
@@ -85,7 +90,7 @@ class LeadDepartureSmoother(TargetsBase):
     raw_v_target = min(raw_v_target, v_cruise)
 
     # ===========================================================
-    # 步驟 2: 判定是否啟動控制權介入 (Action Decision) —— 狀態機維持不變
+    # 步驟 2: 判定是否啟動控制權介入 (Action Decision) ── 狀態機維持不變
     # ===========================================================
     if self.action:
       self.action = (raw_v_target < v_cruise) or (self.v_target < v_cruise - 0.05)
@@ -101,21 +106,24 @@ class LeadDepartureSmoother(TargetsBase):
 
       if v_diff > 0:
         # 情境一：速度需要增長 (起步出發、前車加速拉開、前車駛離失去目標緩加速)
-        # 限制每幀最大允許的增速步進量，確保車速溫柔且穩定地上升
-        self.v_target += min(v_diff, self.COMFORT_ACCEL_UP * DT_MDL)
+        # 實作優化方案二：透過 np.interp 根據當前自車速度動態解算出最優的舒適加速斜率牆
+        comfort_accel_up = float(np.interp(v_ego, self.V_ACCEL_BP, self.V_ACCEL_V))
+
+        # 限制每幀最大允許的增速步進量，低速起步輕快飽滿，中高速線性收斂，確保車速溫柔且穩定地上升
+        self.v_target += min(v_diff, comfort_accel_up * DT_MDL)
       elif v_diff < 0:
         # 情境二：速度需要縮減 (高速接近慢車、突發慢車強行插隊切入)
-        # 限制每幀最大允許的減速步進量，不允許任何斷崖式的跳變，強制雕刻出優雅的收油滑行軌跡
+        # 限制每幀最大允許的減速步進量，不允許 any 斷崖式的跳變，強制雕刻出優雅的收油滑行軌跡
         self.v_target += max(v_diff, -self.COMFORT_DECEL_DOWN * DT_MDL)
 
-      # 貫徹最高指令：我們完全不控制、不修改加速度。全時回傳當前實車加速度 a_ego 歸還給 MPC 全權解算
+      # 貫徹最高指令與職責解耦：我們完全不控制、不修改加速度。全時回傳當前實車加速度 a_ego 歸還給 MPC 全權解算安全車距
       self.a_target = a_ego
 
       # 雙重防線：限制在合理的實車安全物理區間內
       self.v_target = max(0.0, min(self.v_target, v_cruise))
     else:
-      # 徹底修正 Bug 3：當前方完全淨空且已圓滿回歸定速，歸還控制權時不再重置為 V_CRUISE_MAX (145 km/h)
-      # 而是直接讓內部速度目標與當前駕駛設定的 v_cruise 完美接軌拉平，消滅任何幽靈加速度突波與頓挫感
+      # 終極優化：當前方完全淨空且已圓滿回歸定速，未介入狀態下讓目標速度上限與駕駛設定的 v_cruise 完美貼合
+      # 徹底消除高頻開關介入時因為 v_target 重置為 V_CRUISE_MAX 所產生的單幀幽靈加速度突波與拉扯頓挫感
       self.v_target = v_cruise
       self.a_target = a_ego
 
@@ -123,11 +131,11 @@ class LeadDepartureSmoother(TargetsBase):
     # 步驟 4: 狀態更新與 Log 記錄
     # ===========================================================
     if self.debug_log:
-      self._print_log(lead_one.status, raw_v_target, lead_one.vLead, lead_one.dRel)
+      self._print_log(lead_one.status, raw_v_target, lead_one.vLead, lead_one.dRel, v_ego)
 
     return super().update_target(sm, v_ego, a_ego, v_cruise)
 
-  def _print_log(self, lead_status, raw_v_target, v_lead, d_rel):
+  def _print_log(self, lead_status, raw_v_target, v_lead, d_rel, v_ego):
     """
     優雅的除錯日誌輸出機制
     """
@@ -136,10 +144,13 @@ class LeadDepartureSmoother(TargetsBase):
       state_str = "🛑 [幾何控制中]" if self.action else "✅ [穩態巡航/跟車]"
       lead_str = f"有車 (前車速:{v_lead * CV.MS_TO_KPH :.1f}km/h, 車距:{d_rel:.1f}m)" if lead_status else "無車 (前方淨空)"
 
+      # 動態即時查表以供 Log 記錄除錯
+      curr_accel_wall = float(np.interp(v_ego, self.V_ACCEL_BP, self.V_ACCEL_V)) if self.action else 0.0
+
       log_msg = (
-        f"[LDS V1.7.0 萬流歸宗版] {state_str} 前方狀態:{lead_str} | "
+        f"[LDS V1.7.1 動態優化版] {state_str} 前方狀態:{lead_str} | "
         f"幾何原始速:{raw_v_target * CV.MS_TO_KPH:.1f}km/h | 最終輸出速:{self.v_target * CV.MS_TO_KPH:.1f}km/h | "
-        f"實車當前加速度:{self.a_target:.3f}m/s²"
+        f"當前加速牆上限:{curr_accel_wall:.2f}m/s² | 實車當前加速度:{self.a_target:.3f}m/s²"
       )
       print(log_msg)
       cloudlog.debug(log_msg)
