@@ -53,7 +53,7 @@ class LeadDepartureSmoother(TargetsBase):
     super().__init__(CP, mpc)
 
     # 智慧型日誌控制
-    self.debug_log = True
+    self.debug_log = False
     self.log_counter = 0
 
   def update_target(self, sm, v_ego, a_ego, v_cruise):
