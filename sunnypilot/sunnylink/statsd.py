@@ -58,7 +58,6 @@ def sp_stats(end_event):
     'EnableCopyparty',
     'IntelligentCruiseButtonManagement',
     'QuietMode',
-    'RadarUIInfo',
     'RainbowMode',
     'ShowAdvancedControls',
     'Mads',

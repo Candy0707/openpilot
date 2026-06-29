@@ -5,7 +5,7 @@ env:
   OUTPUT_DIR: ${{ github.workspace }}/output
   CI_DIR: ${{ github.workspace }}/release/ci
   SCONS_CACHE_DIR: ${{ github.workspace }}/release/ci/scons_cache
-  PUBLIC_REPO_URL: "https://github.com/Candy0707/openpilot.git"
+  PUBLIC_REPO_URL: "https://github.com/sunnypilot/sunnypilot"
 
   # Branch configurations
   STAGING_SOURCE_BRANCH: 'master'
@@ -15,7 +15,7 @@ env:
 
 on:
   push:
-    branches: [ master, master-dev,master-raylib, master-dev-raylib ]
+    branches: [ master, master-dev ]
     tags: [ 'release/*' ]
   pull_request_target:
     types: [ labeled ]

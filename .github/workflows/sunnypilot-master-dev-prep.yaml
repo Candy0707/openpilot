@@ -8,8 +8,12 @@ env:
 
 on:
   push:
+    branches:
+      - master
   pull_request_target:
     types: [ labeled ]
+    branches:
+      - 'master'
   workflow_dispatch:
     inputs:
       source_branch:

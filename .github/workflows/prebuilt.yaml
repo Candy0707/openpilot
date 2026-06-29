@@ -1,7 +1,7 @@
 name: prebuilt
 on:
   schedule:
-    - cron: "0 * * * *"
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 env:
@@ -12,7 +12,7 @@ jobs:
   build_prebuilt:
     name: build prebuilt
     runs-on: ubuntu-latest
-    if: github.repository == 'Candy0707/openpilot'
+    if: github.repository == 'sunnypilot/sunnypilot'
     env:
       PUSH_IMAGE: true
     permissions:
