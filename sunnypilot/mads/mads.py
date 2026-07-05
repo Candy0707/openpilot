@@ -211,7 +211,8 @@ class ModularAssistiveDrivingSystem:
     if not self.enabled_toggle:
       return
 
-    self.data_sample()
+    # 有問題暫時先註解
+    #self.data_sample()
 
     self.update_events(CS)
 
