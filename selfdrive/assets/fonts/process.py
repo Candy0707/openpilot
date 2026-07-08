@@ -3,40 +3,42 @@ from pathlib import Path
 import json
 
 import pyray as rl
+# 引入 fontTools 用於動態讀取字體內部的字元對照表 (cmap)
+# 註：執行此腳本前請確保環境已安裝該套件 (pip install fonttools)
+from fontTools.ttLib import TTFont
 
 FONT_DIR = Path(__file__).resolve().parent
 SELFDRIVE_DIR = FONT_DIR.parents[1]
-TRANSLATIONS_DIR = SELFDRIVE_DIR / "ui" / "translations"
-LANGUAGES_FILE = TRANSLATIONS_DIR / "languages.json"
+# 已移除與 .po 檔案相關的舊路徑變數 (TRANSLATIONS_DIR 與 LANGUAGES_FILE)
 
 GLYPH_PADDING = 2
 EXTRA_CHARS = "–‑✓×°§•X⚙✕◀▶✔⌫⇧␣○●↳çêüñ–‑✓×°§•€£¥·²"
-UNIFONT_LANGUAGES = {"th", "zh-CHT", "zh-CHS", "ko", "ja"}
+# 已移除 UNIFONT_LANGUAGES 限制變數
 
 
-def _languages():
-  if not LANGUAGES_FILE.exists():
-    return {}
-  with LANGUAGES_FILE.open(encoding="utf-8") as f:
-    return json.load(f)
+def _get_font_codepoints(font_path: Path) -> tuple[int, ...]:
+  """
+  開啟字體檔案并搜尋其內建支援的所有文字碼位 (Codepoints)，
+  並與基礎 ASCII 以及 EXTRA_CHARS 進行聯集，確保基礎符號不遺漏。
+  """
+  try:
+    # 使用 fontTools 讀取字體檔案 (.ttf / .otf)
+    with TTFont(font_path) as font:
+      # getBestCmap() 會回傳該字體支援的 Unicode 碼位字典 (Key 為 int 格式的碼位)
+      cmap = font.getBestCmap()
+      if cmap:
+        # 建立基礎字元集：ASCII 32-126 以及 EXTRA_CHARS
+        base_set = set(map(chr, range(32, 127))) | set(EXTRA_CHARS)
+        # 將字體自帶的碼位與基礎字元的碼位做聯集 (Union)
+        codepoints = set(cmap.keys()) | set(ord(c) for c in base_set)
+        print(f"字體 {font_path.name} 偵測到 {len(cmap)} 個原生字元，合併基礎字元後共 {len(codepoints)} 個字元")
+        return tuple(sorted(codepoints))
+  except Exception as e:
+    print(f"無法讀取字體 {font_path.name} 的字元集，將使用基礎字元備份。錯誤: {e}")
 
-
-def _char_sets():
-  base = set(map(chr, range(32, 127))) | set(EXTRA_CHARS)
-  unifont = set(base)
-
-  for language, code in _languages().items():
-    unifont.update(language)
-    po_path = TRANSLATIONS_DIR / f"app_{code}.po"
-    try:
-      chars = set(po_path.read_text(encoding="utf-8"))
-      print(f"Language {language} ({code}) has {len(chars)} unique characters")
-    except FileNotFoundError:
-      continue
-    unifont.update(chars)
-    # (unifont if code in UNIFONT_LANGUAGES else base).update(chars)
-
-  return tuple(sorted(ord(c) for c in base)), tuple(sorted(ord(c) for c in unifont))
+  # 備份方案：若讀取失敗，則僅回傳基礎 ASCII 與 EXTRA_CHARS
+  base_set = set(map(chr, range(32, 127))) | set(EXTRA_CHARS)
+  return tuple(sorted(ord(c) for c in base_set))
 
 
 def _glyph_metrics(glyphs, rects, glyph_count: int):
@@ -126,12 +128,13 @@ def _process_font(font_path: Path, codepoints: tuple[int, ...]):
 
 
 def main():
-  base_cp, unifont_cp = _char_sets()
+  # 移除原本在迴圈外透過 _char_sets() 載入固定字元集的作法
   fonts = sorted(FONT_DIR.glob("*.ttf")) + sorted(FONT_DIR.glob("*.otf"))
   for font in fonts:
     if "emoji" in font.name.lower():
       continue
-    glyphs = unifont_cp  # if font.stem.lower().startswith("NotoSansTC") else base_cp
+    # 每個字體在處理時，動態呼叫函式來獲取該字體實質支援的所有字元碼位
+    glyphs = _get_font_codepoints(font)
     _process_font(font, glyphs)
   return 0
 
