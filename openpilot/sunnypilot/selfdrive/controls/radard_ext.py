@@ -170,7 +170,7 @@ class TrackSP(Track):
     vision_v = lead_msg.v[0]
 
     # 🌪️ 漏斗第一關：初步判斷是否為無效雜訊或嚴重出界
-    is_invalid = not self.measured or abs(self.yRel - vision_y) > (LANE_WIDTH_FALLBACK + LANE_HYSTERESIS_MARGIN)
+    is_invalid = abs(self.yRel - vision_y) > (LANE_WIDTH_FALLBACK + LANE_HYSTERESIS_MARGIN)
 
     fuzzy_score = 0.0
     if not is_invalid:
