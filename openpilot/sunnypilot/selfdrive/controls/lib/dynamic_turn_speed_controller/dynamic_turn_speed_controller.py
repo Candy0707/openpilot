@@ -29,7 +29,7 @@ Dynamic Turn Speed Controller (DTSC) - Final Pro Edition
 """
 
 import numpy as np
-from cereal import messaging
+from openpilot.cereal import messaging
 from opendbc.car import structs
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
 from openpilot.common.constants import CV

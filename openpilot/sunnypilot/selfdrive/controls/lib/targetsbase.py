@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from cereal import messaging, custom
+from openpilot.cereal import messaging, custom
 from openpilot.common.params import Params
 
 from opendbc.car import structs

@@ -1,4 +1,4 @@
-from cereal import car
+from openpilot.cereal import car
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle
 from openpilot.selfdrive.controls.lib.latcontrol_torque import LatControlTorque
@@ -9,7 +9,7 @@ class LatControlDynamic(LatControl):
     # 同時初始化兩個控制器
     self.angle_ctrl = LatControlAngle(CP, CP_SP, CI, dt)
     self.torque_ctrl = LatControlTorque(CP, CP_SP, CI, dt)
-    
+
     # 預設使用 CP 讀出來的設定值
     self.use_angle = (CP.steerControlType == car.CarParams.SteerControlType.angle)
 
@@ -35,7 +35,7 @@ class LatControlDynamic(LatControl):
     if CS.vEgo > 22.0 and not self.use_angle and is_safe_to_switch:
       self.use_angle = True
       self.angle_ctrl.reset()  # 確保角度控制器狀態乾淨
-      
+
     elif CS.vEgo < 16.0 and self.use_angle and is_safe_to_switch:
       self.use_angle = False
       self.torque_ctrl.reset() # 確保扭矩控制器狀態乾淨

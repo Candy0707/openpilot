@@ -2,7 +2,7 @@
 import capnp
 import numpy as np
 from typing import Any
-from cereal import messaging, car
+from openpilot.cereal import messaging, car
 from opendbc.car import structs
 
 # ==============================================================================
@@ -73,17 +73,17 @@ def get_model_lead_tau(lead_msg, lead_prob: float) -> float | None:
   """
   if lead_prob < MODEL_TAU_MIN_PROB or len(lead_msg.a) < 2:
     return None
-  
+
   a0 = float(lead_msg.a[0])
   a1 = float(lead_msg.a[1])
-  
+
   if a0 > MODEL_TAU_BRAKE_A:
     return None
   if a1 < 0.5 * a0:
     return MODEL_TAU_SUSTAINED
   if a1 > 0.1 * a0:
     return MODEL_TAU_SPURIOUS
-  
+
   return None
 
 
@@ -138,7 +138,7 @@ class TrackSP(Track):
     """
     brake_mult = float(np.interp(self.aLeadK, BRAKE_THRES_RANGE, MULT_RANGE))
     cutin_mult = 1.0
-    
+
     if self.dRel < CUTIN_DIST_LIMIT and abs(self.yRel) > 1.0:
       v_limit = max(1.0, DYNAMIC_SPEED_PCT * v_ego)
       cutin_mult = float(np.interp(self.vRel, [-v_limit, v_limit], MULT_RANGE))
@@ -171,7 +171,7 @@ class TrackSP(Track):
 
     # 🌪️ 漏斗第一關：初步判斷是否為無效雜訊或嚴重出界
     is_invalid = not self.measured or abs(self.yRel - vision_y) > (LANE_WIDTH_FALLBACK + LANE_HYSTERESIS_MARGIN)
-    
+
     fuzzy_score = 0.0
     if not is_invalid:
       # 執行精細幾何邊界審查與三維物理打分
@@ -197,7 +197,7 @@ class TrackSP(Track):
     final_alpha_up = self._calculate_threat_multipliers(v_ego)
     target_ema = fuzzy_score
     alpha = final_alpha_up if fuzzy_score > 0.5 else ALPHA_DOWN
-    
+
     new_ema = alpha * target_ema + (1 - alpha) * self.ema_confidence[lead_idx]
     new_ema = self._apply_slow_protection(v_ego, lead_prob, new_ema)
 

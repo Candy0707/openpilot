@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import pyray as rl
 
-from cereal import car
+from openpilot.cereal import car
 
 
 @dataclass

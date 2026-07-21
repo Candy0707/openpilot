@@ -5,7 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 
-from cereal import custom
+from openpilot.cereal import custom
 import numpy as np
 from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
