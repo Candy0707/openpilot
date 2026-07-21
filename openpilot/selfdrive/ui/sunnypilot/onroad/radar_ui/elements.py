@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import pyray as rl
 
-from openpilot.cereal import car
+from opendbc.car.structs import car
 
 
 @dataclass
@@ -11,11 +11,6 @@ class RadarElement:
   dRel: float
   yRel: float
   vRel: float
-
-  aRel: float
-  yvRel: float
-
-  measured: bool
 
   color: rl.Color
 
@@ -28,12 +23,9 @@ class RadarData:
     self.Points = []
 
     for point in radar:
-      # 過濾未驗證的點
-      if not point.measured:
-        continue
 
       # 根據距離決定顏色
-      color = self.radar_point_color(point.dRel, point.yRel) if point.measured else rl.Color(128, 128, 128, 100)
+      color = self.radar_point_color(point.dRel, point.yRel)
 
       # 初始化 RadarElement
       radar_element = RadarElement(
@@ -41,9 +33,6 @@ class RadarData:
         dRel=point.dRel,
         yRel=-point.yRel,
         vRel=point.vRel,
-        aRel=point.aRel,
-        yvRel=point.yvRel,
-        measured=point.measured,
         color=color,
       )
 
