@@ -2,8 +2,9 @@
 import capnp
 import numpy as np
 from typing import Any
-from openpilot.cereal import messaging, car
+from openpilot.cereal import messaging
 from opendbc.car import structs
+from opendbc.car.structs import car
 
 # ==============================================================================
 # 1. 引入整個 radard 模組進行 Monkey Patch (動態替換)
