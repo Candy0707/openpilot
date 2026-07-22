@@ -73,7 +73,7 @@ class LeadDepartureSmoother(TargetsBase):
     # ===========================================================
     # 步驟 1: 幾何與定速目標基本判定 ── 全面重構去冗餘 (單一分支流)
     # ===========================================================
-    if lead_one.status:
+    if lead_one.present:
       # 有車時：底盤對齊速度 (v_floor) 錨定在前車真實速度與定速保底線的最大值
       v_floor = max(self.V_TARGET_FLOOR, float(lead_one.vLead))
 
