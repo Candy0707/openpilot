@@ -85,12 +85,18 @@ class HudRendererSP(HudRenderer):
     """讀取 TDX 即時路況與事件 (由 dp 版移植)"""
     try:
       tdx = ui_state.sm['tdx']
-      self.tdx_speed = tdx.trafficStatus.speed
-      self.tdx_next_speed = tdx.trafficStatus.nextSpeed
-      self.tdx_status = str(tdx.trafficStatus.status)
-      self.tdx_event_active = tdx.roadEvent.isActive
+      self.tdx_speed = getattr(tdx.trafficStatus, 'speed', -1)
+      self.tdx_next_speed = getattr(tdx.trafficStatus, 'nextSpeed', -1)
+      self.tdx_status = str(getattr(tdx.trafficStatus, 'status', "UNKNOWN"))
+      
+      # 安全地取得屬性，避免未初始化造成錯誤
+      if hasattr(tdx, 'roadEvent'):
+          self.tdx_event_active = getattr(tdx.roadEvent, 'isActive', False)
+          raw_desc = str(getattr(tdx.roadEvent, 'description', ""))
+      else:
+          self.tdx_event_active = False
+          raw_desc = ""
 
-      raw_desc = str(tdx.roadEvent.description)
       # 解碼並只取純文字
       if raw_desc and ":" in raw_desc:
         loc_part, events_part = raw_desc.split(":", 1)
@@ -103,8 +109,8 @@ class HudRendererSP(HudRenderer):
         self.tdx_event_desc = f"{loc_part}: {' / '.join(clean_events)}"
       else:
         self.tdx_event_desc = raw_desc
-    except Exception:
-      pass
+    except Exception as e:
+      print(f"TDX UI 更新錯誤: {e}")
 
   def _get_icbm_status(self):
     if not self.pcm_cruise_speed and ui_state.sm['carControl'].enabled:
