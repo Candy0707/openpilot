@@ -476,15 +476,30 @@ struct ModelDataV2SP @0xa1680744031fdb2d {
     turnRight @2;
   }
 }
-
-struct CustomReserved10 @0xcb9fd56c7057593a {
+# ==========================================
+# TDX 高公局路況預警系統資料結構
+# ==========================================
+struct TdxTrafficStatus @0xcb9fd56c7057593a {
+  sectionId @0 :Text;
+  speed @1 :Int32;
+  nextSectionId @2 :Text;
+  nextSpeed @3 :Int32;
+  status @4 :Text;
 }
 
-struct CustomReserved11 @0xc2243c65e0340384 {
+struct TdxRoadEvent @0xc2243c65e0340384 {
+  sectionId @0 :Text;
+  description @1 :Text;
+  distance @2 :Float32;
+  isActive @3 :Bool;
 }
 
-struct CustomReserved12 @0x9ccdc8676701b412 {
+struct Tdx @0x9ccdc8676701b412 {
+  trafficStatus @0 :TdxTrafficStatus;
+  roadEvent @1 :TdxRoadEvent;
 }
+# ==========================================
+
 
 struct CustomReserved13 @0xcd96dafb67a082d0 {
 }
