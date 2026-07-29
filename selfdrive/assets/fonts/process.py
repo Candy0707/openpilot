@@ -86,7 +86,7 @@ def _process_font(font_path: Path, codepoints: tuple[int, ...]):
   cp_buffer = rl.ffi.new("int[]", codepoints)
   cp_ptr = rl.ffi.cast("int *", cp_buffer)
   glyph_count = rl.ffi.new("int *", len(codepoints))
-  glyphs = rl.load_font_data(rl.ffi.cast("unsigned char *", file_buf), len(data), font_size, cp_ptr, len(codepoints), rl.FontType.FONT_DEFAULT, glyph_count)
+  glyphs = rl.load_font_data(rl.ffi.cast("unsigned char *", file_buf), len(data), font_size, cp_ptr, len(codepoints), rl.FontType.FONT_DEFAULT)
   if glyphs == rl.ffi.NULL:
     raise RuntimeError("raylib failed to load font data")
 
