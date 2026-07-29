@@ -244,10 +244,11 @@ class HudRendererSP(HudRenderer):
       speed_color = rl.WHITE
 
     # ==========================================
-    # 前方車速: 置中顯示 (參考 dp 排版邏輯)
+    # 前方車速: 置中顯示 (字體加大)
     # ==========================================
     if self.tdx_next_speed > 0:
       speed_text = f"前方車速: {self.tdx_next_speed} km/h"
+      # 字體從 60 放大至 90
       tdx_speed_font_size = 90
       speed_size = measure_text_cached(self._font_semi_bold, speed_text, tdx_speed_font_size)
 
@@ -263,7 +264,7 @@ class HudRendererSP(HudRenderer):
       rl.draw_text_ex(self._font_semi_bold, speed_text, rl.Vector2(speed_x, top_y), tdx_speed_font_size, 0, speed_color)
 
     # ==========================================
-    # 事件跑馬燈: 往下貼齊 (避開 SP developer UI)
+    # 事件跑馬燈: 單向滾動 (從頭到尾)
     # ==========================================
     if self.tdx_event_active and len(self.tdx_event_desc) > 2:
       # SP 專有的底部狀態列高度計算
@@ -271,6 +272,7 @@ class HudRendererSP(HudRenderer):
       if ui_state.developer_ui in (DeveloperUiState.BOTTOM, DeveloperUiState.BOTH):
         bottom_offset = get_bottom_dev_ui_offset()
 
+      # 字體從 50 放大至 75
       tdx_event_font_size = 75
       max_text_width = rect.width - 200
 
@@ -283,7 +285,7 @@ class HudRendererSP(HudRenderer):
 
       event_bg_height = line_height + bg_padding_y * 2
       
-      # 往下貼齊，只留 10 像素避免與 SP 底部 Developer UI 重疊
+      # 往下貼齊，留 10 像素避免與 SP 底部 Developer UI 重疊
       event_y = rect.y + rect.height - bottom_offset - event_bg_height - 10
 
       event_x = rect.x + rect.width / 2 - display_width / 2
@@ -299,26 +301,29 @@ class HudRendererSP(HudRenderer):
       draw_y = event_y + bg_padding_y
 
       if text_width > max_text_width:
-        # 文字超長 -> 裁切 + 跑馬燈來回捲動
+        # 文字超長 -> 裁切 + 單向跑馬燈 (從頭到尾，再重頭)
         rl.begin_scissor_mode(int(event_bg_rect.x), int(event_bg_rect.y), int(event_bg_rect.width), int(event_bg_rect.height))
 
         extra_width = text_width - max_text_width
         scroll_speed = 80.0
         scroll_duration = extra_width / scroll_speed
-        pause_duration = 2.0
+        pause_start = 2.0  # 在最左邊停留 2 秒
+        pause_end = 2.0    # 在最右邊停留 2 秒
 
-        cycle_time = time.time() % ((scroll_duration + pause_duration) * 2)
+        # 單次循環總時間
+        cycle_duration = pause_start + scroll_duration + pause_end
+        cycle_time = time.time() % cycle_duration
 
-        if cycle_time < pause_duration:
+        if cycle_time < pause_start:
+          # 階段一：停在最左側
           offset = 0.0
-        elif cycle_time < pause_duration + scroll_duration:
-          progress = (cycle_time - pause_duration) / scroll_duration
+        elif cycle_time < pause_start + scroll_duration:
+          # 階段二：向左捲動
+          progress = (cycle_time - pause_start) / scroll_duration
           offset = extra_width * progress
-        elif cycle_time < pause_duration * 2 + scroll_duration:
-          offset = extra_width
         else:
-          progress = (cycle_time - pause_duration * 2 - scroll_duration) / scroll_duration
-          offset = extra_width * (1 - progress)
+          # 階段三：停在最右側
+          offset = extra_width
 
         draw_x = event_x - offset
         rl.draw_text_ex(self._font_semi_bold, text, rl.Vector2(draw_x, draw_y), tdx_event_font_size, 0, rl.WHITE)
