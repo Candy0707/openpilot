@@ -2495,9 +2495,9 @@ struct Event {
     carStateSP @114 :Custom.CarStateSP;
     liveMapDataSP @115 :Custom.LiveMapDataSP;
     modelDataV2SP @116 :Custom.ModelDataV2SP;
-    TdxTrafficStatus @136 :Custom.TdxTrafficStatus;
-    TdxRoadEvent @137 :Custom.TdxRoadEvent;
-    Tdx @138 :Custom.Tdx;
+    tdxTrafficStatus @136 :Custom.TdxTrafficStatus;
+    tdxRoadEvent @137 :Custom.TdxRoadEvent;
+    tdx @138 :Custom.Tdx;
     customReserved13 @139 :Custom.CustomReserved13;
     customReserved14 @140 :Custom.CustomReserved14;
     customReserved15 @141 :Custom.CustomReserved15;
