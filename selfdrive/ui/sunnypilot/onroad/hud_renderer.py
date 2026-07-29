@@ -248,7 +248,7 @@ class HudRendererSP(HudRenderer):
     # ==========================================
     if self.tdx_next_speed > 0:
       speed_text = f"前方車速: {self.tdx_next_speed} km/h"
-      tdx_speed_font_size = 60
+      tdx_speed_font_size = 90
       speed_size = measure_text_cached(self._font_semi_bold, speed_text, tdx_speed_font_size)
 
       # 將 Y 軸改為中間位置 (目前速度下方)，並置中顯示 X 軸
@@ -271,7 +271,7 @@ class HudRendererSP(HudRenderer):
       if ui_state.developer_ui in (DeveloperUiState.BOTTOM, DeveloperUiState.BOTH):
         bottom_offset = get_bottom_dev_ui_offset()
 
-      tdx_event_font_size = 50
+      tdx_event_font_size = 75
       max_text_width = rect.width - 200
 
       text = self.tdx_event_desc
