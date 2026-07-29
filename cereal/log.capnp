@@ -2495,7 +2495,7 @@ struct Event {
     carStateSP @114 :Custom.CarStateSP;
     liveMapDataSP @115 :Custom.LiveMapDataSP;
     modelDataV2SP @116 :Custom.ModelDataV2SP;
-    tdx @117 :Custom.Tdx;
+    tdx @136 :Custom.Tdx;
     customReserved13 @139 :Custom.CustomReserved13;
     customReserved14 @140 :Custom.CustomReserved14;
     customReserved15 @141 :Custom.CustomReserved15;
