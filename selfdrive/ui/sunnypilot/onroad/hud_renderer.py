@@ -9,6 +9,7 @@ import math
 import time
 
 import pyray as rl
+import cereal.messaging as messaging
 
 from openpilot.common.constants import CV
 from openpilot.selfdrive.ui.mici.onroad.torque_bar import TorqueBar
@@ -56,6 +57,9 @@ class HudRendererSP(HudRenderer):
     self.tdx_status: str = "UNKNOWN"
     self.tdx_event_active: bool = False
     self.tdx_event_desc: str = ""
+    
+    # 建立專屬 TDX 的 SubMaster，避免 KeyError
+    self.sm_tdx = messaging.SubMaster(['tdx'])
 
   def _update_state(self) -> None:
     if ui_state.sm.recv_frame["carState"] < ui_state.started_frame:
@@ -84,12 +88,16 @@ class HudRendererSP(HudRenderer):
   def _update_tdx_state(self) -> None:
     """讀取 TDX 即時路況與事件 (由 dp 版移植)"""
     try:
-      tdx = ui_state.sm['tdx']
+      self.sm_tdx.update(0) # 非阻塞更新訊息
+      
+      if not self.sm_tdx.valid['tdx']:
+          return
+          
+      tdx = self.sm_tdx['tdx']
       self.tdx_speed = getattr(tdx.trafficStatus, 'speed', -1)
       self.tdx_next_speed = getattr(tdx.trafficStatus, 'nextSpeed', -1)
       self.tdx_status = str(getattr(tdx.trafficStatus, 'status', "UNKNOWN"))
       
-      # 安全地取得屬性，避免未初始化造成錯誤
       if hasattr(tdx, 'roadEvent'):
           self.tdx_event_active = getattr(tdx.roadEvent, 'isActive', False)
           raw_desc = str(getattr(tdx.roadEvent, 'description', ""))
@@ -97,15 +105,12 @@ class HudRendererSP(HudRenderer):
           self.tdx_event_active = False
           raw_desc = ""
 
-      # 解碼並只取純文字
       if raw_desc and ":" in raw_desc:
         loc_part, events_part = raw_desc.split(":", 1)
         clean_events = []
         for evt in events_part.split("/"):
           parts = evt.split("|")
-          # 如果有代碼，就只取 | 後面的文字；否則保留原樣
           clean_events.append(parts[1] if len(parts) > 1 else evt)
-        # 重新組裝為純文字供畫面繪製
         self.tdx_event_desc = f"{loc_part}: {' / '.join(clean_events)}"
       else:
         self.tdx_event_desc = raw_desc
