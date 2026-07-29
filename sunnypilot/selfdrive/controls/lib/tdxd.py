@@ -13,7 +13,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # 依據你的檔案位置，設定正確的 openpilot 路徑以載入 messaging
-sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../../"))
+sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../"))
 import cereal.messaging as messaging
 
 # ==========================================
