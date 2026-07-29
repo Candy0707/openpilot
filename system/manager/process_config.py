@@ -153,6 +153,7 @@ procs = [
   PythonProcess("uploader", "system.loggerd.uploader", uploader_ready),
   PythonProcess("statsd", "system.statsd", always_run),
   PythonProcess("feedbackd", "selfdrive.ui.feedback.feedbackd", only_onroad),
+  PythonProcess("tdxd", "sunnypilot.selfdrive.controls.lib.tdxd", only_onroad),
 
   # debug procs
   NativeProcess("bridge", "cereal/messaging", ["./bridge"], notcar),
