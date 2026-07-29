@@ -7,6 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 
 import math
 import time
+import traceback
 
 import pyray as rl
 import cereal.messaging as messaging
@@ -51,7 +52,7 @@ class HudRendererSP(HudRenderer):
     self.speed_cluster: float = 0.0
     self.speed_conv: float = CV.MS_TO_KPH if ui_state.is_metric else CV.MS_TO_MPH
 
-    # --- TDX 路況預警變數 (由 dp 版移植) ---
+    # --- TDX 路況預警變數 ---
     self.tdx_speed: int = -1
     self.tdx_next_speed: int = -1
     self.tdx_status: str = "UNKNOWN"
@@ -60,10 +61,11 @@ class HudRendererSP(HudRenderer):
     
     # 建立專屬 TDX 的 SubMaster，避免 KeyError
     self.sm_tdx = messaging.SubMaster(['tdx'])
+    self.tdx_debug_msg = "初始化中..."
+    self.last_tdx_update = 0.0
 
   def _update_state(self) -> None:
     if ui_state.sm.recv_frame["carState"] < ui_state.started_frame:
-      # 重置 TDX 變數，避免殘留上次熄火前的資料
       self.tdx_speed = -1
       self.tdx_next_speed = -1
       self.tdx_status = "UNKNOWN"
@@ -83,23 +85,31 @@ class HudRendererSP(HudRenderer):
     self.turn_signal_controller.update()
     self.circular_alerts_renderer.update()
     self.speed_renderer.update()
+    
+    # 強制呼叫 TDX 更新
     self._update_tdx_state()
 
   def _update_tdx_state(self) -> None:
-    """讀取 TDX 即時路況與事件 (由 dp 版移植)"""
+    """讀取 TDX 即時路況與事件"""
     try:
-      self.sm_tdx.update(0) # 非阻塞更新訊息
+      self.sm_tdx.update(0)
       
-      if not self.sm_tdx.valid['tdx']:
+      if not self.sm_tdx.updated['tdx'] and not self.sm_tdx.valid['tdx']:
+          if time.time() - self.last_tdx_update > 2.0:
+              self.tdx_debug_msg = "等待資料中..."
           return
           
+      self.last_tdx_update = time.time()
       tdx = self.sm_tdx['tdx']
-      self.tdx_speed = getattr(tdx.trafficStatus, 'speed', -1)
-      self.tdx_next_speed = getattr(tdx.trafficStatus, 'nextSpeed', -1)
+      self.tdx_debug_msg = "已連線"
+      
+      # 寬容的屬性讀取，避免型別錯誤
+      self.tdx_speed = int(getattr(tdx.trafficStatus, 'speed', -1))
+      self.tdx_next_speed = int(getattr(tdx.trafficStatus, 'nextSpeed', -1))
       self.tdx_status = str(getattr(tdx.trafficStatus, 'status', "UNKNOWN"))
       
       if hasattr(tdx, 'roadEvent'):
-          self.tdx_event_active = getattr(tdx.roadEvent, 'isActive', False)
+          self.tdx_event_active = bool(getattr(tdx.roadEvent, 'isActive', False))
           raw_desc = str(getattr(tdx.roadEvent, 'description', ""))
       else:
           self.tdx_event_active = False
@@ -114,8 +124,11 @@ class HudRendererSP(HudRenderer):
         self.tdx_event_desc = f"{loc_part}: {' / '.join(clean_events)}"
       else:
         self.tdx_event_desc = raw_desc
+        
     except Exception as e:
+      self.tdx_debug_msg = f"錯誤: {e}"
       print(f"TDX UI 更新錯誤: {e}")
+      traceback.print_exc()
 
   def _get_icbm_status(self):
     if not self.pcm_cruise_speed and ui_state.sm['carControl'].enabled:
@@ -203,6 +216,7 @@ class HudRendererSP(HudRenderer):
     self.circular_alerts_renderer.render(rect)
     self.rocket_fuel.render(rect, ui_state.sm)
 
+    # 無條件呼叫繪圖函式，裡面再決定要畫什麼
     self._draw_tdx_info(rect)
 
   def set_model_renderer(self, model_renderer):
@@ -210,10 +224,13 @@ class HudRendererSP(HudRenderer):
     self.radar_ui = RadarUiRenderer(model_renderer)
 
   def _draw_tdx_info(self, rect: rl.Rectangle) -> None:
-    """繪製 TDX 即時路況(前方車速)與事件跑馬燈 (由 dp 版移植，位置改配合 sp 版面)"""
-    if self.tdx_next_speed <= 0 and not self.tdx_event_active:
-      return
+    """強制繪製 TDX 即時路況(前方車速)與事件跑馬燈"""
+    
+    # [開發除錯用] 在畫面左上角印出 TDX 連線狀態 (確定程式有跑到這裡)
+    debug_color = rl.GREEN if "連線" in self.tdx_debug_msg else rl.RED
+    rl.draw_text_ex(self._font_bold, f"TDX: {self.tdx_debug_msg} (spd:{self.tdx_next_speed})", rl.Vector2(rect.x + 20, rect.y + 150), 30, 0, debug_color)
 
+    # 移除嚴格的 if return，改為在內部個別判斷是否要畫
     bg_padding_x = 45
     bg_padding_y = 20
 
@@ -227,13 +244,14 @@ class HudRendererSP(HudRenderer):
       speed_color = rl.WHITE
 
     # ==========================================
-    # 前方車速: 放在頂部列下方、置中偏右，避開左側 set speed 區塊
+    # 前方車速: 確保 nextSpeed > 0 才畫
     # ==========================================
-    if 0 < self.tdx_next_speed <= 150:
+    if self.tdx_next_speed > 0:
       speed_text = f"前方車速: {self.tdx_next_speed} km/h"
       tdx_speed_font_size = 60
       speed_size = measure_text_cached(self._font_semi_bold, speed_text, tdx_speed_font_size)
 
+      # 放在頂部偏右
       top_y = rect.y + UI_CONFIG.header_height + 25
       speed_x = rect.x + rect.width - speed_size.x - bg_padding_x - 40
 
@@ -245,10 +263,9 @@ class HudRendererSP(HudRenderer):
       rl.draw_text_ex(self._font_semi_bold, speed_text, rl.Vector2(speed_x, top_y), tdx_speed_font_size, 0, speed_color)
 
     # ==========================================
-    # 事件跑馬燈: 貼齊 rect 底部，並扣除 developer_ui 下方保留高度，
-    # 避免與 sp 的 developer_ui / turn_signal / circular_alerts / rocket_fuel 重疊
+    # 事件跑馬燈: 確保有開啟且有文字才畫
     # ==========================================
-    if self.tdx_event_active and self.tdx_event_desc:
+    if self.tdx_event_active and len(self.tdx_event_desc) > 2:
       bottom_offset = 0.0
       if ui_state.developer_ui in (DeveloperUiState.BOTTOM, DeveloperUiState.BOTH):
         bottom_offset = get_bottom_dev_ui_offset()
@@ -264,7 +281,8 @@ class HudRendererSP(HudRenderer):
       display_width = min(text_width, max_text_width)
 
       event_bg_height = line_height + bg_padding_y * 2
-      event_y = rect.y + rect.height - bottom_offset - event_bg_height - 20
+      # 放在底部偏上
+      event_y = rect.y + rect.height - bottom_offset - event_bg_height - 180
 
       event_x = rect.x + rect.width / 2 - display_width / 2
       event_bg_rect = rl.Rectangle(
