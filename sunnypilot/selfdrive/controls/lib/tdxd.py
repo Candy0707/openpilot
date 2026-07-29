@@ -344,12 +344,12 @@ def main():
     current_section_miss_count = 0
     
     # ==========================================
-    # 測試點設定 (可自行開關) 
+    # 測試點設定 (可自行開關) True or False
     # ==========================================
-    TEST_MODE = False
-    TEST_LAT = 24.860332
-    TEST_LON = 121.218465
-    TEST_BEARING = 65.0   
+    TEST_MODE = True
+    TEST_LAT = 25.126123
+    TEST_LON = 121.697325 
+    TEST_BEARING = 0.0   
     # ==========================================
 
     while True:
