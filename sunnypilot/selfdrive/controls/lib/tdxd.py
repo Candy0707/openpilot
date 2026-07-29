@@ -325,8 +325,10 @@ def main():
 
     matcher = LocalMapMatcher(JSON_PATH)
     client = FreewayDataClient()
-    sm = messaging.SubMaster(['liveGPS', 'gpsLocationExternal'],
-                              ignore_alive=['liveGPS', 'gpsLocationExternal'])
+    
+    # 【修復】移除已經廢棄的 'liveGPS'，只使用 'gpsLocationExternal'
+    sm = messaging.SubMaster(['gpsLocationExternal'],
+                              ignore_alive=['gpsLocationExternal'])
 
     MAX_HORIZONTAL_ACCURACY = 50.0
     last_api_call = 0
@@ -372,25 +374,17 @@ def main():
             lat, lon, bearing = TEST_LAT, TEST_LON, TEST_BEARING
             gps_source = 'TEST_MODE'
         else:
-            if sm.updated.get('liveGPS', False):
-                live_gps = sm['liveGPS']
-                if live_gps.gpsOK and (live_gps.horizontalAccuracy <= 0 or
-                                        live_gps.horizontalAccuracy <= MAX_HORIZONTAL_ACCURACY):
-                    lat = live_gps.latitude
-                    lon = live_gps.longitude
-                    bearing = live_gps.bearingDeg
-                    is_gps_ready = True
-                    gps_source = 'liveGPS'
-
-            if not is_gps_ready and sm.updated.get('gpsLocationExternal', False):
+            # 【修復】完全使用 gpsLocationExternal 取代 liveGPS
+            if sm.updated.get('gpsLocationExternal', False):
                 raw_gps = sm['gpsLocationExternal']
-                acc = getattr(raw_gps, 'horizontalAccuracy', 0.0)
+                # 兼容不同版本，嘗試抓取 accuracy 或是 horizontalAccuracy
+                acc = getattr(raw_gps, 'accuracy', getattr(raw_gps, 'horizontalAccuracy', 0.0))
                 if acc <= 0 or acc <= MAX_HORIZONTAL_ACCURACY:
                     lat = raw_gps.latitude
                     lon = raw_gps.longitude
                     bearing = raw_gps.bearingDeg
                     is_gps_ready = True
-                    gps_source = 'gpsLocationExternal(備援)'
+                    gps_source = 'gpsLocationExternal'
 
         if is_gps_ready and (current_time - last_calc_time >= CALC_INTERVAL):
             last_calc_time = current_time
