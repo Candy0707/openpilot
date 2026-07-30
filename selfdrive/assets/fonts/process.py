@@ -1,43 +1,58 @@
 #!/usr/bin/env python3
 from pathlib import Path
+import json
 
 import pyray as rl
-from fontTools.ttLib import TTFont
 
 FONT_DIR = Path(__file__).resolve().parent
-GLYPH_PADDING = 1
+SELFDRIVE_DIR = FONT_DIR.parents[1]
+TRANSLATIONS_DIR = SELFDRIVE_DIR / "ui" / "translations"
+LANGUAGES_FILE = TRANSLATIONS_DIR / "languages.json"
+
+GLYPH_PADDING = 6
+EXTRA_CHARS = "–‑✓×°§•X⚙✕◀▶✔⌫⇧␣○●↳çêüñ–‑✓×°§•€£¥·²"
+UNIFONT_LANGUAGES = {"th", "zh-CHT", "zh-CHS", "ko", "ja"}
 
 
-def _get_font_codepoints(font_path: Path) -> tuple[int, ...]:
-  try:
-    with TTFont(font_path) as font:
-      cmap = font.getBestCmap()
-      if cmap:
-        print(f"字體 {font_path.name} 偵測到 {len(cmap)} 個原生字元")
-        return tuple(sorted(cmap.keys()))
-  except Exception as e:
-    print(f"無法讀取字體 {font_path.name} 的字元集，錯誤: {e}")
-
-  return ()
+def _languages():
+  if not LANGUAGES_FILE.exists():
+    return {}
+  with LANGUAGES_FILE.open(encoding="utf-8") as f:
+    return json.load(f)
 
 
-def _glyph_metrics(glyphs, rects, glyph_count: int):
+def _char_sets():
+  base = set(map(chr, range(32, 127))) | set(EXTRA_CHARS)
+  unifont = set(base)
+
+  for language, code in _languages().items():
+    unifont.update(language)
+    po_path = TRANSLATIONS_DIR / f"app_{code}.po"
+    try:
+      chars = set(po_path.read_text(encoding="utf-8"))
+      print(f"Language {language} ({code}) has {len(chars)} unique characters")
+    except FileNotFoundError:
+      continue
+    unifont.update(chars)
+    # (unifont if code in UNIFONT_LANGUAGES else base).update(chars)
+
+  return tuple(sorted(ord(c) for c in base)), tuple(sorted(ord(c) for c in unifont))
+
+
+def _glyph_metrics(glyphs, rects, codepoints):
   entries = []
-  offsets_y = []
-  extents = []
-
-  for idx in range(glyph_count):
-    glyph, rect = glyphs[idx], rects[idx]
+  min_offset_y, max_extent = None, 0
+  for idx, codepoint in enumerate(codepoints):
+    glyph = glyphs[idx]
+    rect = rects[idx]
     width = int(round(rect.width))
     height = int(round(rect.height))
     offset_y = int(round(glyph.offsetY))
-
-    offsets_y.append(offset_y)
-    extents.append(offset_y + height)
-
+    min_offset_y = offset_y if min_offset_y is None else min(min_offset_y, offset_y)
+    max_extent = max(max_extent, offset_y + height)
     entries.append(
       {
-        "id": glyph.value,
+        "id": codepoint,
         "x": int(round(rect.x)),
         "y": int(round(rect.y)),
         "width": width,
@@ -48,8 +63,11 @@ def _glyph_metrics(glyphs, rects, glyph_count: int):
       }
     )
 
-  line_height = int(round(max(extents) - min(offsets_y)))
-  base = int(round(max(extents)))
+  if min_offset_y is None:
+    raise RuntimeError("No glyphs were generated")
+
+  line_height = int(round(max_extent - min_offset_y))
+  base = int(round(max_extent))
   return entries, line_height, base
 
 
@@ -79,47 +97,39 @@ def _process_font(font_path: Path, codepoints: tuple[int, ...]):
 
   font_size = {
     "unifont.otf": 16,  # unifont is only 16x8 or 16x16 pixels per glyph
-  }.get(font_path.name, 32)
+  }.get(font_path.name, 200)
 
   data = font_path.read_bytes()
   file_buf = rl.ffi.new("unsigned char[]", data)
   cp_buffer = rl.ffi.new("int[]", codepoints)
   cp_ptr = rl.ffi.cast("int *", cp_buffer)
-  glyph_count = len(codepoints)
-
-  # 修正：load_font_data 僅接收 6 個參數，移除末尾傳入的 int 指標
-  glyphs = rl.load_font_data(
-    rl.ffi.cast("unsigned char *", file_buf),
-    len(data),
-    font_size,
-    cp_ptr,
-    glyph_count,
-    rl.FontType.FONT_DEFAULT
-  )
+  glyphs = rl.load_font_data(rl.ffi.cast("unsigned char *", file_buf), len(data), font_size, cp_ptr, len(codepoints), rl.FontType.FONT_DEFAULT)
   if glyphs == rl.ffi.NULL:
     raise RuntimeError("raylib failed to load font data")
 
   rects_ptr = rl.ffi.new("Rectangle **")
-  image = rl.gen_image_font_atlas(glyphs, rects_ptr, glyph_count, font_size, GLYPH_PADDING, 0)
+  image = rl.gen_image_font_atlas(glyphs, rects_ptr, len(codepoints), font_size, GLYPH_PADDING, 0)
   if image.width == 0 or image.height == 0:
     raise RuntimeError("raylib returned an empty atlas")
 
   rects = rects_ptr[0]
   atlas_name = f"{font_path.stem}.png"
   atlas_path = FONT_DIR / atlas_name
-  entries, line_height, base = _glyph_metrics(glyphs, rects, glyph_count)
+  entries, line_height, base = _glyph_metrics(glyphs, rects, codepoints)
 
   if not rl.export_image(image, atlas_path.as_posix()):
     raise RuntimeError("Failed to export atlas image")
 
   _write_bmfont(FONT_DIR / f"{font_path.stem}.fnt", font_size, font_path.stem, atlas_name, line_height, base, (image.width, image.height), entries)
 
+
 def main():
+  base_cp, unifont_cp = _char_sets()
   fonts = sorted(FONT_DIR.glob("*.ttf")) + sorted(FONT_DIR.glob("*.otf"))
   for font in fonts:
     if "emoji" in font.name.lower():
       continue
-    glyphs = _get_font_codepoints(font)
+    glyphs = unifont_cp# if font.stem.lower().startswith("NotoSansTC") else base_cp
     _process_font(font, glyphs)
   return 0
 
