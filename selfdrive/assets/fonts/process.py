@@ -5,7 +5,7 @@ import pyray as rl
 from fontTools.ttLib import TTFont
 
 FONT_DIR = Path(__file__).resolve().parent
-GLYPH_PADDING = 2
+GLYPH_PADDING = 1
 
 
 def _get_font_codepoints(font_path: Path) -> tuple[int, ...]:
@@ -86,7 +86,7 @@ def _process_font(font_path: Path, codepoints: tuple[int, ...]):
   cp_buffer = rl.ffi.new("int[]", codepoints)
   cp_ptr = rl.ffi.cast("int *", cp_buffer)
   glyph_count = rl.ffi.new("int *", len(codepoints))
-  glyphs = rl.load_font_data(rl.ffi.cast("unsigned char *", file_buf), len(data), font_size, cp_ptr, len(codepoints), rl.FontType.FONT_DEFAULT)
+  glyphs = rl.load_font_data(rl.ffi.cast("unsigned char *", file_buf), len(data), font_size, cp_ptr, len(codepoints), rl.FontType.FONT_DEFAULT, glyph_count)
   if glyphs == rl.ffi.NULL:
     raise RuntimeError("raylib failed to load font data")
 
