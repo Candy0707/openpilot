@@ -24,23 +24,23 @@ class DRIVER_MONITOR_SETTINGS:
   def __init__(self, device_type):
     self._DT_DMON = DT_DMON
     # ref (page15-16): https://eur-lex.europa.eu/legal-content/EN/TXT/PDF/?uri=CELEX:42018X1947&rid=2
-    self._AWARENESS_TIME = 100. # passive wheeltouch total timeout
-    self._AWARENESS_PRE_TIME_TILL_TERMINAL = 50.
-    self._AWARENESS_PROMPT_TIME_TILL_TERMINAL = 20.
-    self._DISTRACTED_TIME = 36. # active monitoring total timeout
-    self._DISTRACTED_PRE_TIME_TILL_TERMINAL = 26.
-    self._DISTRACTED_PROMPT_TIME_TILL_TERMINAL = 20.
+    self._AWARENESS_TIME = 120. # 原30. 放寬4倍
+    self._AWARENESS_PRE_TIME_TILL_TERMINAL = 60. # 原15. 放寬4倍
+    self._AWARENESS_PROMPT_TIME_TILL_TERMINAL = 24. # 原6. 放寬4倍
+    self._DISTRACTED_TIME = 44. # 原11. 放寬4倍
+    self._DISTRACTED_PRE_TIME_TILL_TERMINAL = 32. # 原8. 放寬4倍
+    self._DISTRACTED_PROMPT_TIME_TILL_TERMINAL = 24. # 原6. 放寬4倍
 
     self._FACE_THRESHOLD = 0.7
     self._EYE_THRESHOLD = 0.5
-    self._BLINK_THRESHOLD = 0.85
-    self._PHONE_THRESH = 0.85
+    self._BLINK_THRESHOLD = 0.9 # 原0.5 大幅提升閉眼判定門檻
+    self._PHONE_THRESH = 0.9 # 原0.5 大幅提升手機判定門檻
 
-    self._POSE_PITCH_THRESHOLD = 0.5326
-    self._POSE_PITCH_THRESHOLD_SLACK = 0.5503
+    self._POSE_PITCH_THRESHOLD = 0.6266 # 原0.3133 放寬2倍 (角度極限)
+    self._POSE_PITCH_THRESHOLD_SLACK = 0.6474 # 原0.3237 放寬2倍
     self._POSE_PITCH_THRESHOLD_STRICT = self._POSE_PITCH_THRESHOLD
-    self._POSE_YAW_THRESHOLD = 0.6834
-    self._POSE_YAW_THRESHOLD_SLACK = 0.8571
+    self._POSE_YAW_THRESHOLD = 0.8040 # 原0.4020 放寬2倍
+    self._POSE_YAW_THRESHOLD_SLACK = 1.0084 # 原0.5042 放寬2倍
     self._POSE_YAW_THRESHOLD_STRICT = self._POSE_YAW_THRESHOLD
     self._POSE_YAW_MIN_STEER_DEG = 30
     self._POSE_YAW_STEER_FACTOR = 0.15
@@ -294,7 +294,8 @@ class DriverMonitoring:
     self.distracted_types = self._get_distracted_types()
     self.driver_distracted = (DistractedType.DISTRACTED_PHONE in self.distracted_types
                               or DistractedType.DISTRACTED_POSE in self.distracted_types
-                              or DistractedType.DISTRACTED_BLINK in self.distracted_types)                               and driver_data.faceProb > self.settings._FACE_THRESHOLD and self.pose.low_std
+                              or DistractedType.DISTRACTED_BLINK in self.distracted_types) \
+                              and driver_data.faceProb > self.settings._FACE_THRESHOLD and self.pose.low_std
     self.driver_distraction_filter.update(self.driver_distracted)
 
     # update offseter
@@ -303,7 +304,8 @@ class DriverMonitoring:
       self.pose.pitch_offseter.push_and_update(self.pose.pitch)
       self.pose.yaw_offseter.push_and_update(self.pose.yaw)
 
-    self.pose.calibrated = self.pose.pitch_offseter.filtered_stat.n > self.settings._POSE_OFFSET_MIN_COUNT and                            self.pose.yaw_offseter.filtered_stat.n > self.settings._POSE_OFFSET_MIN_COUNT
+    self.pose.calibrated = self.pose.pitch_offseter.filtered_stat.n > self.settings._POSE_OFFSET_MIN_COUNT and \
+                           self.pose.yaw_offseter.filtered_stat.n > self.settings._POSE_OFFSET_MIN_COUNT
 
     if self.face_detected and not self.driver_distracted:
       if model_std_max > self.settings._DCAM_UNCERTAIN_ALERT_THRESHOLD:
@@ -325,7 +327,8 @@ class DriverMonitoring:
   def _update_events(self, driver_engaged, op_engaged, standstill, wrong_gear, car_speed):
     self._reset_events()
     # Block engaging until ignition cycle after max number or time of distractions
-    if self.terminal_alert_cnt >= self.settings._MAX_TERMINAL_ALERTS or        self.terminal_time >= self.settings._MAX_TERMINAL_DURATION:
+    if self.terminal_alert_cnt >= self.settings._MAX_TERMINAL_ALERTS or \
+       self.terminal_time >= self.settings._MAX_TERMINAL_DURATION:
       if not self.too_distracted:
         self.params.put_bool_nonblocking("DriverTooDistracted", True)
       self.too_distracted = True
@@ -335,7 +338,9 @@ class DriverMonitoring:
       self.current_events.add(EventName.tooDistracted)
 
     always_on_valid = self.always_on and not wrong_gear
-    if (driver_engaged and self.awareness > 0 and not self.active_monitoring_mode) or        (not always_on_valid and not op_engaged) or        (always_on_valid and not op_engaged and self.awareness <= 0):
+    if (driver_engaged and self.awareness > 0 and not self.active_monitoring_mode) or \
+       (not always_on_valid and not op_engaged) or \
+       (always_on_valid and not op_engaged and self.awareness <= 0):
       # always reset on disengage with normal mode; disengage resets only on red if always on
       self._reset_awareness()
       return
@@ -346,7 +351,8 @@ class DriverMonitoring:
     standstill_orange_exemption = standstill and _reaching_pre
     always_on_red_exemption = always_on_valid and not op_engaged and _reaching_terminal
 
-    if self.awareness > 0 and        ((self.driver_distraction_filter.x < 0.37 and self.face_detected and self.pose.low_std) or standstill_orange_exemption):
+    if self.awareness > 0 and \
+       ((self.driver_distraction_filter.x < 0.37 and self.face_detected and self.pose.low_std) or standstill_orange_exemption):
       if driver_engaged:
         self._reset_awareness()
         return
