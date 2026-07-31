@@ -9,9 +9,11 @@ SELFDRIVE_DIR = FONT_DIR.parents[1]
 TRANSLATIONS_DIR = SELFDRIVE_DIR / "ui" / "translations"
 LANGUAGES_FILE = TRANSLATIONS_DIR / "languages.json"
 
-GLYPH_PADDING = 6
+GLYPH_PADDING = 1
 EXTRA_CHARS = "–‑✓×°§•X⚙✕◀▶✔⌫⇧␣○●↳çêüñ–‑✓×°§•€£¥·²"
-UNIFONT_LANGUAGES = {"th", "zh-CHT", "zh-CHS", "ko", "ja"}
+
+# 僅保留繁體中文，避免載入其他語系造成的龐大字元集
+UNIFONT_LANGUAGES = {"zh-CHT"}
 
 
 def _languages():
@@ -26,6 +28,10 @@ def _char_sets():
   unifont = set(base)
 
   for language, code in _languages().items():
+    # 略過不在 UNIFONT_LANGUAGES 裡的語系
+    if code not in UNIFONT_LANGUAGES:
+      continue
+
     unifont.update(language)
     po_path = TRANSLATIONS_DIR / f"app_{code}.po"
     try:
@@ -34,7 +40,6 @@ def _char_sets():
     except FileNotFoundError:
       continue
     unifont.update(chars)
-    # (unifont if code in UNIFONT_LANGUAGES else base).update(chars)
 
   return tuple(sorted(ord(c) for c in base)), tuple(sorted(ord(c) for c in unifont))
 
@@ -129,7 +134,9 @@ def main():
   for font in fonts:
     if "emoji" in font.name.lower():
       continue
-    glyphs = unifont_cp# if font.stem.lower().startswith("NotoSansTC") else base_cp
+      
+    # 正確區分字元集：只有 NotoSansTC 載入包含中文的 unifont_cp，其他一般字型使用輕量的 base_cp
+    glyphs = unifont_cp if font.stem.startswith("NotoSansTC") else base_cp
     _process_font(font, glyphs)
   return 0
 
