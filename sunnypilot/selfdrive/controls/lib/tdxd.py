@@ -15,6 +15,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # 依據你的檔案位置，設定正確的 openpilot 路徑以載入 messaging
 sys.path.append(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../../"))
 import cereal.messaging as messaging
+from cereal import log
 
 # ==========================================
 # 工具函數：開機自動下載 TDX 線形圖資 (針對 Comma 3X 網路延遲最佳化)
@@ -326,11 +327,15 @@ def main():
     matcher = LocalMapMatcher(JSON_PATH)
     client = FreewayDataClient()
     
-    # 【修復】移除已經廢棄的 'liveGPS'，只使用 'gpsLocationExternal'
-    sm = messaging.SubMaster(['gpsLocationExternal'],
-                              ignore_alive=['gpsLocationExternal'])
+    # 【修復 v2】主要定位來源改用 liveLocationKalman（GPS+IMU+輪速融合），
+    # gpsLocationExternal（原始GPS）僅作為備案，解決國道高架橋/隧道下 GPS 斷訊或精度暴衝時
+    # 完全停止發佈車速與事件的問題。
+    sm = messaging.SubMaster(['gpsLocationExternal', 'liveLocationKalman'],
+                              ignore_alive=['gpsLocationExternal', 'liveLocationKalman'])
 
     MAX_HORIZONTAL_ACCURACY = 50.0
+    MAX_DEAD_RECKONING_SEC = 20.0   # liveLocationKalman 失去真實GPS校正超過此秒數就不再信任其位置
+    last_gps_ok_time = 0
     last_api_call = 0
     UPDATE_INTERVAL = 60 
 
@@ -374,8 +379,25 @@ def main():
             lat, lon, bearing = TEST_LAT, TEST_LON, TEST_BEARING
             gps_source = 'TEST_MODE'
         else:
-            # 【修復】完全使用 gpsLocationExternal 取代 liveGPS
-            if sm.updated.get('gpsLocationExternal', False):
+            # 【修復 v2】主要來源：liveLocationKalman（融合定位，隧道/橋下短暫失鎖仍可靠航位推算撐住）
+            llk = sm['liveLocationKalman']
+            llk_valid = (sm.updated.get('liveLocationKalman', False)
+                         and llk.inputsOK and llk.posenetOK and llk.sensorsOK
+                         and llk.status == log.LiveLocationKalman.Status.valid)
+
+            if llk_valid:
+                if llk.gpsOK:
+                    last_gps_ok_time = current_time
+
+                dead_reckoning_time = current_time - last_gps_ok_time
+                if dead_reckoning_time < MAX_DEAD_RECKONING_SEC:
+                    lat, lon, _ = llk.positionGeodetic.value
+                    bearing = math.degrees(llk.calibratedOrientationNED.value[2]) % 360
+                    is_gps_ready = True
+                    gps_source = 'liveLocationKalman' if llk.gpsOK else 'liveLocationKalman(推算中)'
+
+            # 備案：liveLocationKalman 不可用，或飄移太久失去真實GPS校正，改用原始 GPS 頂上
+            if not is_gps_ready and sm.updated.get('gpsLocationExternal', False):
                 raw_gps = sm['gpsLocationExternal']
                 # 兼容不同版本，嘗試抓取 accuracy 或是 horizontalAccuracy
                 acc = getattr(raw_gps, 'accuracy', getattr(raw_gps, 'horizontalAccuracy', 0.0))
@@ -384,7 +406,7 @@ def main():
                     lon = raw_gps.longitude
                     bearing = raw_gps.bearingDeg
                     is_gps_ready = True
-                    gps_source = 'gpsLocationExternal'
+                    gps_source = 'gpsLocationExternal(備案)'
 
         if is_gps_ready and (current_time - last_calc_time >= CALC_INTERVAL):
             last_calc_time = current_time
