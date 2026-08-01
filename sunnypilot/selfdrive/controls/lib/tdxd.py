@@ -381,9 +381,11 @@ def main():
         else:
             # 【修復 v2】主要來源：liveLocationKalman（融合定位，隧道/橋下短暫失鎖仍可靠航位推算撐住）
             llk = sm['liveLocationKalman']
+            # 驗證方式對齊 sunnypilot 官方 osm_map_data.py (OsmMapData.update_location)
             llk_valid = (sm.updated.get('liveLocationKalman', False)
                          and llk.inputsOK and llk.posenetOK and llk.sensorsOK
-                         and llk.status == log.LiveLocationKalman.Status.valid)
+                         and llk.status == log.LiveLocationKalman.Status.valid
+                         and llk.positionGeodetic.valid)
 
             if llk_valid:
                 if llk.gpsOK:
