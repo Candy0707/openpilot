@@ -1,6 +1,8 @@
 name: repo maintenance
 
 on:
+  push:
+  pull_request:
   schedule:
     - cron: "0 14 * * 1" # every Monday at 2am UTC (6am PST)
   workflow_dispatch:
@@ -12,7 +14,7 @@ jobs:
   package_updates:
     name: package_updates
     runs-on: ubuntu-latest
-    if: github.repository == 'Candy0707/openpilot''
+    if: github.repository == 'Candy0707/openpilot'
     steps:
     - uses: actions/checkout@v6
       with:
