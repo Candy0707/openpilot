@@ -77,6 +77,8 @@ dependencies = [
   "qrcode",
   "jeepney",
   "pillow",
+
+  "fonttools",
 ]
 
 [project.optional-dependencies]
