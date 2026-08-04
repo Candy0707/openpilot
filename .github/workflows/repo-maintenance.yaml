@@ -43,6 +43,7 @@ jobs:
           | while IFS=$'\t' read size path; do echo "$size  ${path##*/}"; done >> $GITHUB_OUTPUT
         echo 'EOF' >> $GITHUB_OUTPUT
     - name: bump submodules
+      if: github.ref_name == 'master-dev'
       run: |
         git config submodule.msgq.update none
         git config submodule.rednose_repo.update none
