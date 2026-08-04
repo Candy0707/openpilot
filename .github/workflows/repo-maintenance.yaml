@@ -52,6 +52,7 @@ jobs:
         git submodule update --remote
         git add .
     - name: update car docs
+      if: github.ref_name == 'master-dev'
       run: |
         python selfdrive/car/docs.py
         git add docs/CARS.md
