@@ -17,11 +17,122 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
+#: selfdrive/selfdrived/events.py:309
+#, python-format
+msgid "Risk of Collision"
+msgstr "碰撞風險"
 
+#: selfdrive/selfdrived/events.py:316
+#, python-format
+msgid "Lane Departure Detected"
+msgstr "偵測到車道偏離"
+
+#: selfdrive/selfdrived/events.py:326
+#: selfdrive/selfdrived/events.py:572
+#, python-format
+msgid "Steering Assist Temporarily Unavailable"
+msgstr "轉向輔助使用暫時無法使用"
+
+#: selfdrive/selfdrived/events.py:334
+#: selfdrive/selfdrived/events.py:342
+#, python-format
+msgid "Pay Attention"
+msgstr "注意"
+
+#: selfdrive/selfdrived/events.py:342
+#: selfdrive/selfdrived/events.py:351
+#, python-format
+msgid "Driver Distracted"
+msgstr "駕駛注意力不集中"
+
+#: selfdrive/selfdrived/events.py:350
+#: selfdrive/selfdrived/events.py:374
+#, python-format
+msgid "DISENGAGE IMMEDIATELY"
+msgstr "立即脫離"
+
+#: selfdrive/selfdrived/events.py:358
+#, python-format
+msgid "Touch Steering Wheel: No Face Detected"
+msgstr "立即脫觸控方向盤：不支援人臉偵測"
+
+#: selfdrive/selfdrived/events.py:366
+#, python-format
+msgid "Touch Steering Wheel"
+msgstr "觸碰方向盤"
+
+#: selfdrive/selfdrived/events.py:367
+#: selfdrive/selfdrived/events.py:375
+#, python-format
+msgid "Driver Unresponsive"
+msgstr "車輛 無回應"
+
+#: selfdrive/selfdrived/events.py:383
+#, python-format
+msgid "Resume Driving Manually"
+msgstr "恢復手動駕駛"
+
+#: selfdrive/selfdrived/events.py:390
+#, python-format
+msgid "Press Resume to Exit Standstill"
+msgstr "按下「res」鍵退出靜止狀態"
+
+#: selfdrive/selfdrived/events.py:402
+#, python-format
+msgid "Steer Left to Start Lane Change Once Safe"
+msgstr "安全後向左轉向開始變換車道。"
+
+#: selfdrive/selfdrived/events.py:410
+#, python-format
+msgid "Steer Right to Start Lane Change Once Safe"
+msgstr "安全後，向右轉開始變換車道。"
+
+#: selfdrive/selfdrived/events.py:418
+#, python-format
+msgid "Car Detected in Blindspot"
+msgstr "盲點內偵測到車輛"
+
+#: selfdrive/selfdrived/events.py:426
+#, python-format
+msgid "Changing Lanes"
+msgstr "切換車道
 #: openpilot/selfdrive/ui/layouts/settings/device.py:152
 #, python-format
 msgid " Steering torque response calibration is complete."
 msgstr " 轉向扭矩響應校準完成。"
+#: selfdrive/selfdrived/events.py:781
+#: selfdrive/selfdrived/events.py:783
+#, python-format
+msgid "LKAS Fault: Restart the Car"
+msgstr "LKAS故障：重新啟動車輛"
+
+#: selfdrive/selfdrived/events.py:782
+#, python-format
+msgid "LKAS Fault: Restart the car to engage"
+msgstr "LKAS故障：重新啟動車輛以啟用"
+
+#: selfdrive/selfdrived/events.py:789
+#, python-format
+msgid "Reverse\nGear"
+msgstr "倒車\n檔位"
+
+#: selfdrive/selfdrived/events.py:792
+#: selfdrive/selfdrived/events.py:793
+#, python-format
+msgid "Reverse Gear"
+msgstr "倒車檔位"
+
+#: selfdrive/selfdrived/events.py:799
+#, python-format
+msgid "Cruise Is Off"
+msgstr "巡航已關閉"
+
+#: selfdrive/selfdrived/events.py:807
+#: selfdrive/selfdrived/events.py:808
+#: selfdrive/selfdrived/events.py:809
+#, python-format
+msgid "Harness Relay Malfunction"
+msgstr "線束繼電器故障"
 
 #: openpilot/selfdrive/ui/layouts/settings/device.py:150
 #, python-format
