@@ -95,11 +95,14 @@ msgstr "盲點內偵測到車輛"
 #: selfdrive/selfdrived/events.py:426
 #, python-format
 msgid "Changing Lanes"
-msgstr "切換車道
+msgstr "切換車道"
+
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:152
 #, python-format
 msgid " Steering torque response calibration is complete."
 msgstr " 轉向扭矩響應校準完成。"
+
 #: selfdrive/selfdrived/events.py:781
 #: selfdrive/selfdrived/events.py:783
 #, python-format
@@ -113,8 +116,8 @@ msgstr "LKAS故障：重新啟動車輛以啟用"
 
 #: selfdrive/selfdrived/events.py:789
 #, python-format
-msgid "Reverse\nGear"
-msgstr "倒車\n檔位"
+msgid "Reverse\\nGear"
+msgstr "倒車\\n檔位"
 
 #: selfdrive/selfdrived/events.py:792
 #: selfdrive/selfdrived/events.py:793
@@ -134,62 +137,62 @@ msgstr "巡航已關閉"
 msgid "Harness Relay Malfunction"
 msgstr "線束繼電器故障"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:150
 #, python-format
 msgid " Steering torque response calibration is {}% complete."
 msgstr " 轉向扭矩響應校準已完成 {}%。"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:125
 #, python-format
 msgid " Your device is pointed {:.1f}° {} and {:.1f}° {}."
 msgstr " 您的設備朝向 {:.1f}° {} 與 {:.1f}° {}。"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:43
 msgid "--"
 msgstr "--"
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:47
 #, python-format
 msgid "1 year of drive storage"
 msgstr "1 年行駛數據存儲"
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:47
 #, python-format
 msgid "24/7 LTE connectivity"
 msgstr "全天候 LTE 連接"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:46
 msgid "2G"
 msgstr "2G"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:47
 msgid "3G"
 msgstr "3G"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:49
 msgid "5G"
 msgstr "5G"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py:140
 #: selfdrive/ui/layouts/settings/developer.py:23
-msgid ""
-"<b>WARNING: openpilot longitudinal control is in alpha for this car and will"
-" disable Automatic Emergency Braking (AEB).</b><br><br>On this car, "
-"openpilot defaults to the car's built-in ACC instead of openpilot's "
-"longitudinal control. Enable this to switch to openpilot longitudinal "
-"control. Enabling Experimental mode is recommended when enabling openpilot "
-"longitudinal control alpha. Changing this setting will restart openpilot if "
-"the car is powered on."
-msgstr ""
-"<b>警告：此車型的 openpilot 縱向控制仍為 alpha，將會停用自動緊急制動 (AEB)。"
-"</b><br><br>在此車型上，openpilot 默認使用車載 ACC，而非 openpilot 的縱向控"
-"制。啟用此選項可切換為 openpilot 縱向控制。建議同時啟用實驗模式。若車輛通電，"
-"更改此設置將會重啟 openpilot。"
+msgid "<b>WARNING: openpilot longitudinal control is in alpha for this car and will disable Automatic Emergency Braking (AEB).</b><br><br>On this car, openpilot defaults to the car's built-in ACC instead of openpilot's longitudinal control. Enable this to switch to openpilot longitudinal control. Enabling Experimental mode is recommended when enabling openpilot longitudinal control alpha. Changing this setting will restart openpilot if the car is powered on."
+msgstr "<b>警告：此車型的 openpilot 縱向控制仍為 alpha，將會停用自動緊急制動 (AEB)。</b><br><br>在此車型上，openpilot 默認使用車載 ACC，而非 openpilot 的縱向控制。啟用此選項可切換為 openpilot 縱向控制。建議同時啟用實驗模式。若車輛通電，更改此設置將會重啟 openpilot。"
 
 #: openpilot/selfdrive/ui/layouts/settings/device.py:140
+#: selfdrive/ui/layouts/settings/device.py:148
 #, python-format
 msgid "<br><br>Steering lag calibration is complete."
 msgstr "<br><br>轉向延遲校準完成。"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:138
 #, python-format
 msgid "<br><br>Steering lag calibration is {}% complete."
@@ -201,43 +204,45 @@ msgid "ACTIVE"
 msgstr "已啟用"
 
 #: selfdrive/ui/layouts/settings/developer.py:15
-msgid ""
-"ADB (Android Debug Bridge) allows connecting to your device over USB or over "
-"the network. See https://docs.comma.ai/how-to/connect-to-comma for more info."
-msgstr ""
-"ADB（Android 調試橋）可通過 USB 或網絡連接到您的設備。詳見 https://docs."
-"comma.ai/how-to/connect-to-comma。"
+msgid "ADB (Android Debug Bridge) allows connecting to your device over USB or over the network. See https://docs.comma.ai/how-to/connect-to-comma for more info."
+msgstr "ADB（Android 調試橋）可通過 USB 或網絡連接到您的設備。詳見 https://docs.comma.ai/how-to/connect-to-comma。"
 
+#: openpilot/selfdrive/ui/widgets/ssh_key.py
 #: openpilot/selfdrive/ui/widgets/ssh_key.py:30
 msgid "ADD"
 msgstr "添加"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:136
 #, python-format
 msgid "APN Setting"
 msgstr "APN 設置"
 
+#: openpilot/selfdrive/ui/widgets/offroad_alerts.py
 #: openpilot/selfdrive/ui/widgets/offroad_alerts.py:109
 #, python-format
 msgid "Acknowledge Excessive Actuation"
 msgstr "確認過度作動"
 
-#: system/ui/widgets/network.py:92
 #: system/ui/widgets/network.py:74
+#: system/ui/widgets/network.py:92
 #, python-format
 msgid "Advanced"
 msgstr "高級"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:98
 #, python-format
 msgid "Aggressive"
 msgstr "激進"
 
+#: openpilot/selfdrive/ui/layouts/onboarding.py
 #: openpilot/selfdrive/ui/layouts/onboarding.py:120
 #, python-format
 msgid "Agree"
 msgstr "同意"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:70
 #, python-format
 msgid "Always-On Driver Monitoring"
@@ -251,94 +256,112 @@ msgstr "使用Comma4界面"
 msgid "Use the compact UI layout (Comma 4)."
 msgstr "在設備屏幕上使用Comma4的緊湊型界面進行顯示"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py:183
 #: selfdrive/ui/layouts/settings/toggles.py:186
 #, python-format
-msgid ""
-"An alpha version of openpilot longitudinal control can be tested, along with"
-" Experimental mode, on non-release branches."
+msgid "An alpha version of openpilot longitudinal control can be tested, along with Experimental mode, on non-release branches."
 msgstr "openpilot 縱向控制的 alpha 版本可在非發佈分支搭配實驗模式進行測試。"
 
 #: openpilot/selfdrive/ui/layouts/settings/device.py:183
+#: selfdrive/ui/layouts/settings/device.py:187
 #, python-format
 msgid "Are you sure you want to power off?"
 msgstr "確定要關機嗎？"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:171
 #, python-format
 msgid "Are you sure you want to reboot?"
 msgstr "確定要重啟嗎？"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:111
 #, python-format
 msgid "Are you sure you want to reset calibration?"
 msgstr "確定要重置校準嗎？"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:173
 #, python-format
 msgid "Are you sure you want to uninstall?"
 msgstr "確定要卸載嗎？"
 
-#: system/ui/widgets/network.py:96
+#: openpilot/selfdrive/ui/layouts/onboarding.py
 #: openpilot/selfdrive/ui/layouts/onboarding.py:151
+#: system/ui/widgets/network.py
+#: system/ui/widgets/network.py:96
 #, python-format
 msgid "Back"
 msgstr "返回"
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:38
 #, python-format
 msgid "Become a comma prime member at connect.comma.ai"
 msgstr "前往 connect.comma.ai 成為 comma prime 會員"
 
+#: openpilot/selfdrive/ui/widgets/pairing_dialog.py
 #: openpilot/selfdrive/ui/widgets/pairing_dialog.py:119
 #, python-format
 msgid "Bookmark connect.comma.ai to your home screen to use it like an app"
 msgstr "將 connect.comma.ai 添加到主屏幕，像應用一樣使用"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:66
 #, python-format
 msgid "CHANGE"
 msgstr "更改"
 
-#: openpilot/selfdrive/ui/layouts/settings/software.py:157
-#: openpilot/selfdrive/ui/layouts/settings/software.py:57
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:117
 #: openpilot/selfdrive/ui/layouts/settings/software.py:128
+#: openpilot/selfdrive/ui/layouts/settings/software.py:157
+#: openpilot/selfdrive/ui/layouts/settings/software.py:57
 #, python-format
 msgid "CHECK"
 msgstr "檢查"
 
+#: openpilot/selfdrive/ui/widgets/exp_mode_button.py
 #: openpilot/selfdrive/ui/widgets/exp_mode_button.py:51
 #, python-format
 msgid "CHILL MODE ON"
 msgstr "安穩模式已開啟"
 
-#: system/ui/widgets/network.py:152
-#: openpilot/selfdrive/ui/layouts/sidebar.py:73
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:134
 #: openpilot/selfdrive/ui/layouts/sidebar.py:136
 #: openpilot/selfdrive/ui/layouts/sidebar.py:138
+#: openpilot/selfdrive/ui/layouts/sidebar.py:73
+#: system/ui/widgets/network.py
+#: system/ui/widgets/network.py:152
 #, python-format
 msgid "CONNECT"
 msgstr "CONNECT"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:376
 #, python-format
 msgid "CONNECTING..."
 msgstr "連接中..."
 
-#: system/ui/widgets/network.py:326
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:73
+#: system/ui/widgets/confirm_dialog.py:23 system/ui/widgets/option_dialog.py:35
 #: system/ui/widgets/confirm_dialog.py:24
-#: system/ui/widgets/option_dialog.py:36
+#: system/ui/widgets/keyboard.py:81 system/ui/widgets/network.py:318
 #: system/ui/widgets/keyboard.py:83
+#: system/ui/widgets/network.py:326
+#: system/ui/widgets/option_dialog.py:36
 #, python-format
 msgid "Cancel"
 msgstr "取消"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:131
 #, python-format
 msgid "Cellular Metered"
 msgstr "蜂窩計量"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:66
 #, python-format
 msgid "Change Language"
@@ -349,26 +372,31 @@ msgstr "更改語言"
 msgid "Changing this setting will restart openpilot if the car is powered on."
 msgstr "若車輛通電，更改此設置將重啟 openpilot。"
 
+#: openpilot/selfdrive/ui/widgets/pairing_dialog.py
 #: openpilot/selfdrive/ui/widgets/pairing_dialog.py:118
 #, python-format
-msgid "Click \"add new device\" and scan the QR code on the right"
+msgid "Click \\\"add new device\\\" and scan the QR code on the right"
 msgstr "點擊「添加新設備」，掃瞄右側二維碼"
 
+#: openpilot/selfdrive/ui/widgets/offroad_alerts.py
 #: openpilot/selfdrive/ui/widgets/offroad_alerts.py:104
 #, python-format
 msgid "Close"
 msgstr "關閉"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:56
 #, python-format
 msgid "Current Version"
 msgstr "當前版本"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:120
 #, python-format
 msgid "DOWNLOAD"
 msgstr "下載"
 
+#: openpilot/selfdrive/ui/layouts/onboarding.py
 #: openpilot/selfdrive/ui/layouts/onboarding.py:119
 #, python-format
 msgid "Decline"
@@ -379,11 +407,14 @@ msgstr "拒絕"
 msgid "Decline, uninstall openpilot"
 msgstr "拒絕並卸載 openpilot"
 
+#: openpilot/selfdrive/ui/layouts/settings/settings.py
 #: openpilot/selfdrive/ui/layouts/settings/settings.py:64
+#: selfdrive/ui/layouts/settings/settings.py:128
 msgid "Developer"
 msgstr "開發人員"
 
 #: openpilot/selfdrive/ui/layouts/settings/settings.py:59
+#: selfdrive/ui/layouts/settings/settings.py:113
 msgid "Device"
 msgstr "設備"
 
@@ -392,90 +423,109 @@ msgstr "設備"
 msgid "Disengage on Accelerator Pedal"
 msgstr "踩下加速踏板時脫離"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:176
 #, python-format
 msgid "Disengage to Power Off"
 msgstr "脫離以關機"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:164
 #, python-format
 msgid "Disengage to Reboot"
 msgstr "脫離以重啟"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:95
 #, python-format
 msgid "Disengage to Reset Calibration"
 msgstr "脫離以重置校準"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:32
 msgid "Display speed in km/h instead of mph."
 msgstr "以 km/h 顯示速度（非 mph）。"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:57
 #, python-format
 msgid "Dongle ID"
 msgstr "Dongle ID"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:57
 #, python-format
 msgid "Download"
 msgstr "下載"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:60
 #, python-format
 msgid "Driver Camera"
 msgstr "車內攝像頭"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:96
 #, python-format
 msgid "Driving Personality"
 msgstr "駕駛風格"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:120
 #: system/ui/widgets/network.py:136
 #, python-format
 msgid "EDIT"
 msgstr "編輯"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:138
 msgid "ERROR"
 msgstr "錯誤"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:45
 msgid "ETH"
 msgstr "ETH"
 
+#: openpilot/selfdrive/ui/widgets/exp_mode_button.py
 #: openpilot/selfdrive/ui/widgets/exp_mode_button.py:51
 #, python-format
 msgid "EXPERIMENTAL MODE ON"
 msgstr "實驗模式已開啟"
 
-#: openpilot/selfdrive/ui/layouts/settings/toggles.py:229
+#: openpilot/selfdrive/ui/layouts/settings/developer.py
 #: openpilot/selfdrive/ui/layouts/settings/developer.py:180
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py:229
 #, python-format
 msgid "Enable"
 msgstr "啟用"
 
+#: openpilot/selfdrive/ui/layouts/settings/developer.py
 #: openpilot/selfdrive/ui/layouts/settings/developer.py:39
 #, python-format
 msgid "Enable ADB"
 msgstr "啟用 ADB"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:64
 #, python-format
 msgid "Enable Lane Departure Warnings"
 msgstr "啟用車道偏離警示"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:126
 #, python-format
 msgid "Enable Roaming"
 msgstr "啟用漫遊"
 
+#: openpilot/selfdrive/ui/layouts/settings/developer.py
 #: openpilot/selfdrive/ui/layouts/settings/developer.py:48
 #, python-format
 msgid "Enable SSH"
 msgstr "啟用 SSH"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:117
 #, python-format
 msgid "Enable Tethering"
@@ -483,8 +533,7 @@ msgstr "啟用網絡共享"
 
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:30
 msgid "Enable driver monitoring even when openpilot is not engaged."
-msgstr ""
-"即使未啟用 openpilot 也啟用駕駛員監控。"
+msgstr "即使未啟用 openpilot 也啟用駕駛員監控。"
 
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:46
 #, python-format
@@ -496,99 +545,87 @@ msgstr "啟用 openpilot"
 msgid "Enable the openpilot longitudinal control (alpha) toggle to allow Experimental mode."
 msgstr "啟用 openpilot 縱向控制（alpha）開關，以使用實驗模式。"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:201
 #, python-format
 msgid "Enter APN"
 msgstr "輸入 APN"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:243
 #, python-format
 msgid "Enter SSID"
 msgstr "輸入 SSID"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:257
 #, python-format
 msgid "Enter new tethering password"
 msgstr "輸入新的網絡共享密碼"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:238
 #: system/ui/widgets/network.py:320
 #, python-format
 msgid "Enter password"
 msgstr "輸入密碼"
 
+#: openpilot/selfdrive/ui/widgets/ssh_key.py
 #: openpilot/selfdrive/ui/widgets/ssh_key.py:89
 #, python-format
 msgid "Enter your GitHub username"
 msgstr "輸入您的 GitHub 用戶名"
 
+#: system/ui/widgets/list_view.py
 #: system/ui/widgets/list_view.py:123
 #: system/ui/widgets/list_view.py:160
 #, python-format
 msgid "Error"
 msgstr "錯誤"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:52
 #, python-format
 msgid "Experimental Mode"
 msgstr "實驗模式"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:182
 #, python-format
 msgid "Experimental mode is currently unavailable on this car since the car's stock ACC is used for longitudinal control."
 msgstr "此車型當前無法使用實驗模式，因為縱向控制使用的是原廠 ACC。"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:380
 #, python-format
 msgid "FORGETTING..."
 msgstr "正在遺忘..."
 
+#: openpilot/selfdrive/ui/widgets/setup.py
 #: openpilot/selfdrive/ui/widgets/setup.py:43
 #, python-format
 msgid "Finish Setup"
 msgstr "完成設置"
 
+#: openpilot/selfdrive/ui/layouts/settings/settings.py
 #: openpilot/selfdrive/ui/layouts/settings/settings.py:63
+#: selfdrive/ui/layouts/settings/settings.py:127
 msgid "Firehose"
 msgstr "Firehose"
 
+#: openpilot/selfdrive/ui/layouts/settings/firehose.py
 #: openpilot/selfdrive/ui/layouts/settings/firehose.py:10
 msgid "Firehose Mode"
 msgstr "Firehose 模式"
 
 #: selfdrive/ui/layouts/settings/firehose.py:25
-msgid ""
-"For maximum effectiveness, bring your device inside and connect to a good USB-C adapter and Wi-Fi weekly.\n"
-"\n"
-"Firehose Mode can also work while you're driving if connected to a hotspot or unlimited SIM card.\n"
-"\n"
-"\n"
-"Frequently Asked Questions\n"
-"\n"
-"Does it matter how or where I drive? Nope, just drive as you normally would.\n"
-"\n"
-"Do all of my segments get pulled in Firehose Mode? No, we selectively pull a subset of your segments.\n"
-"\n"
-"What's a good USB-C adapter? Any fast phone or laptop charger should be fine.\n"
-"\n"
-"Does it matter which software I run? Yes, only upstream openpilot (and particular forks) are able to be used for training."
-msgstr ""
-"為達到最佳效果，請將設備帶到室內，並每週連接優質 USB‑C 充電器與 Wi‑Fi。\n"
-"\n"
-"若連接熱點或不限流量卡，行車中也可使用 Firehose 模式。\n"
-"\n"
-"\n"
-"常見問題\n"
-"\n"
-"我怎麼開、在哪開有區別嗎？沒有，平常怎麼開就怎麼開。\n"
-"\n"
-"Firehose 模式會拉取我所有片段嗎？不會，我們會選擇性拉取部分片段。\n"
-"\n"
-"什麼是好的 USB‑C 充電器？任何快速的手機或筆電充電器都可以。\n"
-"\n"
-"我跑什麼軟體有區別嗎？有，只有上游 openpilot（及特定分支）可用於訓練。"
+#: system/ui/widgets/network.py:326
+#: system/ui/widgets/network.py:458
+msgid "For maximum effectiveness, bring your device inside and connect to a good USB-C adapter and Wi-Fi weekly.\\n\\nFirehose Mode can also work while you're driving if connected to a hotspot or unlimited SIM card.\\n\\n\\nFrequently Asked Questions\\n\\nDoes it matter how or where I drive? Nope, just drive as you normally would.\\n\\nDo all of my segments get pulled in Firehose Mode? No, we selectively pull a subset of your segments.\\n\\nWhat's a good USB-C adapter? Any fast phone or laptop charger should be fine.\\n\\nDoes it matter which software I run? Yes, only upstream openpilot (and particular forks) are able to be used for training."
+msgstr "為達到最佳效果，請將設備帶到室內，並每週連接優質 USB‑C 充電器與 Wi‑Fi。\\n\\n若連接熱點或不限流量卡，行車中也可使用 Firehose 模式。\\n\\n\\n常見問題\\n\\n我怎麼開、在哪開有區別嗎？沒有，平常怎麼開就怎麼開。\\n\\nFirehose 模式會拉取我所有片段嗎？不會，我們會選擇性拉取部分片段。\\n\\n什麼是好的 USB‑C 充電器？任何快速的手機或筆電充電器都可以。\\n\\n我跑什麼軟體有區別嗎？有，只有上游 openpilot（及特定分支）可用於訓練。"
 
 #: system/ui/widgets/network.py
+#: system/ui/widgets/network.py:318 system/ui/widgets/network.py:451
 #, python-format
 msgid "Forget"
 msgstr "忘記"
@@ -602,28 +639,29 @@ msgid "DISCONNECTING..."
 msgstr "正在斷開..."
 
 #: system/ui/widgets/network.py
-msgid "CONNECT"
-msgstr "連接"
-
 #: system/ui/widgets/network.py:327
 #, python-format
-msgid "Forget Wi-Fi Network \"{}\"?"
+msgid "Forget Wi-Fi Network \\\"{}\\\"?"
 msgstr "要忘記 Wi‑Fi 網絡「{}」嗎？"
 
-#: openpilot/selfdrive/ui/layouts/sidebar.py:71
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:125
+#: openpilot/selfdrive/ui/layouts/sidebar.py:71
 msgid "GOOD"
 msgstr "良好"
 
+#: openpilot/selfdrive/ui/widgets/pairing_dialog.py
 #: openpilot/selfdrive/ui/widgets/pairing_dialog.py:117
 #, python-format
 msgid "Go to https://connect.comma.ai on your phone"
 msgstr "在手機上前往 https://connect.comma.ai"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:129
 msgid "HIGH"
 msgstr "高"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:152
 #, python-format
 msgid "Hidden Network"
@@ -634,17 +672,20 @@ msgstr "隱藏網絡"
 msgid "INACTIVE: connect to an unmetered network"
 msgstr "未啟用：請連接不限流量網絡"
 
-#: openpilot/selfdrive/ui/layouts/settings/software.py:60
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:146
+#: openpilot/selfdrive/ui/layouts/settings/software.py:60
 #, python-format
 msgid "INSTALL"
 msgstr "安裝"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:147
 #, python-format
 msgid "IP Address"
 msgstr "IP 地址"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:60
 #, python-format
 msgid "Install Update"
@@ -654,20 +695,25 @@ msgstr "安裝更新"
 msgid "CAN Bridge"
 msgstr "CAN橋接調試"
 
+#: openpilot/selfdrive/ui/layouts/settings/developer.py
 #: openpilot/selfdrive/ui/layouts/settings/developer.py:56
 #, python-format
 msgid "Joystick Debug Mode"
 msgstr "搖桿調試模式"
 
+#: openpilot/selfdrive/ui/widgets/ssh_key.py
 #: openpilot/selfdrive/ui/widgets/ssh_key.py:29
 msgid "LOADING"
 msgstr "加載中"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:48
 msgid "LTE"
 msgstr "LTE"
 
 #: openpilot/selfdrive/ui/layouts/settings/developer.py:64
+#: selfdrive/selfdrived/events.py:234
+#: selfdrive/ui/layouts/settings/developer.py:64
 #, python-format
 msgid "Longitudinal Maneuver Mode"
 msgstr "縱向操作模式"
@@ -676,11 +722,13 @@ msgstr "縱向操作模式"
 msgid "Lateral Maneuver Mode"
 msgstr "橫向機動模式"
 
+#: openpilot/selfdrive/ui/onroad/hud_renderer.py
 #: openpilot/selfdrive/ui/onroad/hud_renderer.py:148
 #, python-format
 msgid "MAX"
 msgstr "MAX"
 
+#: openpilot/selfdrive/ui/widgets/setup.py
 #: openpilot/selfdrive/ui/widgets/setup.py:74
 #, python-format
 msgid "Maximize your training data uploads to improve openpilot's driving models."
@@ -688,15 +736,21 @@ msgstr "最大化上傳訓練數據，以改進 openpilot 的駕駛模型。"
 
 #: openpilot/selfdrive/ui/layouts/settings/device.py:57
 #: openpilot/selfdrive/ui/layouts/settings/device.py:58
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:186
+#: selfdrive/ui/layouts/settings/device.py:59
+#: selfdrive/ui/layouts/settings/device.py:60
 #, python-format
 msgid "N/A"
 msgstr "無"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:142
 msgid "NO"
 msgstr "否"
 
+#: openpilot/selfdrive/ui/layouts/settings/settings.py
 #: openpilot/selfdrive/ui/layouts/settings/settings.py:60
+#: selfdrive/ui/layouts/settings/settings.py:114
 msgid "Network"
 msgstr "網絡"
 
@@ -705,199 +759,235 @@ msgstr "網絡"
 msgid "No SSH keys found"
 msgstr "未找到 SSH 密鑰"
 
+#: openpilot/selfdrive/ui/widgets/ssh_key.py
 #: openpilot/selfdrive/ui/widgets/ssh_key.py:127
 #, python-format
 msgid "No SSH keys found for user '{}'"
 msgstr "未找到用戶「{}」的 SSH 密鑰"
 
+#: openpilot/selfdrive/ui/widgets/offroad_alerts.py
 #: openpilot/selfdrive/ui/widgets/offroad_alerts.py:321
 #, python-format
 msgid "No release notes available."
 msgstr "暫無發行說明。"
 
-#: openpilot/selfdrive/ui/layouts/sidebar.py:73
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:134
+#: openpilot/selfdrive/ui/layouts/sidebar.py:73
 msgid "OFFLINE"
 msgstr "離線"
 
-#: system/ui/widgets/confirm_dialog.py:93
-#: system/ui/widgets/html_render.py:263
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:127
+#: system/ui/widgets/confirm_dialog.py
+#: system/ui/widgets/confirm_dialog.py:93
+#: system/ui/widgets/html_render.py
+#: system/ui/widgets/html_render.py:263
 #, python-format
 msgid "OK"
 msgstr "確定"
 
-#: openpilot/selfdrive/ui/layouts/sidebar.py:72
-#: openpilot/selfdrive/ui/layouts/sidebar.py:144
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:136
+#: openpilot/selfdrive/ui/layouts/sidebar.py:144
+#: openpilot/selfdrive/ui/layouts/sidebar.py:72
 msgid "ONLINE"
 msgstr "在線"
 
+#: openpilot/selfdrive/ui/widgets/setup.py
 #: openpilot/selfdrive/ui/widgets/setup.py:19
 #, python-format
 msgid "Open"
 msgstr "打開"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:45
 #, python-format
 msgid "PAIR"
 msgstr "配對"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:142
 msgid "PANDA"
 msgstr "PANDA"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:60
 #, python-format
 msgid "PREVIEW"
 msgstr "預覽"
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:44
 #, python-format
 msgid "PRIME FEATURES:"
 msgstr "PRIME 功能："
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:45
 #, python-format
 msgid "Pair Device"
 msgstr "配對設備"
 
+#: openpilot/selfdrive/ui/widgets/setup.py
 #: openpilot/selfdrive/ui/widgets/setup.py:18
 #, python-format
 msgid "Pair device"
 msgstr "配對設備"
 
+#: openpilot/selfdrive/ui/widgets/pairing_dialog.py
 #: openpilot/selfdrive/ui/widgets/pairing_dialog.py:92
 #, python-format
 msgid "Pair your device to your comma account"
 msgstr "將設備配對到您的 comma 賬號"
 
-#: openpilot/selfdrive/ui/widgets/setup.py:47
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:23
+#: openpilot/selfdrive/ui/widgets/setup.py
+#: openpilot/selfdrive/ui/widgets/setup.py:47
 #, python-format
 msgid "Pair your device with comma connect (connect.comma.ai) and claim your comma prime offer."
 msgstr "將設備與 comma connect（connect.comma.ai）配對，領取您的 comma prime 優惠。"
 
+#: openpilot/selfdrive/ui/widgets/setup.py
 #: openpilot/selfdrive/ui/widgets/setup.py:91
 #, python-format
 msgid "Please connect to Wi-Fi to complete initial pairing"
 msgstr "請連接 Wi‑Fi 以完成初始配對"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:183
 #: openpilot/selfdrive/ui/layouts/settings/device.py:53
 #, python-format
 msgid "Power Off"
 msgstr "關機"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:141
 #, python-format
 msgid "Prevent large data uploads when on a metered Wi-Fi connection"
-msgstr ""
-"在計量制 Wi‑Fi 連接時避免大量上傳"
+msgstr "在計量制 Wi‑Fi 連接時避免大量上傳"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:132
 #, python-format
 msgid "Prevent large data uploads when on a metered cellular connection"
-msgstr ""
-"在計量制蜂窩網絡時避免大量上傳"
+msgstr "在計量制蜂窩網絡時避免大量上傳"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:24
 msgid "Preview the driver facing camera to ensure that driver monitoring has good visibility. (vehicle must be off)"
 msgstr "預覽車內攝像頭以確保駕駛員監控視野良好。（車輛必須熄火）"
 
+#: openpilot/selfdrive/ui/widgets/pairing_dialog.py
 #: openpilot/selfdrive/ui/widgets/pairing_dialog.py:150
 #, python-format
 msgid "QR Code Error"
 msgstr "二維碼錯誤"
 
+#: openpilot/selfdrive/ui/widgets/ssh_key.py
 #: openpilot/selfdrive/ui/widgets/ssh_key.py:31
 msgid "REMOVE"
 msgstr "移除"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:49
 #, python-format
 msgid "RESET"
 msgstr "重置"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:63
 #, python-format
 msgid "REVIEW"
 msgstr "查看"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:171
 #: openpilot/selfdrive/ui/layouts/settings/device.py:53
 #, python-format
 msgid "Reboot"
 msgstr "重啟"
 
+#: openpilot/selfdrive/ui/onroad/alert_renderer.py
+#: openpilot/selfdrive/ui/onroad/alert_renderer.py:58
 #: openpilot/selfdrive/ui/onroad/alert_renderer.py:66
+#: selfdrive/ui/onroad/alert_renderer.py:66
 #, python-format
 msgid "Reboot Device"
 msgstr "重啟設備"
 
+#: openpilot/selfdrive/ui/widgets/offroad_alerts.py
 #: openpilot/selfdrive/ui/widgets/offroad_alerts.py:112
 #, python-format
 msgid "Reboot and Update"
 msgstr "重啟並更新"
 
 #: selfdrive/ui/layouts/settings/toggles.py:27
-msgid ""
-"Receive alerts to steer back into the lane when your vehicle drifts over a "
-"detected lane line without a turn signal activated while driving over 31 mph"
-" (50 km/h)."
-msgstr ""
-"當車輛以超過 31mph（50km/h）行駛且未打轉向燈越過檢測到的車道線時，"
-"接收引導回車道的警報。"
+msgid "Receive alerts to steer back into the lane when your vehicle drifts over a detected lane line without a turn signal activated while driving over 31 mph (50 km/h)."
+msgstr "當車輛以超過 31mph（50km/h）行駛且未打轉向燈越過檢測到的車道線時，接收引導回車道的警報。"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:76
 #, python-format
 msgid "Record and Upload Driver Camera"
 msgstr "錄製並上傳車內攝像頭"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:82
 #, python-format
 msgid "Record and Upload Microphone Audio"
 msgstr "錄製並上傳麥克風音頻"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:33
 msgid "Record and store microphone audio while driving. The audio will be included in the dashcam video in comma connect."
 msgstr "行駛時錄製並保存麥克風音頻。音頻將包含在 comma connect 的行車記錄視頻中。"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:65
 #, python-format
 msgid "Regulatory"
 msgstr "法規"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:98
 #, python-format
 msgid "Relaxed"
 msgstr "從容"
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:47
 #, python-format
 msgid "Remote access"
 msgstr "遠程訪問"
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:47
 #, python-format
 msgid "Remote snapshots"
 msgstr "遠程快照"
 
+#: openpilot/selfdrive/ui/widgets/ssh_key.py
 #: openpilot/selfdrive/ui/widgets/ssh_key.py:124
 #, python-format
 msgid "Request timed out"
 msgstr "請求超時"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:111
 #, python-format
 msgid "Reset"
 msgstr "重置"
 
 #: openpilot/selfdrive/ui/layouts/settings/device.py:49
+#: selfdrive/ui/layouts/settings/device.py:51
+#: selfdrive/ui/sunnypilot/layouts/settings/models.py:179
 #, python-format
 msgid "Reset Calibration"
 msgstr "重置校準"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:63
 #, python-format
 msgid "Review Training Guide"
@@ -908,136 +998,160 @@ msgid "Review the rules, features, and limitations of openpilot"
 msgstr "查看 openpilot 的規則、功能與限制"
 
 #: openpilot/selfdrive/ui/layouts/settings/software.py:68
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:54
+#: selfdrive/ui/layouts/settings/software.py:61
 #, python-format
 msgid "SELECT"
 msgstr "選擇"
 
+#: openpilot/selfdrive/ui/layouts/settings/developer.py
 #: openpilot/selfdrive/ui/layouts/settings/developer.py:53
 #, python-format
 msgid "SSH Keys"
 msgstr "SSH 密鑰"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:316
 #, python-format
 msgid "Scanning Wi-Fi networks..."
 msgstr "正在掃瞄 Wi‑Fi 網絡…"
 
+#: system/ui/widgets/option_dialog.py
 #: system/ui/widgets/option_dialog.py:37
 #, python-format
 msgid "Select"
 msgstr "選擇"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:203
 #, python-format
 msgid "Select a branch"
 msgstr "選擇分支"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:89
 #, python-format
 msgid "Select a language"
 msgstr "選擇語言"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:58
 #, python-format
 msgid "Serial"
 msgstr "序列號"
 
+#: openpilot/selfdrive/ui/widgets/offroad_alerts.py
 #: openpilot/selfdrive/ui/widgets/offroad_alerts.py:106
 #, python-format
 msgid "Snooze Update"
 msgstr "延後更新"
 
+#: openpilot/selfdrive/ui/layouts/settings/settings.py
 #: openpilot/selfdrive/ui/layouts/settings/settings.py:62
+#: selfdrive/ui/layouts/settings/settings.py:117
 msgid "Software"
 msgstr "軟體"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:98
 #, python-format
 msgid "Standard"
 msgstr "標準"
 
+#: openpilot/selfdrive/ui/onroad/alert_renderer.py:59
+#: openpilot/selfdrive/ui/onroad/alert_renderer.py:65
 #: selfdrive/ui/layouts/settings/toggles.py:22
-msgid ""
-"Standard is recommended. In aggressive mode, openpilot will follow lead cars"
-" closer and be more aggressive with the gas and brake. In relaxed mode "
-"openpilot will stay further away from lead cars. On supported cars, you can "
-"cycle through these personalities with your steering wheel distance button."
-msgstr ""
-"建議使用標準模式。激進模式下，openpilot 會更貼近前車，油門與剎車更為激進；從"
-"容模式下，會與前車保持更遠距離。在支持的車型上，可用方向盤距離按鈕切換這些風"
-"格。"
+msgid "Standard is recommended. In aggressive mode, openpilot will follow lead cars closer and be more aggressive with the gas and brake. In relaxed mode openpilot will stay further away from lead cars. On supported cars, you can cycle through these personalities with your steering wheel distance button."
+msgstr "建議使用標準模式。激進模式下，openpilot 會更貼近前車，油門與剎車更為激進；從容模式下，會與前車保持更遠距離。在支持的車型上，可用方向盤距離按鈕切換這些風格。"
 
 #: openpilot/selfdrive/ui/onroad/alert_renderer.py:59
 #: openpilot/selfdrive/ui/onroad/alert_renderer.py:65
+#: selfdrive/ui/onroad/alert_renderer.py:59
+#: selfdrive/ui/onroad/alert_renderer.py:65
 #, python-format
 msgid "System Unresponsive"
 msgstr "系統無響應"
 
 #: openpilot/selfdrive/ui/onroad/alert_renderer.py:58
+#: selfdrive/ui/onroad/alert_renderer.py:58
 #, python-format
 msgid "TAKE CONTROL IMMEDIATELY"
 msgstr "請立即接管控制"
 
-#: openpilot/selfdrive/ui/layouts/sidebar.py:71
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:125
 #: openpilot/selfdrive/ui/layouts/sidebar.py:127
 #: openpilot/selfdrive/ui/layouts/sidebar.py:129
+#: openpilot/selfdrive/ui/layouts/sidebar.py:71
 msgid "TEMP"
 msgstr "溫度"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:68
 #, python-format
 msgid "Target Branch"
 msgstr "目標分支"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:121
 #, python-format
 msgid "Tethering Password"
 msgstr "網絡共享密碼"
 
+#: openpilot/selfdrive/ui/layouts/settings/settings.py
 #: openpilot/selfdrive/ui/layouts/settings/settings.py:61
+#: selfdrive/ui/layouts/settings/settings.py:116
 msgid "Toggles"
 msgstr "設定"
 
+#: openpilot/selfdrive/ui/layouts/settings/developer.py
 #: openpilot/selfdrive/ui/layouts/settings/developer.py:79
 #, python-format
 msgid "UI Debug Mode"
-msgstr ""
+msgstr "用戶界面調試模式"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:79
 #, python-format
 msgid "UNINSTALL"
 msgstr "卸載"
 
+#: openpilot/selfdrive/ui/layouts/home.py
 #: openpilot/selfdrive/ui/layouts/home.py:155
 #, python-format
 msgid "UPDATE"
 msgstr "更新"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:173
 #: openpilot/selfdrive/ui/layouts/settings/software.py:79
 #, python-format
 msgid "Uninstall"
 msgstr "卸載"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:117
 msgid "Unknown"
 msgstr "未知"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:55
 #, python-format
 msgid "Updates are only downloaded while the car is off."
 msgstr "僅在車輛熄火時下載更新。"
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:33
 #, python-format
 msgid "Upgrade Now"
 msgstr "立即升級"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:31
 msgid "Upload data from the driver facing camera and help improve the driver monitoring algorithm."
 msgstr "上傳車內攝像頭數據，幫助改進駕駛員監控算法。"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:88
 #, python-format
 msgid "Use Metric System"
@@ -1060,38 +1174,30 @@ msgid "5 Finger"
 msgstr "5指"
 
 #: openpilot/selfdrive\ui\sunnypilot\layouts\settings\vehicle\brands\tesla.py
-msgid ""
-"Use a multi-finger press on the infotainment display as a MADS button.\n"
-"This allows the use of full MADS functionality when enabled.\n"
-"<b>Note: Setting this to Off may reset your MADS settings to default.</b>"
-msgstr ""
-"在特斯拉的顯示屏上用手指進行觸摸，作為MADS（單獨的橫向控制）功能開啟或關閉的開關。\n"
-"這允許在啟用時使用完整的MADS功能。\n"
-"<b>注意：將此設置設為 關閉 會將的MADS設置重置為默認值。</b>"
+msgid "Use a multi-finger press on the infotainment display as a MADS button.\\nThis allows the use of full MADS functionality when enabled.\\n<b>Note: Setting this to Off may reset your MADS settings to default.</b>"
+msgstr "在特斯拉的顯示屏上用手指進行觸摸，作為MADS（單獨的橫向控制）功能開啟或關閉的開關。\\n這允許在啟用時使用完整的MADS功能。\\n<b>注意：將此設置設為 關閉 會將的MADS設置重置為默認值。</b>"
 
-#: openpilot/selfdrive/ui/layouts/sidebar.py:72
 #: openpilot/selfdrive/ui/layouts/sidebar.py:144
+#: openpilot/selfdrive/ui/layouts/sidebar.py:72
+#: selfdrive/ui/layouts/sidebar.py:72 selfdrive/ui/layouts/sidebar.py:144
 msgid "VEHICLE"
 msgstr "車輛"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:65
 #, python-format
 msgid "VIEW"
 msgstr "查看"
 
+#: openpilot/selfdrive/ui/onroad/alert_renderer.py
 #: openpilot/selfdrive/ui/onroad/alert_renderer.py:52
 #, python-format
 msgid "Waiting to start"
 msgstr "等待開始"
 
 #: selfdrive/ui/layouts/settings/developer.py:19
-msgid ""
-"Warning: This grants SSH access to all public keys in your GitHub settings. "
-"Never enter a GitHub username other than your own. A comma employee will "
-"NEVER ask you to add their GitHub username."
-msgstr ""
-"警告：這將授予對您 GitHub 設置中所有公鑰的 SSH 訪問權限。請勿輸入非您本人的 "
-"GitHub 用戶名。comma 員工絕不會要求您添加他們的用戶名。"
+msgid "Warning: This grants SSH access to all public keys in your GitHub settings. Never enter a GitHub username other than your own. A comma employee will NEVER ask you to add their GitHub username."
+msgstr "警告：這將授予對您 GitHub 設置中所有公鑰的 SSH 訪問權限。請勿輸入非您本人的 GitHub 用戶名。comma 員工絕不會要求您添加他們的用戶名。"
 
 #: openpilot/selfdrive/ui/layouts/onboarding.py:115
 #, python-format
@@ -1102,15 +1208,18 @@ msgstr "歡迎使用 openpilot"
 msgid "When enabled, pressing the accelerator pedal will disengage openpilot."
 msgstr "啟用後，踩下加速踏板將會脫離 openpilot。"
 
+#: openpilot/selfdrive/ui/layouts/sidebar.py
 #: openpilot/selfdrive/ui/layouts/sidebar.py:44
 msgid "Wi-Fi"
 msgstr "Wi‑Fi"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:141
 #, python-format
 msgid "Wi-Fi Network Metered"
 msgstr "Wi‑Fi 計量網絡"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:320
 #, python-format
 msgid "Wrong password"
@@ -1126,82 +1235,98 @@ msgstr "您必須接受條款與條件才能使用 openpilot。"
 msgid "You must accept the Terms and Conditions to use openpilot. Read the latest terms at https://comma.ai/terms before continuing."
 msgstr "您必須接受條款與條件才能使用 openpilot。繼續前請閱讀 https://comma.ai/terms 上的最新條款。"
 
+#: openpilot/selfdrive/ui/onroad/driver_camera_dialog.py
 #: openpilot/selfdrive/ui/onroad/driver_camera_dialog.py:38
 #, python-format
 msgid "camera starting"
 msgstr "相機啟動中"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:19
 #, python-format
 msgid "checking..."
 msgstr "正在查找..."
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:63
 #, python-format
 msgid "comma prime"
 msgstr "comma prime"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:139
 #, python-format
 msgid "default"
 msgstr "默認"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:125
 #, python-format
 msgid "down"
 msgstr "下"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:20
 #, python-format
 msgid "downloading..."
 msgstr "正在下載..."
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:116
 #, python-format
 msgid "failed to check for update"
 msgstr "檢查更新失敗"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:21
 #, python-format
 msgid "finalizing update..."
 msgstr "正在完成更新..."
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:238
 #: system/ui/widgets/network.py:321
 #, python-format
-msgid "for \"{}\""
+msgid "for \\\"{}\\\""
 msgstr "用於「{}」"
 
+#: openpilot/selfdrive/ui/onroad/hud_renderer.py
 #: openpilot/selfdrive/ui/onroad/hud_renderer.py:177
 #, python-format
 msgid "km/h"
 msgstr "km/h"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:201
 #, python-format
 msgid "leave blank for automatic configuration"
 msgstr "留空以自動配置"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:126
 #, python-format
 msgid "left"
 msgstr "左"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:139
 #, python-format
 msgid "metered"
 msgstr "計量"
 
+#: openpilot/selfdrive/ui/onroad/hud_renderer.py
 #: openpilot/selfdrive/ui/onroad/hud_renderer.py:177
 #, python-format
 msgid "mph"
 msgstr "mph"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:27
 #, python-format
 msgid "never"
 msgstr "從不"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:38
 #, python-format
 msgid "now"
@@ -1213,53 +1338,28 @@ msgid "openpilot Longitudinal Control (Alpha)"
 msgstr "openpilot 縱向控制（Alpha）"
 
 #: openpilot/selfdrive/ui/onroad/alert_renderer.py:51
+#: selfdrive/ui/onroad/alert_renderer.py:51
 #, python-format
 msgid "openpilot Unavailable"
 msgstr "openpilot 無法使用"
 
+#: openpilot/selfdrive/ui/layouts/settings/toggles.py:184
 #: selfdrive/ui/layouts/settings/toggles.py:158
 #, python-format
-msgid ""
-"openpilot defaults to driving in chill mode. Experimental mode enables "
-"alpha-level features that aren't ready for chill mode. Experimental features"
-" are listed below:<br><h4>End-to-End Longitudinal Control</h4><br>Let the "
-"driving model control the gas and brakes. openpilot will drive as it thinks "
-"a human would, including stopping for red lights and stop signs. Since the "
-"driving model decides the speed to drive, the set speed will only act as an "
-"upper bound. This is an alpha quality feature; mistakes should be "
-"expected.<br><h4>New Driving Visualization</h4><br>The driving visualization"
-" will transition to the road-facing wide-angle camera at low speeds to "
-"better show some turns. The Experimental mode logo will also be shown in the"
-" top right corner."
-msgstr ""
-"openpilot 默認以安穩模式行駛。實驗模式會啟用尚未準備好用於安穩模式的 Alpha 級"
-"功能。實驗功能如下：<br><h4>端到端縱向控制</h4><br>讓駕駛模型控制油門與剎車。"
-"openpilot 會像人類一樣駕駛，包括在紅燈與停牌前停車。由於駕駛模型決定行駛速"
-"度，設定速度僅作為上限。這是 Alpha 質量功能；預期會有錯誤。<br><h4>全新駕駛可"
-"視化</h4><br>在低速時，駕駛可視化將切換至面向道路的廣角攝像頭以更好顯示部分轉"
-"彎。右上角也會顯示實驗模式圖標。"
+msgid "openpilot defaults to driving in chill mode. Experimental mode enables alpha-level features that aren't ready for chill mode. Experimental features are listed below:<br><h4>End-to-End Longitudinal Control</h4><br>Let the driving model control the gas and brakes. openpilot will drive as it thinks a human would, including stopping for red lights and stop signs. Since the driving model decides the speed to drive, the set speed will only act as an upper bound. This is an alpha quality feature; mistakes should be expected.<br><h4>New Driving Visualization</h4><br>The driving visualization will transition to the road-facing wide-angle camera at low speeds to better show some turns. The Experimental mode logo will also be shown in the top right corner."
+msgstr "openpilot 默認以安穩模式行駛。實驗模式會啟用尚未準備好用於安穩模式的 Alpha 級功能。實驗功能如下：<br><h4>端到端縱向控制</h4><br>讓駕駛模型控制油門與剎車。openpilot 會像人類一樣駕駛，包括在紅燈與停牌前停車。由於駕駛模型決定行駛速度，設定速度僅作為上限。這是 Alpha 質量功能；預期會有錯誤。<br><h4>全新駕駛可視化</h4><br>在低速時，駕駛可視化將切換至面向道路的廣角攝像頭以更好顯示部分轉彎。右上角也會顯示實驗模式圖標。"
 
 #: selfdrive/ui/layouts/settings/device.py:165
 #, python-format
-msgid ""
-"openpilot is continuously calibrating, resetting is rarely required. "
-"Resetting calibration will restart sunnypilot if the car is powered on."
-msgstr ""
-"openpilot 持續進行校準，通常無需重置。若車輛通電，重置校準將會重啟 "
-"openpilot。"
+msgid "openpilot is continuously calibrating, resetting is rarely required. Resetting calibration will restart sunnypilot if the car is powered on."
+msgstr "openpilot 持續進行校準，通常無需重置。若車輛通電，重置校準將會重啟 openpilot。"
 
 #: selfdrive/ui/layouts/settings/firehose.py:20
-msgid ""
-"openpilot learns to drive by watching humans, like you, drive.\n"
-"\n"
-"Firehose Mode allows you to maximize your training data uploads to improve openpilot's driving models. More data means bigger models, which means better Experimental Mode."
-msgstr ""
-"openpilot 通過觀察人類（例如您）的駕駛來學習。\n"
-"\n"
-"Firehose 模式可讓您最大化上傳訓練數據，以改進 openpilot 的駕駛模型。更多數據"
-"意味著更大的模型，也意味著更好的實驗模式。"
+msgid "openpilot learns to drive by watching humans, like you, drive.\\n\\nFirehose Mode allows you to maximize your training data uploads to improve openpilot's driving models. More data means bigger models, which means better Experimental Mode."
+msgstr "openpilot 通過觀察人類（例如您）的駕駛來學習。\\n\\nFirehose 模式可讓您最大化上傳訓練數據，以改進 openpilot 的駕駛模型。更多數據意味著更大的模型，也意味著更好的實驗模式。"
 
 #: openpilot/selfdrive/ui/layouts/settings/toggles.py:184
+#: selfdrive/ui/layouts/settings/toggles.py:183
 #, python-format
 msgid "openpilot longitudinal control may come in a future update."
 msgstr "openpilot 縱向控制可能會在未來更新中提供。"
@@ -1267,22 +1367,24 @@ msgstr "openpilot 縱向控制可能會在未來更新中提供。"
 #: openpilot/selfdrive/ui/layouts/settings/device.py:25
 msgid "openpilot requires the device to be mounted within 4° left or right and within 5° up or 9° down."
 msgstr "openpilot 要求設備安裝在左右 4°、上 5° 或下 9° 以內。"
+
 #: selfdrive/ui/layouts/settings/device.py:26
-msgid ""
-"sunnypilot requires the device to be mounted within 4° left or right and "
-"within 5° up or 9° down."
+msgid "sunnypilot requires the device to be mounted within 4° left or right and within 5° up or 9° down."
 msgstr "sunnypilot 要求設備安裝在左右 4°、上 5° 或下 9° 以內。"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:126
 #, python-format
 msgid "right"
 msgstr "右"
 
+#: system/ui/widgets/network.py
 #: system/ui/widgets/network.py:139
 #, python-format
 msgid "unmetered"
 msgstr "不限流量"
 
+#: openpilot/selfdrive/ui/layouts/settings/device.py
 #: openpilot/selfdrive/ui/layouts/settings/device.py:125
 #, python-format
 msgid "up"
@@ -1293,56 +1395,55 @@ msgstr "上"
 msgid "up to date, last checked never"
 msgstr "已是最新，最後檢查：從未"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:125
 #, python-format
 msgid "up to date, last checked {}"
 msgstr "已是最新，最後檢查：{}"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:119
 #, python-format
 msgid "update available"
 msgstr "有可用更新"
 
+#: openpilot/selfdrive/ui/layouts/home.py
 #: openpilot/selfdrive/ui/layouts/home.py:169
 #, python-format
 msgid "{} ALERT"
-msgid_plural "{} ALERTS"
-msgstr[0] "{} 條警報"
-msgstr[1] "{} 條警報"
+msgstr ""
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:47
 #, python-format
 msgid "{} day ago"
-msgid_plural "{} days ago"
-msgstr[0] "{} 天前"
-msgstr[1] "{} 天前"
+msgstr ""
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:44
 #, python-format
 msgid "{} hour ago"
-msgid_plural "{} hours ago"
-msgstr[0] "{} 小時前"
-msgstr[1] "{} 小時前"
+msgstr ""
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py
 #: openpilot/selfdrive/ui/layouts/settings/software.py:41
 #, python-format
 msgid "{} minute ago"
-msgid_plural "{} minutes ago"
-msgstr[0] "{} 分鐘前"
-msgstr[1] "{} 分鐘前"
+msgstr ""
 
+#: openpilot/selfdrive/ui/layouts/settings/firehose.py
 #: openpilot/selfdrive/ui/layouts/settings/firehose.py:70
 #, python-format
 msgid "{} segment of your driving is in the training dataset so far."
-msgid_plural "{} segments of your driving is in the training dataset so far."
-msgstr[0] "目前已有 {} 個您的駕駛片段被納入訓練數據集。"
-msgstr[1] "目前已有 {} 個您的駕駛片段被納入訓練數據集。"
+msgstr ""
 
+#: openpilot/selfdrive/ui/widgets/prime.py
 #: openpilot/selfdrive/ui/widgets/prime.py:62
 #, python-format
 msgid "✓ SUBSCRIBED"
 msgstr "✓ 已訂閱"
 
+#: openpilot/selfdrive/ui/widgets/setup.py
 #: openpilot/selfdrive/ui/widgets/setup.py:21
 #, python-format
 msgid "🔥 Firehose Mode 🔥"
@@ -1354,73 +1455,50 @@ msgstr " （默認）"
 msgid "%"
 msgstr "%"
 
-msgid ""
-"(Only for highest tiers, and does NOT bring ANY benefit to you yet. We are "
-"just testing data volume.)"
-msgstr ""
-"（僅適用於最高級別，尚未給您帶來任何好處。"
-"我們只是用來測試數據量。）"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:180
+#, python-format
+msgid "(Only for highest tiers, and does NOT bring ANY benefit to you yet. We are just testing data volume.)"
+msgstr "（僅適用於最高級別，尚未給您帶來任何好處。我們只是用來測試數據量。）"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:311
+#, python-format
 msgid ", but we'll be here when you're ready to come back."
 msgstr ", 但當你準備好回來時我們會在這裡。"
 
-msgid ""
-"<b>WARNING: sunnypilot longitudinal control is in alpha for this car and "
-"will disable Automatic Emergency Braking (AEB).</b><br><br>On this car, "
-"sunnypilot defaults to the car's built-in ACC instead of sunnypilot's "
-"longitudinal control. Enable this to switch to sunnypilot longitudinal "
-"control. Enabling Experimental mode is recommended when enabling sunnypilot "
-"longitudinal control alpha. Changing this setting will restart sunnypilot if"
-" the car is powered on."
-msgstr ""
-"<b>警告：此車型的 sunnypilot 縱向控制仍為 alpha，將會停用自動緊急制動 (AEB)。"
-"</b><br><br>在此車型上，sunnypilot 默認使用車載 ACC，而非 sunnypilot 的縱向控"
-"制。啟用此選項可切換為 sunnypilot 縱向控制。建議同時啟用實驗模式。若車輛通電，"
-"更改此設置將會重啟 sunnypilot。"
+msgid "<b>WARNING: sunnypilot longitudinal control is in alpha for this car and will disable Automatic Emergency Braking (AEB).</b><br><br>On this car, sunnypilot defaults to the car's built-in ACC instead of sunnypilot's longitudinal control. Enable this to switch to sunnypilot longitudinal control. Enabling Experimental mode is recommended when enabling sunnypilot longitudinal control alpha. Changing this setting will restart sunnypilot if the car is powered on."
+msgstr "<b>警告：此車型的 sunnypilot 縱向控制仍為 alpha，將會停用自動緊急制動 (AEB)。</b><br><br>在此車型上，sunnypilot 默認使用車載 ACC，而非 sunnypilot 的縱向控制。啟用此選項可切換為 sunnypilot 縱向控制。建議同時啟用實驗模式。若車輛通電，更改此設置將會重啟 sunnypilot。"
 
-msgid ""
-"A beautiful rainbow effect on the path the model wants to take. It does not "
-"affect driving in any way."
-msgstr ""
-"在模型路徑上呈現出美麗的彩虹效果。"
-"不會影響其他任何功能。"
+msgid "A beautiful rainbow effect on the path the model wants to take. It does not affect driving in any way."
+msgstr "在模型路徑上呈現出美麗的彩虹效果。不會影響其他任何功能。"
 
-msgid ""
-"A chime and on-screen alert will play when the traffic light you are waiting"
-" for turns green and you have no vehicle in front of you.<br>Note: This "
-"chime is only designed as a notification. It is the driver's responsibility "
-"to observe their environment and make decisions accordingly."
-msgstr ""
-"當您等待的交通信號燈變綠且前方無車輛時，將會播放提示音並顯示屏幕提醒。"
-"<br>注意：此提示僅作為通知用途。駕駛員有責任觀察周圍環境並做出相應決策。"
+msgid "A chime and on-screen alert will play when the traffic light you are waiting for turns green and you have no vehicle in front of you.<br>Note: This chime is only designed as a notification. It is the driver's responsibility to observe their environment and make decisions accordingly."
+msgstr "當您等待的交通信號燈變綠且前方無車輛時，將會播放提示音並顯示屏幕提醒。<br>注意：此提示僅作為通知用途。駕駛員有責任觀察周圍環境並做出相應決策。"
 
-msgid ""
-"A chime and on-screen alert will play when you are stopped, and the vehicle "
-"in front of you start moving.<br>Note: This chime is only designed as a "
-"notification. It is the driver's responsibility to observe their environment"
-" and make decisions accordingly."
-msgstr ""
-"當您處於停車狀態，且前方車輛開始移動時，將會播放提示音並顯示屏幕提醒。"
-"<br>注意：此提示僅作為通知用途。駕駛員有責任觀察周圍環境並做出相應決策。"
+msgid "A chime and on-screen alert will play when you are stopped, and the vehicle in front of you start moving.<br>Note: This chime is only designed as a notification. It is the driver's responsibility to observe their environment and make decisions accordingly."
+msgstr "當您處於停車狀態，且前方車輛開始移動時，將會播放提示音並顯示屏幕提醒。<br>注意：此提示僅作為通知用途。駕駛員有責任觀察周圍環境並做出相應決策。"
 
 msgid "ALL TIME"
 msgstr "全部"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:105
+#, python-format
 msgid "Actuator Delay:"
 msgstr "執行器延遲:"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:75
+#, python-format
 msgid "Adjust Lane Turn Speed"
 msgstr "調整車道轉向速度"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:87
+#, python-format
 msgid "Adjust Software Delay"
 msgstr "調節軟體延遲"
 
-msgid ""
-"Adjust the software delay when Live Learning Steer Delay is toggled off. The"
-" default software delay value is 0.2"
-msgstr ""
-"關閉 實時學習轉向延遲 時，可手動調節軟體延遲。"
-"默認軟體延遲值為 0.2"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:88
+#, python-format
+msgid "Adjust the software delay when Live Learning Steer Delay is toggled off. The default software delay value is 0.2"
+msgstr "關閉 實時學習轉向延遲 時，可手動調節軟體延遲。默認軟體延遲值為 0.2"
 
 msgid "All"
 msgstr "全部"
@@ -1428,32 +1506,22 @@ msgstr "全部"
 msgid "All states (~6.0 GB)"
 msgstr "所有狀態 (~6.0 GB)"
 
-msgid ""
-"Allows the driver to provide limited steering input while openpilot is "
-"engaged."
-msgstr ""
-"允許駕駛員在 openpilot 處於啟動狀態時提供有限的轉向輸入。"
+msgid "Allows the driver to provide limited steering input while openpilot is engaged."
+msgstr "允許駕駛員在 openpilot 處於啟動狀態時提供有限的轉向輸入。"
 
 msgid "Always On"
 msgstr "始終開啟"
 
-msgid ""
-"An alpha version of sunnypilot longitudinal control can be tested, along "
-"with Experimental mode, on non-release branches."
-msgstr ""
-"在正式-release版本以外的分支上，可以測試 sunnypilot "
-"縱向控制的 Alpha 版本以及實驗模式。"
+msgid "An alpha version of sunnypilot longitudinal control can be tested, along with Experimental mode, on non-release branches."
+msgstr "在正式-release版本以外的分支上，可以測試 sunnypilot 縱向控制的 Alpha 版本以及實驗模式。"
 
-msgid ""
-"Apply a custom timeout for settings UI.<br>This is the time after which "
-"settings UI closes automatically if user is not interacting with the screen."
-msgstr ""
-"為設置界面應用自定義超時時間。"
-"<br>該時間為用戶在無屏幕操作的情況下，設置界面自動關閉前的等待時長。"
+msgid "Apply a custom timeout for settings UI.<br>This is the time after which settings UI closes automatically if user is not interacting with the screen."
+msgstr "為設置界面應用自定義超時時間。<br>該時間為用戶在無屏幕操作的情況下，設置界面自動關閉前的等待時長。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:226
+#, python-format
 msgid "Are you sure you want to backup your current sunnypilot settings?"
-msgstr ""
-"你確定要備份sunnypilot設置嗎？"
+msgstr "你確定要備份sunnypilot設置嗎？"
 
 msgid "Are you sure you want to enter Always Offroad mode?"
 msgstr "您確定要進入 設置模式 嗎？"
@@ -1461,26 +1529,20 @@ msgstr "您確定要進入 設置模式 嗎？"
 msgid "Are you sure you want to exit Always Offroad mode?"
 msgstr "您確定要退出 設置模式 嗎？"
 
-msgid ""
-"Are you sure you want to reset all sunnypilot settings to default? Once the "
-"settings are reset, there is no going back."
-msgstr ""
-"您確定要將所有Sunnypilot設置恢復為默認值嗎？ "
-"一旦設置被重置，將無法恢復。 "
+#: selfdrive/ui/layouts/settings/device.py:162
+msgid "Are you sure you want to reset all sunnypilot settings to default? Once the settings are reset, there is no going back."
+msgstr "您確定要將所有Sunnypilot設置恢復為默認值嗎？ 一旦設置被重置，將無法恢復。 "
 
-msgid ""
-"Are you sure you want to restore the last backed up sunnypilot settings?"
-msgstr ""
-"你確定要恢復上次備份的sunnypilot設置嗎？"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:226
+#, python-format
+msgid "Are you sure you want to restore the last backed up sunnypilot settings?"
+msgstr "你確定要恢復上次備份的sunnypilot設置嗎？"
 
 msgid "Assist"
 msgstr "輔助調節"
 
-msgid ""
-"Assist: Adjusts the vehicle's cruise speed based on the current road's speed"
-" limit when operating the +/- buttons."
-msgstr ""
-"Assist 輔助調節 : 操作+/-按鈕時，根據當前道路限速自動調整巡航車速。 "
+msgid "Assist: Adjusts the vehicle's cruise speed based on the current road's speed limit when operating the +/- buttons."
+msgstr "Assist 輔助調節 : 操作+/-按鈕時，根據當前道路限速自動調整巡航車速。 "
 
 msgid "Auto (Dark)"
 msgstr "自動（深色）"
@@ -1497,53 +1559,52 @@ msgstr "盲區檢測到障礙"
 msgid "Auto Lane Change: Delay with Blind Spot"
 msgstr "自動變道輔助：盲區有車時延遲"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:266
+#, python-format
 msgid "Backup Failed"
 msgstr "備份失敗"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:185
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:300
+#, python-format
 msgid "Backup Settings"
 msgstr "備份設置"
 
-msgid ""
-"Become a sponsor of sunnypilot to get early access to sunnylink features "
-"when they become available."
-msgstr ""
-"成為sunnypilot的贊助商，即可在sunnylink功能上線時獲得優先訪問權限。"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:167
+#, python-format
+msgid "Become a sponsor of sunnypilot to get early access to sunnylink features when they become available."
+msgstr "成為sunnypilot的贊助商，即可在sunnylink功能上線時獲得優先訪問權限。"
 
 msgid "Bottom"
 msgstr "底部"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:69
+#, python-format
 msgid "CLEAR"
 msgstr "清除"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:73
+#, python-format
 msgid "Cancel Download"
 msgstr "取消下載"
 
 msgid "Car First"
 msgstr "車輛優先"
 
-msgid ""
-"Car First: Use Speed Limit data from Car if available, else use from "
-"OpenStreetMaps"
-msgstr ""
-"Car First 車輛優先：優先使用車輛限速數據，不可用時採用OpenStreetMaps數據"
+msgid "Car First: Use Speed Limit data from Car if available, else use from OpenStreetMaps"
+msgstr "Car First 車輛優先：優先使用車輛限速數據，不可用時採用OpenStreetMaps數據"
 
 msgid "Car Only"
 msgstr "僅車輛"
 
 msgid "Car Only: Use Speed Limit data only from Car"
-msgstr ""
-"Car Only 僅車輛：僅使用車輛提供的限速數據"
+msgstr "Car Only 僅車輛：僅使用車輛提供的限速數據"
 
-msgid ""
-"Changing this setting will restart sunnypilot if the car is powered on."
-msgstr ""
-"如果車輛已通電，更改此設置將會重新啟動 sunnypilot"
+msgid "Changing this setting will restart sunnypilot if the car is powered on."
+msgstr "如果車輛已通電，更改此設置將會重新啟動 sunnypilot"
 
-msgid ""
-"Choose how Automatic Lane Centering (ALC) behaves after the brake pedal is "
-"manually pressed in sunnypilot."
-msgstr ""
-"選擇在sunnypilot中踩下制動踏板後自動車道居中 ALC 的行為。"
+msgid "Choose how Automatic Lane Centering (ALC) behaves after the brake pedal is manually pressed in sunnypilot."
+msgstr "選擇在sunnypilot中踩下制動踏板後自動車道居中 ALC 的行為。"
 
 msgid "Choose your sponsorship tier and confirm your support"
 msgstr "選擇您的贊助級別並確認您的支持"
@@ -1551,9 +1612,13 @@ msgstr "選擇您的贊助級別並確認您的支持"
 msgid "Clear Cache"
 msgstr "清除緩存"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:67
+#, python-format
 msgid "Clear Model Cache"
 msgstr "清除駕駛模型緩存"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:54
+#, python-format
 msgid "Click the Sponsor button for more details"
 msgstr "點擊 贊助 按鈕瞭解更多詳情"
 
@@ -1564,12 +1629,13 @@ msgid "Combined"
 msgstr "融合數據"
 
 msgid "Combined: Use combined Speed Limit data from Car & OpenStreetMaps"
-msgstr ""
-"Combined 融合數據：綜合使用車輛與OpenStreetMaps的限速數據"
+msgstr "Combined 融合數據：綜合使用車輛與OpenStreetMaps的限速數據"
 
 msgid "Confirm"
 msgstr "確認"
 
+#: selfdrive/ui/layouts/settings/device.py:142
+#, python-format
 msgid "Controls state of the device after boot/sleep."
 msgstr "設置設備在 啟動/喚醒 後的狀態。"
 
@@ -1588,9 +1654,12 @@ msgstr "車速越高，轉向阻尼越硬。"
 msgid "Country"
 msgstr "國家"
 
+#: selfdrive/ui/layouts/settings/settings.py:120
 msgid "Cruise"
 msgstr "巡航"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:52
+#, python-format
 msgid "Current Model"
 msgstr "當前駕駛模型"
 
@@ -1627,43 +1696,44 @@ msgstr "已禁用"
 msgid "Database Update"
 msgstr "數據更新"
 
+#: openpilot/selfdrive/ui/layouts/onboarding.py
 msgid "Decline, uninstall sunnypilot"
 msgstr "拒絕並卸載sunnypilot"
 
+#: selfdrive/ui/layouts/settings/device.py:74
+#, python-format
 msgid "Default"
 msgstr "默認"
 
 msgid "Default Model"
 msgstr "默認模型"
 
+#: selfdrive/ui/layouts/settings/device.py:140
+#, python-format
 msgid "Default: Device will boot/wake-up normally & will be ready to engage."
 msgstr "默認：設備正常啟動並進入行駛模式，可隨時啟用輔助駕駛。"
 
 msgid "Delay before lateral control resumes after the turn signal ends."
-msgstr ""
-"轉向信號關閉後，恢復橫向控制的延遲時間"
+msgstr "轉向信號關閉後，恢復橫向控制的延遲時間"
 
 msgid "Developer UI"
 msgstr "數據顯示"
 
-msgid ""
-"Device will automatically shutdown after set time once the engine is turned off.\n"
-"(30h is the default)"
-msgstr ""
-"設備離線後會在設定時間後自動關機。\n"
-"(默認30小時)"
+#: selfdrive/ui/layouts/settings/device.py:55
+#, python-format
+msgid "Device will automatically shutdown after set time once the engine is turned off.\\n(30h is the default)"
+msgstr "設備離線後會在設定時間後自動關機。\\n(默認30小時)"
 
 msgid "Disable"
 msgstr "禁用"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/software.py:35
+#, python-format
 msgid "Disable Updates"
 msgstr "禁用更新"
 
-msgid ""
-"Disable the sunnypilot Longitudinal Control (alpha) toggle to allow "
-"Intelligent Cruise Button Management."
-msgstr ""
-"關閉 sunnypilot 縱向控制 (alpha) 開關以允許智能巡航按鍵管理。 "
+msgid "Disable the sunnypilot Longitudinal Control (alpha) toggle to allow Intelligent Cruise Button Management."
+msgstr "關閉 sunnypilot 縱向控制 (alpha) 開關以允許智能巡航按鍵管理。 "
 
 msgid "Disengage"
 msgstr "關閉"
@@ -1672,9 +1742,9 @@ msgid "Disengage to Enter Always Offroad Mode"
 msgstr "請關閉輔助駕駛功能後再進入 設置模式"
 
 msgid "Disengage: ALC will disengage when the brake pedal is pressed."
-msgstr ""
-"解除：踩剎車即解除自動車道居中（ALC）"
+msgstr "解除：踩剎車即解除自動車道居中（ALC）"
 
+#: selfdrive/ui/layouts/settings/settings.py:122
 msgid "Display"
 msgstr "屏幕設置"
 
@@ -1688,28 +1758,16 @@ msgid "Display Turn Signals"
 msgstr "顯示屏幕轉向提示"
 
 msgid "Display real-time parameters and metrics from various sources."
-msgstr ""
-"在屏幕底部及(或)右側顯示實時參數指標。"
+msgstr "在屏幕底部及(或)右側顯示實時參數指標。"
 
-msgid ""
-"Display steering arc on the driving screen when lateral control is enabled."
-msgstr ""
-"啟用橫向控制時，在駕駛屏幕上顯示轉向弧"
+msgid "Display steering arc on the driving screen when lateral control is enabled."
+msgstr "啟用橫向控制時，在駕駛屏幕上顯示轉向弧"
 
-msgid ""
-"Display useful metrics below the chevron that tracks the lead car only "
-"applicable to cars with sunnypilot longitudinal control."
-msgstr ""
-"在跟蹤前車的三角標識下方顯示相關指標"
-"僅適用於開啟了sunnypilot縱向控制功能時"
+msgid "Display useful metrics below the chevron that tracks the lead car only applicable to cars with sunnypilot longitudinal control."
+msgstr "在跟蹤前車的三角標識下方顯示相關指標僅適用於開啟了sunnypilot縱向控制功能時"
 
-msgid ""
-"Displays the name of the road the car is traveling on.<br>The OpenStreetMap "
-"database of the location must be downloaded from the OSM panel to fetch the "
-"road name."
-msgstr ""
-"顯示車輛當前行駛的道路名稱。 "
-"需從OSM面板下載該地區的OpenStreetMap數據庫以獲取道路名稱信息。 "
+msgid "Displays the name of the road the car is traveling on.<br>The OpenStreetMap database of the location must be downloaded from the OSM panel to fetch the road name."
+msgstr "顯示車輛當前行駛的道路名稱。 需從OSM面板下載該地區的OpenStreetMap數據庫以獲取道路名稱信息。 "
 
 msgid "Distance"
 msgstr "距離"
@@ -1723,25 +1781,30 @@ msgstr "正在下載地圖"
 msgid "Downloading Maps..."
 msgstr "地圖下載中..."
 
+#: selfdrive/ui/layouts/settings/device.py:82
 msgid "Driver Camera Preview"
 msgstr "駕駛員監控預覽"
 
 msgid "Drives"
 msgstr "行程數量"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:58
+#, python-format
 msgid "Driving Model"
 msgstr "駕駛模型"
 
 msgid "Dynamic"
 msgstr "動態"
 
+#: system/ui/sunnypilot/widgets/sunnylink_pairing_dialog.py
 msgid "Early Access: Become a sunnypilot Sponsor"
 msgstr "優先權限：成為sunnypilot贊助者"
 
-msgid "Enable \"Always Offroad\" in Device panel, or turn vehicle off to toggle."
-msgstr ""
-"在設備面板中啟用 設置模式 ，或關閉車輛進行切換。"
+msgid "Enable \\\"Always Offroad\\\" in Device panel, or turn vehicle off to toggle."
+msgstr "在設備面板中啟用 設置模式 ，或關閉車輛進行切換。"
 
+#: selfdrive/ui/layouts/settings/software.py:195
+#, python-format
 msgid "Enable Always Offroad"
 msgstr "點擊進入  設置模式 "
 
@@ -1757,89 +1820,58 @@ msgstr "啟用停車計時器"
 msgid "Enable Tesla Rainbow Mode"
 msgstr "啟用特斯拉彩虹大道模式"
 
-msgid ""
-"Enable custom Short & Long press increments for cruise speed "
-"increase/decrease."
-msgstr ""
-"啟用自定義 短按/長按 調節巡航車速的增減步長。"
+msgid "Enable custom Short & Long press increments for cruise speed increase/decrease."
+msgstr "啟用自定義 短按/長按 調節巡航車速的增減步長。"
 
 msgid "Enable driver monitoring even when sunnypilot is not engaged."
-msgstr ""
-"即使在sunnypilot未啟動時也啟用駕駛員監控。"
+msgstr "即使在sunnypilot未啟動時也啟用駕駛員監控。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:154
+#, python-format
 msgid "Enable sunnylink"
 msgstr "啟用sunnylink"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:178
+#, python-format
 msgid "Enable sunnylink uploader (infrastructure test)"
 msgstr "啟用 sunnylink 上傳器 (測試)"
 
-msgid ""
-"Enable sunnylink uploader to allow sunnypilot to upload your driving data to"
-" sunnypilot servers. "
-msgstr ""
-"啟用 sunnylink 上傳器，以允許 sunnypilot 將您的駕駛數據上傳至 sunnypilot 服務器。"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:179
+#, python-format
+msgid "Enable sunnylink uploader to allow sunnypilot to upload your driving data to sunnypilot servers. "
+msgstr "啟用 sunnylink 上傳器，以允許 sunnypilot 將您的駕駛數據上傳至 sunnypilot 服務器。"
 
 msgid "Enable sunnypilot"
 msgstr "啟用 sunnypilot"
 
-msgid ""
-"Enable the beloved MADS feature. Disable toggle to revert back to stock "
-"sunnypilot engagement/disengagement."
-msgstr ""
-"啟用備受喜愛的M.A.D.S.功能。"
-"關閉切換按鈕可恢復到原廠的openpilot啟動/解除啟動狀態。"
+msgid "Enable the beloved MADS feature. Disable toggle to revert back to stock sunnypilot engagement/disengagement."
+msgstr "啟用備受喜愛的M.A.D.S.功能。關閉切換按鈕可恢復到原廠的openpilot啟動/解除啟動狀態。"
 
-msgid ""
-"Enable the sunnypilot longitudinal control (alpha) toggle to allow "
-"Experimental mode."
-msgstr ""
-"啟用 sunnypilot 縱向控制（alpha）開關以允許實驗模式。"
+msgid "Enable the sunnypilot longitudinal control (alpha) toggle to allow Experimental mode."
+msgstr "啟用 sunnypilot 縱向控制（alpha）開關以允許實驗模式。"
 
-msgid ""
-"Enable this for the car to learn and adapt its steering response time. "
-"Disable to use a fixed steering response time. Keeping this on provides the "
-"stock openpilot experience."
-msgstr ""
-"啟用此選項後，車輛將學習並自適應調整轉向響應時間 "
-"禁用則使用固定的轉向響應時間。 "
-"保持開啟可獲得原廠 openpilot 的默認體驗。"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:98
+#, python-format
+msgid "Enable this for the car to learn and adapt its steering response time. Disable to use a fixed steering response time. Keeping this on provides the stock openpilot experience."
+msgstr "啟用此選項後，車輛將學習並自適應調整轉向響應時間 禁用則使用固定的轉向響應時間。 保持開啟可獲得原廠 openpilot 的默認體驗。"
 
-msgid ""
-"Enable this to enforce sunnypilot to steer with Torque lateral control."
-msgstr ""
-"啟用此選項可強制sunnypilot使用扭矩橫向控制進行轉向。"
+msgid "Enable this to enforce sunnypilot to steer with Torque lateral control."
+msgstr "啟用此選項可強制sunnypilot使用扭矩橫向控制進行轉向。"
 
-msgid ""
-"Enable toggle to allow the model to determine when to use sunnypilot ACC or "
-"sunnypilot End to End Longitudinal."
-msgstr ""
-"啟用開關，讓模型決定何時使用sunnypilot ACC或sunnypilot端到端縱向控制。"
+msgid "Enable toggle to allow the model to determine when to use sunnypilot ACC or sunnypilot End to End Longitudinal."
+msgstr "啟用開關，讓模型決定何時使用sunnypilot ACC或sunnypilot端到端縱向控制。"
 
-msgid ""
-"Enables custom tuning for Torque lateral control. Modifying Lateral "
-"Acceleration Factor and Friction below will override the offline values "
-"indicated in the YAML files within \"opendbc/car/torque_data\". The values "
-"will also be used live when \"Manual Real-Time Tuning\" toggle is enabled."
-msgstr ""
-"啟用扭矩橫向控制的自定義調校。"
-"修改下方的 橫向加速度係數 和 摩擦係數 將"
-" 覆蓋 \"opendbc/car/torque_data\"目錄下 YAML 文件中指定的離線值。 "
-"當 手動實時調校 開關啟用時，這些值也將被實時應用。"
+msgid "Enables custom tuning for Torque lateral control. Modifying Lateral Acceleration Factor and Friction below will override the offline values indicated in the YAML files within \\\"opendbc/car/torque_data\\\". The values will also be used live when \\\"Manual Real-Time Tuning\\\" toggle is enabled."
+msgstr "啟用扭矩橫向控制的自定義調校。修改下方的 橫向加速度係數 和 摩擦係數 將 覆蓋 \\\"opendbc/car/torque_data\\\"目錄下 YAML 文件中指定的離線值。 當 手動實時調校 開關啟用時，這些值也將被實時應用。"
 
 msgid "Enables or disables the GitHub runner service."
 msgstr "啟用或禁用GitHub運行器服務。"
 
-msgid ""
-"Enables self-tune for Torque lateral control for platforms that do not use "
-"Torque lateral control by default."
-msgstr ""
-"為默認不使用扭矩橫向控制的平台啟用扭矩橫向控制的自學習調校功能。"
+msgid "Enables self-tune for Torque lateral control for platforms that do not use Torque lateral control by default."
+msgstr "為默認不使用扭矩橫向控制的平台啟用扭矩橫向控制的自學習調校功能。"
 
-msgid ""
-"Enabling this will display warnings when a vehicle is detected in your blind"
-" spot as long as your car has BSM supported."
-msgstr ""
-"啟用後，若車輛配備盲區監測系統BSM，當檢測到盲區內有車輛時將顯示警告。"
+msgid "Enabling this will display warnings when a vehicle is detected in your blind spot as long as your car has BSM supported."
+msgstr "啟用後，若車輛配備盲區監測系統BSM，當檢測到盲區內有車輛時將顯示警告。"
 
 msgid "Enforce Factory Longitudinal Control"
 msgstr "啟用原廠的縱向控制"
@@ -1847,22 +1879,16 @@ msgstr "啟用原廠的縱向控制"
 msgid "Enforce Torque Lateral Control"
 msgstr "強制扭矩橫向控制"
 
-msgid ""
-"Enforces the torque lateral controller to use the fixed values instead of "
-"the learned values from Self-Tune. Enabling this toggle overrides Self-Tune "
-"values."
-msgstr ""
-"強制扭矩橫向控制器使用固定值而非自學習調校的學習值。"
-"啟用此開關將覆蓋自學習調校的值。"
+msgid "Enforces the torque lateral controller to use the fixed values instead of the learned values from Self-Tune. Enabling this toggle overrides Self-Tune values."
+msgstr "強制扭矩橫向控制器使用固定值而非自學習調校的學習值。啟用此開關將覆蓋自學習調校的值。"
 
-msgid ""
-"Engage lateral and longitudinal control with cruise control engagement."
-msgstr ""
-"通過啟動巡航控制來啟用橫向和縱向控制。"
+msgid "Engage lateral and longitudinal control with cruise control engagement."
+msgstr "通過啟動巡航控制來啟用橫向和縱向控制。"
 
 msgid "Enter model year (e.g., 2021) and model (Toyota Corolla):"
 msgstr "輸入車輛年份（例如：2021）和車型名稱（例如：Toyota Corolla）："
 
+#: system/ui/sunnypilot/widgets/tree_dialog.py
 msgid "Enter search query"
 msgstr "輸入搜索查詢"
 
@@ -1872,25 +1898,16 @@ msgstr "錯誤日誌"
 msgid "Error: Invalid download. Retry."
 msgstr "錯誤：下載失敗。重試。"
 
+#: selfdrive/ui/layouts/settings/software.py:195
+#, python-format
 msgid "Exit Always Offroad"
 msgstr "點擊進入  行駛模式 "
 
-msgid ""
-"Experimental feature to enable auto-resume during stop-and-go for certain "
-"supported Subaru platforms."
-msgstr ""
-"實驗性功能，用於在停車起步路況下"
-"為某些支持的斯巴魯平台自動恢復行駛。"
+msgid "Experimental feature to enable auto-resume during stop-and-go for certain supported Subaru platforms."
+msgstr "實驗性功能，用於在停車起步路況下為某些支持的斯巴魯平台自動恢復行駛。"
 
-msgid ""
-"Experimental feature to enable stop and go for Subaru Global models with "
-"manual handbrake. Models with electric parking brake should keep this "
-"disabled. Thanks to martinl for this implementation!"
-msgstr ""
-"實驗性功能，用於為配備手動手剎的斯巴魯全球車型 "
-"啟用停車起步功能。 "
-"配備電子駐車制動的車型應保持此功能關閉。"
-" 感謝martinl實現此功能！"
+msgid "Experimental feature to enable stop and go for Subaru Global models with manual handbrake. Models with electric parking brake should keep this disabled. Thanks to martinl for this implementation!"
+msgstr "實驗性功能，用於為配備手動手剎的斯巴魯全球車型 啟用停車起步功能。 配備電子駐車制動的車型應保持此功能關閉。 感謝martinl實現此功能！"
 
 msgid "FAULT"
 msgstr "錯誤"
@@ -1898,6 +1915,8 @@ msgstr "錯誤"
 msgid "FETCHING..."
 msgstr "正在獲取..."
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:64
+#, python-format
 msgid "Fetching Latest Models"
 msgstr "正在獲取最新駕駛模型列表"
 
@@ -1913,16 +1932,13 @@ msgstr "Fixed 固定值：添加固定偏移量 [限速值 + 偏移量]"
 msgid "Follow the prompts to complete the pairing process"
 msgstr "按照提示完成綁定"
 
-msgid ""
-"For applicable vehicles, always display the true vehicle current speed from "
-"wheel speed sensors."
-msgstr ""
-"對於適用的車輛，"
-" 始終顯示來自輪速傳感器的車輛當前真實速度。"
+msgid "For applicable vehicles, always display the true vehicle current speed from wheel speed sensors."
+msgstr "對於適用的車輛， 始終顯示來自輪速傳感器的車輛當前真實速度。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:42
+#, python-format
 msgid "For secure backup, restore, and remote configuration"
-msgstr ""
-"用於安全備份、恢復及遠程配置"
+msgstr "用於安全備份、恢復及遠程配置"
 
 msgid "Friction"
 msgstr "摩擦係數"
@@ -1936,23 +1952,14 @@ msgstr "綠燈提示 (Beta)"
 msgid "Hours"
 msgstr "駕駛時長（小時）"
 
-msgid ""
-"If sponsorship status was not updated, please contact a moderator on the "
-"community forum at https://community.sunnypilot.ai"
-msgstr ""
-"如果贊助狀態沒有更新，請聯繫社區管理員， "
-"網址為 https://community.sunnypilot.ai"
+#: system/ui/sunnypilot/widgets/sunnylink_pairing_dialog.py
+msgid "If sponsorship status was not updated, please contact a moderator on the community forum at https://community.sunnypilot.ai"
+msgstr "如果贊助狀態沒有更新，請聯繫社區管理員， 網址為 https://community.sunnypilot.ai"
 
-msgid ""
-"If you're driving at 20 mph (32 km/h) or below and have your blinker on, the"
-" car will plan a turn in that direction at the nearest drivable path. This "
-"prevents situations (like at red lights) where the car might plan the wrong "
-"turn direction."
-msgstr ""
-"如果你的車速在20英里/小時（32公里/小時）或以下，並且已打開轉向燈， "
-"汽車將在最近的可行駛路徑上計劃朝該方向轉彎。 "
-"這可以避免在紅綠燈等情況下， "
-"汽車可能會計劃錯誤的轉彎方向的情況。"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:82
+#, python-format
+msgid "If you're driving at 20 mph (32 km/h) or below and have your blinker on, the car will plan a turn in that direction at the nearest drivable path. This prevents situations (like at red lights) where the car might plan the wrong turn direction."
+msgstr "如果你的車速在20英里/小時（32公里/小時）或以下，並且已打開轉向燈， 汽車將在最近的可行駛路徑上計劃朝該方向轉彎。 這可以避免在紅綠燈等情況下， 汽車可能會計劃錯誤的轉彎方向的情況。"
 
 msgid "Info"
 msgstr "信息提示"
@@ -1963,21 +1970,15 @@ msgstr "Information 息提示：顯示當前道路限速。"
 msgid "Intelligent Cruise Button Management (ICBM) (Alpha)"
 msgstr "智能巡航按鍵管理 (ICBM) (Alpha)"
 
-msgid ""
-"Intelligent Cruise Button Management is currently unavailable on this "
-"platform."
-msgstr ""
-"該車輛目前不支持智能巡航按鍵管理。"
+msgid "Intelligent Cruise Button Management is currently unavailable on this platform."
+msgstr "該車輛目前不支持智能巡航按鍵管理。"
 
 msgid "Interactivity Timeout"
 msgstr "交互超時"
 
-msgid ""
-"Join our Community Forum at https://community.sunnypilot.ai and reach out to"
-" a moderator if you have issues"
-msgstr ""
-"加入我們的社區 https://community.sunnypilot.ai  "
-"並聯繫管理員確認贊助者身份"
+#: system/ui/sunnypilot/widgets/sunnylink_pairing_dialog.py
+msgid "Join our Community Forum at https://community.sunnypilot.ai and reach out to a moderator if you have issues"
+msgstr "加入我們的社區 https://community.sunnypilot.ai  並聯繫管理員確認贊助者身份"
 
 msgid "KM"
 msgstr "KM"
@@ -1991,40 +1992,31 @@ msgstr "橫向加速度係數"
 msgid "Lead Departure Alert (Beta)"
 msgstr "前車起步提示 (Beta)"
 
-msgid "GREEN\nLIGHT"
+msgid "GREEN\\nLIGHT"
 msgstr "綠燈"
 
-msgid "LEAD VEHICLE\nDEPARTING"
+msgid "LEAD VEHICLE\\nDEPARTING"
 msgstr "前車起步"
 
 msgid "STOPPED"
 msgstr "等待中"
 
-msgid ""
-"ALT. MEM. STO. DESIRED STEER"
-msgstr ""
-"海拔 內存佔用 剩餘存儲 期望轉向角 抄 代碼 局部還有"
-"倒車 邊緣 優秀 習慣 漢字 分鐘 觸​碰 踩​掉落 剎​踏​板"
-"系​帶齒條 胎​壓 輪​檔 關門 書​簽 倒車 錄像 駕駛"
-"脫齒 請倒車 環境 關係 駐車制動 啟動橫向 左右 至少"
-"個人 配置值得 混合控制 故障 嘗試 異常"
-"此版本C3、C3L及C3XL 均可使用 修改說明："
-"外接攔截器 無法開啟 op縱向 模塊 HONDA、GM、HYUNDAI dbc不全，謹慎使用 "
-"同步 混控 版本"
+msgid "ALT. MEM. STO. DESIRED STEER"
+msgstr "海拔 內存佔用 剩餘存儲 期望轉向角 抄 代碼 局部還有倒車 邊緣 優秀 習慣 漢字 分鐘 觸​碰 踩​掉落 剎​踏​板系​帶齒條 胎​壓 輪​檔 關門 書​簽 倒車 錄像 駕駛脫齒 請倒車 環境 關係 駐車制動 啟動橫向 左右 至少個人 配置值得 混合控制 故障 嘗試 異常此版本C3、C3L及C3XL 均可使用 修改說明：外接攔截器 無法開啟 op縱向 模塊 HONDA、GM、HYUNDAI dbc不全，謹慎使用 同步 混控 版本"
 
 msgid "Less Restrict Settings for Self-Tune (Beta)"
 msgstr "自學習調校寬鬆設置（測試版）"
 
-msgid ""
-"Less strict settings when using Self-Tune. This allows torqued to be more "
-"forgiving when learning values."
-msgstr ""
-"使用自學習調校時採用較寬鬆的設置。 "
-"這使扭矩控制在學習數值時容錯性更高。"
+msgid "Less strict settings when using Self-Tune. This allows torqued to be more forgiving when learning values."
+msgstr "使用自學習調校時採用較寬鬆的設置。 這使扭矩控制在學習數值時容錯性更高。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:91
+#, python-format
 msgid "Live Learning Steer Delay"
 msgstr "實時學習轉向延遲"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:101
+#, python-format
 msgid "Live Steer Delay:"
 msgstr "實時轉向延遲："
 
@@ -2040,22 +2032,21 @@ msgstr "手動選擇車輛型號"
 msgid "Map First"
 msgstr "地圖優先"
 
-msgid ""
-"Map First: Use Speed Limit data from OpenStreetMaps if available, else use "
-"from Car"
-msgstr ""
-"Map First 地圖優先：優先使用OpenStreetMaps限速數據，不可用時採用車輛數據"
+msgid "Map First: Use Speed Limit data from OpenStreetMaps if available, else use from Car"
+msgstr "Map First 地圖優先：優先使用OpenStreetMaps限速數據，不可用時採用車輛數據"
 
 msgid "Map Only"
 msgstr "僅地圖"
 
 msgid "Map Only: Use Speed Limit data only from OpenStreetMaps"
-msgstr ""
-"Map Only 僅地圖：僅使用OpenStreetMaps提供的限速數據"
+msgstr "Map Only 僅地圖：僅使用OpenStreetMaps提供的限速數據"
 
 msgid "Mapd Version"
 msgstr "地圖版本"
 
+#: openpilot/selfdrive/ui/layouts/settings/software.py:127
+#: selfdrive/ui/layouts/settings/device.py:54
+#, python-format
 msgid "Max Time Offroad"
 msgstr "最大離線時間"
 
@@ -2065,13 +2056,12 @@ msgstr "英里"
 msgid "Minimum Speed to Pause Lateral Control"
 msgstr "暫停橫向控制的最低速度"
 
-msgid ""
-"Model download has started in the background. We suggest resetting "
-"calibration. Would you like to do that now?"
-msgstr ""
-"已在後台開始下載駕駛模型。我們強烈建議您重置校準。 "
-"您現在想做這個操作嗎？"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:178
+#, python-format
+msgid "Model download has started in the background. We suggest resetting calibration. Would you like to do that now?"
+msgstr "已在後台開始下載駕駛模型。我們強烈建議您重置校準。 您現在想做這個操作嗎？"
 
+#: selfdrive/ui/layouts/settings/settings.py:118
 msgid "Models"
 msgstr "模型"
 
@@ -2096,32 +2086,30 @@ msgstr "無"
 msgid "None: No Offset"
 msgstr "None 無：不設置偏移量"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:172
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:333
+#, python-format
 msgid "Not Paired"
 msgstr "未綁定"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:328
+#, python-format
 msgid "Not Sponsor"
 msgstr "非贊助商"
 
 msgid "Not fingerprinted or manually selected"
 msgstr "未自動匹配或手動選擇車型"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:310
+#, python-format
 msgid "Not going to lie, it's sad to see you disabled sunnylink"
 msgstr "說實話，看你禁用了sunnylink有點難過，但我們會在這裡等你回來。"
 
-msgid ""
-"Note: For vehicles without LFA/LKAS button, disabling this will prevent "
-"lateral control engagement."
-msgstr ""
-"注意：對於沒有LFA（車道跟隨輔助）/LKA（車道保持輔助）"
-"按鈕的車輛，禁用此功能將無法啟用橫向控制。"
+msgid "Note: For vehicles without LFA/LKAS button, disabling this will prevent lateral control engagement."
+msgstr "注意：對於沒有LFA（車道跟隨輔助）/LKA（車道保持輔助）按鈕的車輛，禁用此功能將無法啟用橫向控制。"
 
-msgid ""
-"Note: Once lateral control is engaged via UEM, it will remain engaged until "
-"it is manually disabled via the MADS button or car shut off."
-msgstr ""
-"注意：通過MADS按鈕啟用橫向控制後， "
-"橫向控制將保持啟用狀態， "
-"直到通過MADS按鈕手動禁用或車輛熄火。"
+msgid "Note: Once lateral control is engaged via UEM, it will remain engaged until it is manually disabled via the MADS button or car shut off."
+msgstr "注意：通過MADS按鈕啟用橫向控制後， 橫向控制將保持啟用狀態， 直到通過MADS按鈕手動禁用或車輛熄火。"
 
 msgid "Nudge"
 msgstr "輕推"
@@ -2129,6 +2117,7 @@ msgstr "輕推"
 msgid "Nudgeless"
 msgstr "自動"
 
+#: selfdrive/ui/layouts/settings/settings.py:123
 msgid "OSM"
 msgstr "OSM地圖"
 
@@ -2141,16 +2130,20 @@ msgstr "Off 關閉：停用限速功能。"
 msgid "Offline Only"
 msgstr "僅離線"
 
+#: selfdrive/ui/layouts/settings/device.py:74
+#, python-format
 msgid "Offroad"
 msgstr "設置模式"
 
+#: selfdrive/ui/layouts/settings/device.py:141
+#, python-format
 msgid "Offroad: Device will be in Always Offroad mode after boot/wake-up."
-msgstr ""
-"設置模式：設備 啟動/喚醒 後將始終保持 設置模式 狀態。"
+msgstr "設置模式：設備 啟動/喚醒 後將始終保持 設置模式 狀態。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:245
+#, python-format
 msgid "Only available when vehicle is off, or always offroad mode is on"
-msgstr ""
-"僅在車輛處於設置模式時可用"
+msgstr "僅在車輛處於設置模式時可用"
 
 msgid "Onroad Brightness"
 msgstr "行駛時的屏幕亮度"
@@ -2158,25 +2151,30 @@ msgstr "行駛時的屏幕亮度"
 msgid "Onroad Brightness Delay"
 msgstr "行駛時屏幕設置啟用延遲"
 
+#: selfdrive/ui/layouts/settings/device.py:97
+#, python-format
 msgid "Onroad Uploads"
 msgstr "行駛時數據上傳"
 
 msgid "PAST WEEK"
 msgstr "最近一周"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:171
+#, python-format
 msgid "Pair GitHub Account"
 msgstr "綁定 GitHub 賬號"
 
+#: system/ui/sunnypilot/widgets/sunnylink_pairing_dialog.py
 msgid "Pair your GitHub account"
 msgstr "綁定您的GitHub帳戶"
 
-msgid ""
-"Pair your GitHub account to grant your device sponsor benefits, including "
-"API access on sunnylink."
-msgstr ""
-"綁定您的GitHub賬戶，以授予您的設備贊助商權益，"
-" 包括在sunnylink上訪問API的權限。"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:174
+#, python-format
+msgid "Pair your GitHub account to grant your device sponsor benefits, including API access on sunnylink."
+msgstr "綁定您的GitHub賬戶，以授予您的設備贊助商權益， 包括在sunnylink上訪問API的權限。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:333
+#, python-format
 msgid "Paired"
 msgstr "已綁定"
 
@@ -2186,29 +2184,27 @@ msgstr "暫停"
 msgid "Pause Lateral Control with Blinker"
 msgstr "打轉向燈時暫停橫向控制"
 
-msgid ""
-"Pause lateral control with blinker when traveling below the desired speed "
-"selected."
-msgstr ""
-"當車速低於設定值時，打轉向燈將暫停橫向控制。"
+msgid "Pause lateral control with blinker when traveling below the desired speed selected."
+msgstr "當車速低於設定值時，打轉向燈將暫停橫向控制。"
 
 msgid "Pause: ALC will pause when the brake pedal is pressed."
-msgstr ""
-"暫停保持：當踩下制動踏板時，ALC將暫停。"
+msgstr "暫停保持：當踩下制動踏板時，ALC將暫停。"
 
 msgid "Percent: Adds a percent offset [Speed Limit + (Offset % Speed Limit)]"
-msgstr ""
-"Percent 百分比：添加百分比偏移量 [限速值 + (限速值 × 偏移量 %)]"
+msgstr "Percent 百分比：添加百分比偏移量 [限速值 + (限速值 × 偏移量 %)]"
 
-msgid ""
-"Please enable \"Always Offroad\" mode or turn off the vehicle to adjust "
-"these toggles."
-msgstr ""
-"請啟用 設置模式 後再調整這些切換開關"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/software.py:26
+#, python-format
+msgid "Please enable \\\"Always Offroad\\\" mode or turn off the vehicle to adjust these toggles."
+msgstr "請啟用 設置模式 後再調整這些切換開關"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:220
+#, python-format
 msgid "Please reboot and try again."
 msgstr "請重啟設備並重試。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:60
+#, python-format
 msgid "Policy Model"
 msgstr "決策模型"
 
@@ -2221,25 +2217,25 @@ msgstr "預測"
 msgid "Quickboot Mode"
 msgstr "啟用快速啟動模式"
 
-msgid ""
-"Quickboot mode requires updates to be disabled.<br>Enable 'Disable Updates' "
-"in the Software panel first."
-msgstr ""
-"快速啟動模式需要先關閉系統更新。 "
-"請先在 軟體 面板中啟用 禁用更新。"
+msgid "Quickboot mode requires updates to be disabled.<br>Enable 'Disable Updates' in the Software panel first."
+msgstr "快速啟動模式需要先關閉系統更新。 請先在 軟體 面板中啟用 禁用更新。"
 
+#: selfdrive/ui/layouts/settings/device.py:81
+#, python-format
 msgid "Quiet Mode"
 msgstr "靜音模式"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:62
+#, python-format
 msgid "REFRESH"
 msgstr "刷新"
 
 msgid "REGIST..."
 msgstr "正在註冊..."
 
-msgid "Re-enter the \"sunnylink\" panel to verify sponsorship status"
-msgstr ""
-"重新進入sunnylink面板確認贊助狀態"
+#: system/ui/sunnypilot/widgets/sunnylink_pairing_dialog.py
+msgid "Re-enter the \\\"sunnylink\\\" panel to verify sponsorship status"
+msgstr "重新進入sunnylink面板確認贊助狀態"
 
 msgid "Real-Time & Offline"
 msgstr "實時與離線"
@@ -2247,6 +2243,8 @@ msgstr "實時與離線"
 msgid "Real-time Acceleration Bar"
 msgstr "實時加速度顯示條"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:62
+#, python-format
 msgid "Refresh Model List"
 msgstr "更新駕駛模型列表"
 
@@ -2254,15 +2252,20 @@ msgid "Remain Active"
 msgstr "保持啟動"
 
 msgid "Remain Active: ALC will remain active when the brake pedal is pressed."
-msgstr ""
-"保持啟動：即使踩下制動踏板，ALC仍將保持啟動狀態。"
+msgstr "保持啟動：即使踩下制動踏板，ALC仍將保持啟動狀態。"
 
+#: selfdrive/ui/layouts/settings/device.py:99
 msgid "Reset Settings"
 msgstr "重置設置"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:287
+#, python-format
 msgid "Restore Failed"
 msgstr "恢復失敗"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:186
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:302
+#, python-format
 msgid "Restore Settings"
 msgstr "恢復設置"
 
@@ -2275,31 +2278,40 @@ msgstr "右側"
 msgid "Right & Bottom"
 msgstr "右側及底部"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:165
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:327
+#, python-format
 msgid "SPONSOR"
 msgstr "贊助者"
 
 msgid "SUNNYLINK"
 msgstr "SUNNYLINK"
 
+#: system/ui/widgets/network.py:20
+#, python-format
 msgid "Scan"
 msgstr "搜索"
 
+#: system/ui/sunnypilot/widgets/sunnylink_pairing_dialog.py
 msgid "Scan the QR code to login to your GitHub account"
 msgstr "掃瞄二維碼綁定GitHub賬號"
 
+#: system/ui/sunnypilot/widgets/sunnylink_pairing_dialog.py
 msgid "Scan the QR code to visit sunnyhaibin's GitHub Sponsors page"
-msgstr ""
-"掃瞄二維碼訪問贊助者頁面"
+msgstr "掃瞄二維碼訪問贊助者頁面"
 
 msgid "Scanning..."
 msgstr "搜索網絡中..."
 
+#: system/ui/sunnypilot/widgets/tree_dialog.py
 msgid "Search"
 msgstr "搜索"
 
 msgid "Search your vehicle"
 msgstr "搜索您的車型"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:220
+#, python-format
 msgid "Select a Model"
 msgstr "選擇一個駕駛模型"
 
@@ -2312,25 +2324,21 @@ msgstr "選擇車型以手動匹配。"
 msgid "Self-Tune"
 msgstr "自學習調校"
 
-msgid ""
-"Set a timer to delay the auto lane change operation when the blinker is "
-"used. No nudge on the steering wheel is required to auto lane change if a "
-"timer is set. Default is Nudge.<br>Please use caution when using this "
-"feature. Only use the blinker when traffic and road conditions permit."
-msgstr ""
-"選項中設置時間則在使用轉向燈時延遲進行自動變道操作。"
-"如果以上選項中設置了自動或時間，則打開轉向燈後無需輕推方向盤即可進行自動變道。 "
-"默認值為「輕推」：打開轉向燈、輕推方向盤後進行自動變道操作。"
-" 使用此功能時請小心。只有在交通和道路條件允許的情況下 "
-"才能使用轉向燈進行自動變道。"
+msgid "Set a timer to delay the auto lane change operation when the blinker is used. No nudge on the steering wheel is required to auto lane change if a timer is set. Default is Nudge.<br>Please use caution when using this feature. Only use the blinker when traffic and road conditions permit."
+msgstr "選項中設置時間則在使用轉向燈時延遲進行自動變道操作。如果以上選項中設置了自動或時間，則打開轉向燈後無需輕推方向盤即可進行自動變道。 默認值為「輕推」：打開轉向燈、輕推方向盤後進行自動變道操作。 使用此功能時請小心。只有在交通和道路條件允許的情況下 才能使用轉向燈進行自動變道。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:76
+#, python-format
 msgid "Set the maximum speed for lane turn desires. Default is 19 mph."
-msgstr ""
-"設置車道轉向意圖的最大速度。默認值為 30 km/h."
+msgstr "設置車道轉向意圖的最大速度。默認值為 30 km/h."
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:271
+#, python-format
 msgid "Settings backup completed."
 msgstr "設置備份已完成。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:294
+#, python-format
 msgid "Settings restored. Confirm to restart the interface."
 msgstr "設置已恢復。請確認界面已重啟。"
 
@@ -2346,14 +2354,8 @@ msgstr "顯示盲區警示"
 msgid "Show a timer on the HUD when the car is at a standstill."
 msgstr "當車輛停止時，在行駛界面上顯示一個計時器記錄停車時間。"
 
-msgid ""
-"Show an indicator on the left side of the screen to display real-time "
-"vehicle acceleration and deceleration. This displays what the car is "
-"currently doing, not what the planner is requesting."
-msgstr ""
-"在屏幕左側顯示指示器，用於顯示車輛實時加速度和減速度。"
-" 此功能顯示車輛當前的實際狀態，"
-"而非規劃系統所請求的狀態。"
+msgid "Show an indicator on the left side of the screen to display real-time vehicle acceleration and deceleration. This displays what the car is currently doing, not what the planner is requesting."
+msgstr "在屏幕左側顯示指示器，用於顯示車輛實時加速度和減速度。 此功能顯示車輛當前的實際狀態，而非規劃系統所請求的狀態。"
 
 msgid "Smart Cruise Control - Map"
 msgstr "彎道地圖速度控制(SCC-M)"
@@ -2361,6 +2363,8 @@ msgstr "彎道地圖速度控制(SCC-M)"
 msgid "Smart Cruise Control - Vision"
 msgstr "彎道視覺速度控制(SCC-V)"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:105
+#, python-format
 msgid "Software Delay:"
 msgstr "軟體延遲："
 
@@ -2382,23 +2386,18 @@ msgstr "車速表：始終顯示真實車速"
 msgid "Speedometer: Hide from Onroad Screen"
 msgstr "車速表：在行駛時的屏幕上隱藏"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:164
+#, python-format
 msgid "Sponsor Status"
 msgstr "贊助狀態"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:53
+#, python-format
 msgid "Sponsorship isn't required for basic backup/restore"
-msgstr ""
-"基本的 備份/恢復 功能不需要贊助"
+msgstr "基本的 備份/恢復 功能不需要贊助"
 
-msgid ""
-"Standard is recommended. In aggressive mode, sunnypilot will follow lead "
-"cars closer and be more aggressive with the gas and brake. In relaxed mode "
-"sunnypilot will stay further away from lead cars. On supported cars, you can"
-" cycle through these personalities with your steering wheel distance button."
-msgstr ""
-"推薦使用 標準模式。在 激進模式 下，sunnypilot 會更靠近前方車輛， "
-"並在油門和剎車方面更加激進。 "
-"在 從容模式 下，sunnypilot 會與前方車輛保持更遠距離。 "
-"在支持的車型上，你可以使用方向盤上的距離按鈕來循環切換這些駕駛風格。 "
+msgid "Standard is recommended. In aggressive mode, sunnypilot will follow lead cars closer and be more aggressive with the gas and brake. In relaxed mode sunnypilot will stay further away from lead cars. On supported cars, you can cycle through these personalities with your steering wheel distance button."
+msgstr "推薦使用 標準模式。在 激進模式 下，sunnypilot 會更靠近前方車輛， 並在油門和剎車方面更加激進。 在 從容模式 下，sunnypilot 會與前方車輛保持更遠距離。 在支持的車型上，你可以使用方向盤上的距離按鈕來循環切換這些駕駛風格。 "
 
 msgid "Start Download"
 msgstr "開始下載"
@@ -2409,6 +2408,7 @@ msgstr "請啟動車輛以檢查兼容性。"
 msgid "State"
 msgstr "省"
 
+#: selfdrive/ui/layouts/settings/settings.py:119
 msgid "Steering"
 msgstr "轉向"
 
@@ -2424,92 +2424,65 @@ msgstr "停止與行駛輔助系統 (Beta)"
 msgid "Stop and Go Hack (Alpha)"
 msgstr "停止與行駛輔助系統 (Alpha)"
 
-msgid ""
-"sunnypilot Longitudinal Control must be available and "
-"enabled for your vehicle to use this feature."
-msgstr ""
-"要使用此功能，您的車輛必須啟用 sunnypilot 縱向控制功能。"
+msgid "sunnypilot Longitudinal Control must be available and enabled for your vehicle to use this feature."
+msgstr "要使用此功能，您的車輛必須啟用 sunnypilot 縱向控制功能。"
 
-msgid ""
-"sunnypilot will allow some Toyota/Lexus cars to "
-"auto resume during stop and go traffic. "
-"This feature is only applicable to certain models "
-"that are able to use longitudinal control. "
-"This is an alpha feature. Use at your own risk."
-msgstr ""
-"sunnypilot 可讓部分豐田/雷克薩斯車型在擁堵路況下自動重啟行駛。"
-"該功能僅適用於支持縱向控制的特定車型。"
-"請注意這是測試版功能，使用風險自擔。"
+msgid "sunnypilot will allow some Toyota/Lexus cars to auto resume during stop and go traffic. This feature is only applicable to certain models that are able to use longitudinal control. This is an alpha feature. Use at your own risk."
+msgstr "sunnypilot 可讓部分豐田/雷克薩斯車型在擁堵路況下自動重啟行駛。該功能僅適用於支持縱向控制的特定車型。請注意這是測試版功能，使用風險自擔。"
 
 msgid "Stop and Go for Manual Parking Brake (Beta)"
 msgstr "帶手動駐車制動的停止與行駛輔助系統 (Beta)"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/software.py:50
+#, python-format
 msgid "System reboot required for changes to take effect. Reboot now?"
-msgstr ""
-"需要重啟系統以使更改生效。 "
-"現在重啟嗎？"
+msgstr "需要重啟系統以使更改生效。 現在重啟嗎？"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:327
+#, python-format
 msgid "THANKS ♥"
 msgstr "THANKS ♥"
 
+#: selfdrive/ui/layouts/settings/device.py:157
 msgid "The reset cannot be undone. You have been warned."
 msgstr "重置操作無法撤銷。請謹慎選擇。"
 
-msgid ""
-"This feature can only be used with sunnypilot longitudinal control enabled."
-msgstr ""
-"此功能僅在啟用 sunnypilot 縱向控制時可用。"
+msgid "This feature can only be used with sunnypilot longitudinal control enabled."
+msgstr "此功能僅在啟用 sunnypilot 縱向控制時可用。"
 
-msgid ""
-"This feature defaults to OFF, and does not allow selection due to vehicle "
-"limitations."
-msgstr ""
-"該功能默認為關閉狀態，因車輛限制無法選擇開啟。"
+msgid "This feature defaults to OFF, and does not allow selection due to vehicle limitations."
+msgstr "該功能默認為關閉狀態，因車輛限制無法選擇開啟。"
 
-msgid ""
-"This feature defaults to ON, and does not allow selection due to vehicle "
-"limitations."
-msgstr ""
-"該功能默認為開啟狀態，因車輛限制無法關閉。"
+msgid "This feature defaults to ON, and does not allow selection due to vehicle limitations."
+msgstr "該功能默認為開啟狀態，因車輛限制無法關閉。"
 
 msgid "This feature is currently not available on this platform."
-msgstr ""
-"此功能在當前車輛平台上暫不可用。"
+msgstr "此功能在當前車輛平台上暫不可用。"
 
-msgid ""
-"This feature is not supported on this platform due to vehicle limitations."
-msgstr ""
-"由於車輛限制，該平台不支持此功能。"
+msgid "This feature is not supported on this platform due to vehicle limitations."
+msgstr "由於車輛限制，該平台不支持此功能。"
 
-msgid ""
-"This feature is unavailable because sunnypilot Longitudinal Control (Alpha) "
-"is not enabled."
-msgstr ""
-"此功能不可用，因為sunnypilot縱向控制（alpha）未啟用。"
+msgid "This feature is unavailable because sunnypilot Longitudinal Control (Alpha) is not enabled."
+msgstr "此功能不可用，因為sunnypilot縱向控制（alpha）未啟用。"
 
 msgid "This feature is unavailable while the car is onroad."
-msgstr ""
-"車輛在道路行駛時此功能不可用。"
+msgstr "車輛在道路行駛時此功能不可用。"
 
 msgid "This feature requires sunnypilot longitudinal control to be available."
-msgstr ""
-"此功能需要啟用sunnypilot縱向控制功能才能使用。"
+msgstr "此功能需要啟用sunnypilot縱向控制功能才能使用。"
 
-msgid ""
-"This is the master switch, it will allow you to cutoff any sunnylink "
-"requests should you want to do that."
-msgstr ""
-"這是主開關，它將允許你切斷任何sunnylink請求。"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:155
+#, python-format
+msgid "This is the master switch, it will allow you to cutoff any sunnylink requests should you want to do that."
+msgstr "這是主開關，它將允許你切斷任何sunnylink請求。"
 
-msgid ""
-"This may be due to weak internet connection or sunnylink registration issue."
-" "
-msgstr ""
-"未找到sunnylink ID。這可能是由於網絡連接較弱或sunnylink註冊問題導致的。 "
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:219
+#, python-format
+msgid "This may be due to weak internet connection or sunnylink registration issue. "
+msgstr "未找到sunnylink ID。這可能是由於網絡連接較弱或sunnylink註冊問題導致的。 "
 
 msgid "This platform only supports Disengage mode due to vehicle limitations."
-msgstr ""
-"受車輛限制，本平台僅支持 解除 模式。"
+msgstr "受車輛限制，本平台僅支持 解除 模式。"
 
 msgid "This platform supports all MADS settings."
 msgstr "該平台支持所有 MADS 設置。"
@@ -2523,59 +2496,43 @@ msgstr "此設置將立即生效。"
 msgid "This setting will take effect once the device enters offroad state."
 msgstr "此設置將在設備進入 設置模式 時生效。"
 
-msgid ""
-"This will delete ALL downloaded maps\n"
-"\n"
-"Are you sure you want to delete all maps?"
-msgstr ""
-"這將刪除所有已下載的地圖。\n"
-"\n"
-"你確定要刪除所有地圖嗎？"
+msgid "This will delete ALL downloaded maps\\n\\nAre you sure you want to delete all maps?"
+msgstr "這將刪除所有已下載的地圖。\\n\\n你確定要刪除所有地圖嗎？"
 
-msgid ""
-"This will delete ALL downloaded models from the cache except the currently "
-"active model. Are you sure?"
-msgstr ""
-"此操作將刪除 除當前正在使用的模型外 緩存中的所有已下載模型。 "
-"確定要繼續嗎？"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:125
+#, python-format
+msgid "This will delete ALL downloaded models from the cache except the currently active model. Are you sure?"
+msgstr "此操作將刪除 除當前正在使用的模型外 緩存中的所有已下載模型。 確定要繼續嗎？"
 
-msgid ""
-"This will start the download process and it might take a while to complete."
+msgid "This will start the download process and it might take a while to complete."
 msgstr "即將開始下載，可能需要一段時間才能完成。"
 
 msgid "Time"
 msgstr "時間"
 
-msgid ""
-"Toggle to enable a delay timer for seamless lane changes when blind spot "
-"monitoring (BSM) detects a obstructing vehicle, ensuring safe maneuvering."
-msgstr ""
-"切換以啟用盲區監測（BSM）檢測到阻礙車輛時的延遲計時器，"
-"確保安全地進行無縫變道操作。"
+msgid "Toggle to enable a delay timer for seamless lane changes when blind spot monitoring (BSM) detects a obstructing vehicle, ensuring safe maneuvering."
+msgstr "切換以啟用盲區監測（BSM）檢測到阻礙車輛時的延遲計時器，確保安全地進行無縫變道操作。"
 
-msgid ""
-"Toggle visibility of advanced sunnypilot controls.<br>This only changes the "
-"visibility of the toggles; it does not change the actual enabled/disabled "
-"state."
-msgstr ""
-"切換高級 sunnypilot 控件的顯示狀態。<br>此操作僅 "
-"改變控件的可見性，並不會實際啟用或禁用對應功能。"
+msgid "Toggle visibility of advanced sunnypilot controls.<br>This only changes the visibility of the toggles; it does not change the actual enabled/disabled state."
+msgstr "切換高級 sunnypilot 控件的顯示狀態。<br>此操作僅 改變控件的可見性，並不會實際啟用或禁用對應功能。"
 
 msgid "Toggle with Main Cruise"
 msgstr "通過巡航主按鈕開關功能"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:105
+#, python-format
 msgid "Total Delay:"
 msgstr "總延遲："
 
 msgid "Training Guide"
 msgstr "新手指南"
 
+#: selfdrive/ui/layouts/settings/settings.py:125
 msgid "Trips"
 msgstr "行程"
 
-msgid "UI Debug Mode"
-msgstr "用戶界面調試模式"
-
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:288
+#, python-format
 msgid "Unable to restore the settings, try again later."
 msgstr "無法恢復設置，請稍後再試。"
 
@@ -2585,92 +2542,74 @@ msgstr "統一啟動模式（UEM）"
 msgid "Unrecognized Vehicle"
 msgstr "未識別車型"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:81
+#, python-format
 msgid "Use Lane Turn Desires"
 msgstr "使用車道轉向意圖"
 
-msgid ""
-"Use map data to estimate the appropriate speed to drive through turns ahead."
-msgstr ""
-"利用地圖數據預測前方彎道並估算合適的通過車速。"
+msgid "Use map data to estimate the appropriate speed to drive through turns ahead."
+msgstr "利用地圖數據預測前方彎道並估算合適的通過車速。"
 
-msgid ""
-"Use the sunnypilot system for adaptive cruise control and lane keep driver "
-"assistance. Your attention is required at all times to use this feature."
-msgstr ""
-"使用sunnypilot進行自適應巡航和車道保持輔助。 "
-"使用此功能時您必須時刻保持注意力。"
+msgid "Use the sunnypilot system for adaptive cruise control and lane keep driver assistance. Your attention is required at all times to use this feature."
+msgstr "使用sunnypilot進行自適應巡航和車道保持輔助。 使用此功能時您必須時刻保持注意力。"
 
-msgid ""
-"Use vision path predictions to estimate the appropriate speed to drive "
-"through turns ahead."
-msgstr ""
-"使用視覺路徑預測來估算通過前方彎道時的合適車速。"
+msgid "Use vision path predictions to estimate the appropriate speed to drive through turns ahead."
+msgstr "使用視覺路徑預測來估算通過前方彎道時的合適車速。"
 
+#: selfdrive/ui/layouts/settings/settings.py:126
 msgid "Vehicle"
 msgstr "車輛型號"
 
 msgid "View the error log for sunnypilot crashes."
 msgstr "查看導致Sunnypilot崩潰的錯誤日誌。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:59
+#, python-format
 msgid "Vision Model"
 msgstr "視覺模型"
 
+#: selfdrive/ui/layouts/settings/settings.py:121
 msgid "Visuals"
 msgstr "視覺"
 
+#: selfdrive/ui/layouts/settings/device.py:71
+#, python-format
 msgid "Wake Up Behavior"
 msgstr "系統喚醒行為設置"
 
 msgid "Warning"
 msgstr "超速警告"
 
-msgid ""
-"Warning: Provides a warning when exceeding the current road's speed limit."
-msgstr ""
-"Warning 超速警告：超過當前道路限速時發出警告。"
+msgid "Warning: Provides a warning when exceeding the current road's speed limit."
+msgstr "Warning 超速警告：超過當前道路限速時發出警告。"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:307
+#, python-format
 msgid "Welcome back!! We're excited to see you've enabled sunnylink again!"
-msgstr ""
-"歡迎回來！！很高興您重新開啟了sunnylink功能！"
+msgstr "歡迎回來！！很高興您重新開啟了sunnylink功能！"
 
 msgid "Welcome to sunnypilot"
 msgstr "歡迎使用Sunnypilot"
 
-msgid ""
-"When enabled, automatic software updates will be off.<br><b>This requires a "
-"reboot to take effect.</b>"
-msgstr ""
-"啟用後，軟體更新將被禁用。 "
-"<br><b>此操作需重啟後方可生效。</b>"
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/software.py:23
+#, python-format
+msgid "When enabled, automatic software updates will be off.<br><b>This requires a reboot to take effect.</b>"
+msgstr "啟用後，軟體更新將被禁用。 <br><b>此操作需重啟後方可生效。</b>"
 
-msgid ""
-"When enabled, pressing the accelerator pedal will disengage sunnypilot."
-msgstr ""
-"啟用後，踩下油門踏板將取消sunnypilot。"
+msgid "When enabled, pressing the accelerator pedal will disengage sunnypilot."
+msgstr "啟用後，踩下油門踏板將取消sunnypilot。"
 
-msgid ""
-"When enabled, sunnypilot will attempt to manage the built-in cruise control "
-"buttons by emulating button presses for limited longitudinal control."
-msgstr ""
-"啟用後，sunnypilot將通過模擬按鍵操作來管理原車巡航控制按鍵， "
-"實現有限的縱向控制功能。"
+msgid "When enabled, sunnypilot will attempt to manage the built-in cruise control buttons by emulating button presses for limited longitudinal control."
+msgstr "啟用後，sunnypilot將通過模擬按鍵操作來管理原車巡航控制按鍵， 實現有限的縱向控制功能。"
 
 msgid "When enabled, the speedometer on the onroad screen is not displayed."
-msgstr ""
-"啟用後，行駛時屏幕上的車速將不再顯示。"
+msgstr "啟用後，行駛時屏幕上的車速將不再顯示。"
 
 msgid "When enabled, visual turn indicators are drawn on the HUD."
-msgstr ""
-"啟用後，屏幕上將顯示可視化的轉向指示。"
+msgstr "啟用後，屏幕上將顯示可視化的轉向指示。"
 
-msgid ""
-"When toggled on, this creates a prebuilt file to allow accelerated boot "
-"times. When toggled off, it removes the prebuilt file so compilation of "
-"locally edited cpp files can be made."
-msgstr ""
-"開啟後，系統會生成預編譯文件以縮短啟動時間； "
-"關閉後，預編譯文件會立即被刪除，"
-"從而允許重新編譯本地修改的 cpp 文件。"
+msgid "When toggled on, this creates a prebuilt file to allow accelerated boot times. When toggled off, it removes the prebuilt file so compilation of locally edited cpp files can be made."
+msgstr "開啟後，系統會生成預編譯文件以縮短啟動時間； 關閉後，預編譯文件會立即被刪除，從而允許重新編譯本地修改的 cpp 文件。"
 
 msgid "Would you like to delete this log?"
 msgstr "是否要刪除此日誌記錄？"
@@ -2682,15 +2621,10 @@ msgid "Yes, delete all maps"
 msgstr "是的，刪除所有地圖"
 
 msgid "You must accept the Terms of Service in order to use sunnypilot."
-msgstr ""
-"您需要接受服務條款才能使用sunnypilot功能。"
+msgstr "您需要接受服務條款才能使用sunnypilot功能。"
 
-msgid ""
-"You must accept the Terms of Service to use sunnypilot. Read the latest "
-"terms at https://sunnypilot.ai/terms before continuing."
-msgstr ""
-"您必須接受服務條款才能使用sunnypilot。"
-"使用前請在 https://sunnypilot.ai/terms 閱讀最新條款。"
+msgid "You must accept the Terms of Service to use sunnypilot. Read the latest terms at https://sunnypilot.ai/terms before continuing."
+msgstr "您必須接受服務條款才能使用sunnypilot。使用前請在 https://sunnypilot.ai/terms 閱讀最新條款。"
 
 msgid "Your vehicle will use the Default longitudinal tuning."
 msgstr "您的車輛將採用默認的縱向控制參數設置。"
@@ -2719,15 +2653,8 @@ msgstr "取消下載"
 msgid "copyparty Service"
 msgstr "Copyparty服務"
 
-msgid ""
-"copyparty is a very capable file server, you can use it to download your "
-"routes, view your logs and even make some edits on some files from your "
-"browser. Requires you to connect to your comma locally via its IP address."
-msgstr ""
-"Copyparty是一個功能強大的文件服務器，"
-" 你可以使用它來下載你的路線，查看你的日誌，"
-"甚至可以通過瀏覽器對某些文件進行一些編輯。 "
-"它需要你通過其IP地址本地連接到你的comma。"
+msgid "copyparty is a very capable file server, you can use it to download your routes, view your logs and even make some edits on some files from your browser. Requires you to connect to your comma locally via its IP address."
+msgstr "Copyparty是一個功能強大的文件服務器， 你可以使用它來下載你的路線，查看你的日誌，甚至可以通過瀏覽器對某些文件進行一些編輯。 它需要你通過其IP地址本地連接到你的comma。"
 
 msgid "current model"
 msgstr "當前駕駛模型"
@@ -2763,8 +2690,7 @@ msgid "ready"
 msgstr "準備"
 
 msgid "recommend disabling this feature if you experience these."
-msgstr ""
-"如果您遇到這些情況，請考慮禁用此功能。"
+msgstr "如果您遇到這些情況，請考慮禁用此功能。"
 
 msgid "restore"
 msgstr "恢復"
@@ -2790,96 +2716,60 @@ msgstr "滑動以恢復"
 msgid "sponsor"
 msgstr "贊助者"
 
+#: selfdrive/ui/layouts/settings/settings.py:115
 msgid "sunnylink"
 msgstr "sunnylink"
 
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:218
+#, python-format
 msgid "sunnylink Dongle ID not found. "
 msgstr "未找到 Dongle ID。"
 
 msgid "sunnylink Dongle ID not found. Please reboot & try again."
 msgstr "未找到sunnylink ID。請重啟設備並重試。"
 
-msgid ""
-"sunnylink enables secured remote access to your comma device from anywhere, "
-"including settings management, remote monitoring, real-time dashboard, etc."
-msgstr ""
-"Sunnylink功能可讓您從任何地方"
-"安全地訪問您的comma設備，包括"
-"設置管理、遠程監控、實時儀表板等功能。"
+msgid "sunnylink enables secured remote access to your comma device from anywhere, including settings management, remote monitoring, real-time dashboard, etc."
+msgstr "Sunnylink功能可讓您從任何地方安全地訪問您的comma設備，包括設置管理、遠程監控、實時儀表板等功能。"
 
-msgid ""
-"sunnylink is designed to be enabled as part of sunnypilot's core "
-"functionality. If sunnylink is disabled, features such as settings "
-"management, remote monitoring, real-time dashboards will be unavailable."
-msgstr ""
-"Sunnylink被設計為sunnypilot核心功能的一部分。 "
-"如果禁用Sunnylink，設置管理、遠程監控、實時儀表板等功能將無法使用。"
+msgid "sunnylink is designed to be enabled as part of sunnypilot's core functionality. If sunnylink is disabled, features such as settings management, remote monitoring, real-time dashboards will be unavailable."
+msgstr "Sunnylink被設計為sunnypilot核心功能的一部分。 如果禁用Sunnylink，設置管理、遠程監控、實時儀表板等功能將無法使用。"
 
 msgid "sunnylink uploader"
 msgstr "sunnylink 上傳器"
 
+#: openpilot/selfdrive/ui/layouts/settings/developer.py
+#: openpilot/selfdrive/ui/onroad/alert_renderer.py:51
+#: selfdrive/ui/layouts/settings/developer.py:71
+#, python-format
 msgid "sunnypilot Longitudinal Control (Alpha)"
 msgstr "sunnypilot 縱向控制 (Alpha)"
 
-msgid ""
-"sunnypilot Longitudinal Control is the default longitudinal control for this"
-" platform."
-msgstr ""
-"sunnypilot 縱向控制是該車輛上的默認縱向控制。"
+msgid "sunnypilot Longitudinal Control is the default longitudinal control for this platform."
+msgstr "sunnypilot 縱向控制是該車輛上的默認縱向控制。"
 
+#: selfdrive/ui/onroad/alert_renderer.py:51
+#, python-format
 msgid "sunnypilot Unavailable"
 msgstr "無法使用 sunnypilot"
 
-msgid ""
-"sunnypilot defaults to driving in chill mode. Experimental mode enables "
-"alpha-level features that aren't ready for chill mode. Experimental features"
-" are listed below:<br><h4>End-to-End Longitudinal Control</h4><br>Let the "
-"driving model control the gas and brakes. sunnypilot will drive as it thinks"
-" a human would, including stopping for red lights and stop signs. Since the "
-"driving model decides the speed to drive, the set speed will only act as an "
-"upper bound. This is an alpha quality feature; mistakes should be "
-"expected.<br><h4>New Driving Visualization</h4><br>The driving visualization"
-" will transition to the road-facing wide-angle camera at low speeds to "
-"better show some turns. The Experimental mode logo will also be shown in the"
-" top right corner."
-msgstr ""
-"sunnypilot默認以舒適模式駕駛。實驗模式啟用尚未準備好"
-" 進入舒適模式的alpha級功能。實驗功能如下所示： "
-"<br><h4>端到端縱向控制</h4><br>讓駕駛模型控制油門和剎車。 "
-"sunnypilot將按照人類的駕駛方式來行駛，包括在紅燈和停車標誌前停車。 "
-"由於駕駛模型決定行駛速度，設定速度僅作為上限。 "
-"這是一個alpha質量的功能；應預期會出現錯誤。"
-" <br><h4>新的駕駛可視化</h4><br>駕駛可視化 "
-"將在低速時切換到面向道路的廣角攝像頭，"
-" 以更好地顯示某些轉彎。實驗模式標識也將顯示在右上角。"
+#: selfdrive/ui/layouts/settings/toggles.py:158
+#, python-format
+msgid "sunnypilot defaults to driving in chill mode. Experimental mode enables alpha-level features that aren't ready for chill mode. Experimental features are listed below:<br><h4>End-to-End Longitudinal Control</h4><br>Let the driving model control the gas and brakes. sunnypilot will drive as it thinks a human would, including stopping for red lights and stop signs. Since the driving model decides the speed to drive, the set speed will only act as an upper bound. This is an alpha quality feature; mistakes should be expected.<br><h4>New Driving Visualization</h4><br>The driving visualization will transition to the road-facing wide-angle camera at low speeds to better show some turns. The Experimental mode logo will also be shown in the top right corner."
+msgstr "sunnypilot默認以舒適模式駕駛。實驗模式啟用尚未準備好 進入舒適模式的alpha級功能。實驗功能如下所示： <br><h4>端到端縱向控制</h4><br>讓駕駛模型控制油門和剎車。 sunnypilot將按照人類的駕駛方式來行駛，包括在紅燈和停車標誌前停車。 由於駕駛模型決定行駛速度，設定速度僅作為上限。 這是一個alpha質量的功能；應預期會出現錯誤。 <br><h4>新的駕駛可視化</h4><br>駕駛可視化 將在低速時切換到面向道路的廣角攝像頭， 以更好地顯示某些轉彎。實驗模式標識也將顯示在右上角。"
 
-msgid ""
-"sunnypilot is continuously calibrating, resetting is rarely required. "
-"Resetting calibration will restart sunnypilot if the car is powered on."
-msgstr ""
-"sunnypilot 會持續進行校準，因此很少需要重置。 "
-"如果車輛電源已開啟，重置校準需要重新啟動 sunnypilot"
+msgid "sunnypilot is continuously calibrating, resetting is rarely required. Resetting calibration will restart sunnypilot if the car is powered on."
+msgstr "sunnypilot 會持續進行校準，因此很少需要重置。 如果車輛電源已開啟，重置校準需要重新啟動 sunnypilot"
 
-msgid ""
-"sunnypilot learns to drive by watching humans, like you, drive.\n"
-"\n"
-"Firehose Mode allows you to maximize your training data uploads to improve openpilot's driving models. More data means bigger models, which means better Experimental Mode."
-msgstr ""
-"sunnypilot通過觀察人類（比如您）駕駛來學習駕駛。\n"
-"\n"
-"訓練數據上傳模式 可讓您最大化訓練數據的上傳量，以提升openpilot的駕駛模型性能。"
-"數據越多，模型越大，實驗模式的性能也就越好。"
+#: selfdrive/ui/layouts/settings/firehose.py:20
+msgid "sunnypilot learns to drive by watching humans, like you, drive.\\n\\nFirehose Mode allows you to maximize your training data uploads to improve openpilot's driving models. More data means bigger models, which means better Experimental Mode."
+msgstr "sunnypilot通過觀察人類（比如您）駕駛來學習駕駛。\\n\\n訓練數據上傳模式 可讓您最大化訓練數據的上傳量，以提升openpilot的駕駛模型性能。數據越多，模型越大，實驗模式的性能也就越好。"
 
+#, python-format
 msgid "sunnypilot longitudinal control may come in a future update."
-msgstr ""
-"sunnypilot縱向控制可能會在未來的更新中提供。"
+msgstr "sunnypilot縱向控制可能會在未來的更新中提供。"
 
-msgid ""
-"sunnypilot will not take over control of gas and brakes. Factory Toyota "
-"longitudinal control will be used."
-msgstr ""
-"sunnypilot不會接管油門和剎車的控制權。 "
-"系統將使用豐田原廠的縱向控制功能。"
+msgid "sunnypilot will not take over control of gas and brakes. Factory Toyota longitudinal control will be used."
+msgstr "sunnypilot不會接管油門和剎車的控制權。 系統將使用豐田原廠的縱向控制功能。"
 
 msgid "### Human Turn Detection ###"
 msgstr "### 人工轉彎檢測 ###"
@@ -2895,7 +2785,9 @@ msgstr "觸發角度"
 
 msgid "Driver steering angle that triggers HTD (degrees)."
 msgstr "觸發人工轉彎檢測的方向盤角度（度）。"
+
 msgid "Dynamic Follow Mode (DFM)"
+msgstr ""
 
 msgid "Dynamic Accel Personality"
 msgstr "動態加速度模式開關"
@@ -2946,5 +2838,589 @@ msgstr "目標距離"
 #, python-format
 msgid "leadDist"
 msgstr "前車距離"
+
 msgid "其他放殊話交阻斷施零一二三四五六七八九十百千萬公尺里段巷弄號街大中小型長短重嚴度量況局標誌網收費站休息服務東西南北上下左右內外側前後雙向匝交系統主端市區縣鄉鎮村國省台臺路道線快橋高架基隆新桃竹苗彰投嘉屏宜花澎金馬雄福爾摩沙蔣渭水支聯絡機濱事件故禍肇拋錨工維護管制封閉壅塞回堵多緩慢順暢異警示注意提醒通安全危險保持距離停止禁速限最低超照相雷達測取締降減行掉落散物障礙動犬狗貓豬牛羊砂石車輪皮鐵件塑膠木材樹枝貨垃圾排除理天候氣象晴雲陰雨陣豪積淹濃霧起霾強風坍方土流視不佳濕滑結冰特報災客拖板遊覽腳踏種救消防備發生處完畢束影響占用肩避彎槽化步人汽口箱櫃坑洞漏油燃燒火冒煙察政部更資訊顯告情"
 msgstr ""
+
+#: selfdrive/ui/layouts/settings/settings.py:124
+msgid "Navigation"
+msgstr "導航"
+
+msgid "For maximum effectiveness, bring your device inside and connect to a good USB-C adapter and Wi-Fi weekly.\\n\\nFirehose Mode can also work while you're driving if connected to a hotspot or unlimited SIM card.\\n\\n\\nFrequently Asked Questions\\n\\nDoes it matter how or where I drive? Nope, just drive as you normally would.\\n\\nDo all of my segments get pulled in Firehose Mode? No, we selectively pull a subset of your segments.\\n\\nWhat's a good USB-C adapter? Any fast phone or laptop charger should be fine.\\n\\nDoes it matter which software I run? Yes, only upstream sunnypilot (and particular forks) are able to be used for training."
+msgstr "為達最佳效果，請將裝置帶到室內，並每週連接優質 USB‑C 充電器與 Wi‑Fi。\\n\\n若連上熱點或吃到飽門號，行車中也可使用 Firehose 模式。\\n\\n\\n常見問題\\n\\n我怎麼開、在哪裡開有差嗎？沒有，平常怎麼開就怎麼開。\\n\\nFirehose 模式會拉取我所有片段嗎？不會，我們會選擇性拉取部分片段。\\n\\n什麼是好的 USB‑C 充電器？任何快速的手機或筆電充電器都可以。\\n\\n我跑什麼軟體有差嗎？有，只有上游 sunnypilot（及特定分支）可用於訓練。"
+
+msgid "Maximize your training data uploads to improve sunnypilot's driving models."
+msgstr "最大化上傳訓練資料，以改進 sunnypilot 的駕駛模型。"
+
+#: selfdrive/selfdrived/events.py:76
+#, python-format
+msgid "WARNING: This branch is not tested"
+msgstr "警告：此分支尚未測試"
+
+#: selfdrive/selfdrived/events.py:102
+#, python-format
+msgid "Recording Audio Feedback"
+msgstr "錄製音訊回饋"
+
+#: selfdrive/selfdrived/events.py:118
+#, python-format
+msgid "Posenet Speed Invalid"
+msgstr "Posenet 速度無效"
+
+#: selfdrive/selfdrived/events.py:124
+#, python-format
+msgid "Process Not Running"
+msgstr "程式未啟動"
+
+#: selfdrive/selfdrived/events.py:130
+#, python-format
+msgid "Communication Issue Between Processes"
+msgstr "流程間的溝通問題"
+
+#: selfdrive/selfdrived/events.py:136
+#: selfdrive/selfdrived/events.py:448
+#, python-format
+msgid "Camera Malfunction"
+msgstr "相機故障"
+
+#: selfdrive/selfdrived/events.py:144
+#, python-format
+msgid "Calibration Invalid"
+msgstr "校正無效"
+
+#: selfdrive/selfdrived/events.py:150
+#, python-format
+msgid "Steering misalignment detected"
+msgstr "偵測到轉向系統錯位"
+
+#: selfdrive/selfdrived/events.py:154
+#, python-format
+msgid "Steer ratio mismatch"
+msgstr "轉向比不匹配"
+
+#: selfdrive/selfdrived/events.py:158
+#, python-format
+msgid "Abnormal tire stiffness"
+msgstr "輪胎剛性異常"
+
+#: selfdrive/selfdrived/events.py:161
+#: selfdrive/selfdrived/events.py:481
+#, python-format
+msgid "paramsd Temporary Error"
+msgstr "paramsd 暫存錯誤"
+
+#: selfdrive/selfdrived/events.py:169
+#: selfdrive/selfdrived/events.py:614
+#, python-format
+msgid "System Overheated"
+msgstr "系統過熱"
+
+#: selfdrive/selfdrived/events.py:173
+#, python-format
+msgid "Low Memory"
+msgstr "記憶體不足"
+
+#: selfdrive/selfdrived/events.py:178
+#, python-format
+msgid "High CPU Usage"
+msgstr "CPU使用率過高"
+
+#: selfdrive/selfdrived/events.py:189
+#, python-format
+msgid "Joystick Mode"
+msgstr "搖桿模式"
+
+#: selfdrive/selfdrived/events.py:208
+#, python-format
+msgid "Toggle stock LKAS on or off to engage"
+msgstr "切換原廠 LKAS 的開啟或關閉狀態以啟用"
+
+#: selfdrive/selfdrived/events.py:210
+#, python-format
+msgid "Switch to Traffic-Aware Cruise Control to engage"
+msgstr "切換到交通感知巡航控制模式以啟用"
+
+#: selfdrive/selfdrived/events.py:212
+#, python-format
+msgid "Enable your car's LKAS to engage"
+msgstr "啟用車輛的 LKAS 系統"
+
+#: selfdrive/selfdrived/events.py:214
+#, python-format
+msgid "Disable your car's stock LKAS to engage"
+msgstr "關閉車輛原廠車道維持輔助系統 (LKAS) 以啟用"
+
+#: selfdrive/selfdrived/events.py:215
+#: selfdrive/selfdrived/events.py:272
+#, python-format
+msgid "Invalid LKAS setting"
+msgstr "無效的 LKAS 設置"
+
+#: selfdrive/selfdrived/events.py:235
+#, python-format
+msgid "Ensure road ahead is clear"
+msgstr "確保前方道路暢通"
+
+#: selfdrive/selfdrived/events.py:239
+#, python-format
+msgid "System Initializing"
+msgstr "系統初始化"
+
+#: selfdrive/selfdrived/events.py:239
+#, python-format
+msgid "Be ready to take over at any time"
+msgstr "隨時準備好接管"
+
+#: selfdrive/selfdrived/events.py:251
+#: selfdrive/selfdrived/events.py:252
+#: selfdrive/selfdrived/events.py:260
+#: selfdrive/selfdrived/events.py:266
+#, python-format
+msgid "Dashcam mode"
+msgstr "行車記錄器模式"
+
+#: selfdrive/selfdrived/events.py:256
+#, python-format
+msgid "Dashcam mode for unsupported car"
+msgstr "行車記錄器模式，不支援的車輛"
+
+#: selfdrive/selfdrived/events.py:261
+#, python-format
+msgid "Security Key Not Available"
+msgstr "安全密鑰不可用"
+
+#: selfdrive/selfdrived/events.py:284
+#, python-format
+msgid "Car Unrecognized"
+msgstr "車輛無法識別"
+
+#: selfdrive/selfdrived/events.py:290
+#: selfdrive/selfdrived/events.py:299
+#: selfdrive/selfdrived/events.py:308
+#, python-format
+msgid "BRAKE!"
+msgstr "煞車！"
+
+#: selfdrive/selfdrived/events.py:291
+#, python-format
+msgid "Emergency Braking: Risk of Collision"
+msgstr "緊急煞車：碰撞風險"
+
+#: selfdrive/selfdrived/events.py:294
+#, python-format
+msgid "AEB: Risk of Collision"
+msgstr "AEB：碰撞風險"
+
+#: selfdrive/selfdrived/events.py:300
+#: selfdrive/selfdrived/events.py:303
+#, python-format
+msgid "Stock AEB: Risk of Collision"
+msgstr "原廠 AEB：碰撞風險"
+
+#: selfdrive/selfdrived/events.py:434
+#, python-format
+msgid "Take Control"
+msgstr "立即接管"
+
+#: selfdrive/selfdrived/events.py:435
+#, python-format
+msgid "Turn Exceeds Steering Limit"
+msgstr "轉彎超出轉向限制"
+
+#: selfdrive/selfdrived/events.py:442
+#, python-format
+msgid "Fan Malfunction"
+msgstr "風扇故障"
+
+#: selfdrive/selfdrived/events.py:442
+#, python-format
+msgid "Likely Hardware Issue"
+msgstr "可能是硬體問題"
+
+#: selfdrive/selfdrived/events.py:449
+#, python-format
+msgid "Camera Malfunction: Reboot Your Device"
+msgstr "相機故障：請重新啟動設備"
+
+#: selfdrive/selfdrived/events.py:453
+#, python-format
+msgid "Camera Frame Rate Low"
+msgstr "相機低幀率"
+
+#: selfdrive/selfdrived/events.py:453
+#, python-format
+msgid "Reboot your Device"
+msgstr "重新啟動設備"
+
+#: selfdrive/selfdrived/events.py:453
+#, python-format
+msgid "Camera Frame Rate Low: Reboot Your Device"
+msgstr "相機幀率低：請重新啟動設備"
+
+#: selfdrive/selfdrived/events.py:461
+#: selfdrive/selfdrived/events.py:462
+#, python-format
+msgid "locationd Temporary Error"
+msgstr "定位臨時錯誤"
+
+#: selfdrive/selfdrived/events.py:466
+#: selfdrive/selfdrived/events.py:467
+#: selfdrive/selfdrived/events.py:468
+#, python-format
+msgid "locationd Permanent Error"
+msgstr "位置永久錯誤"
+
+#: selfdrive/selfdrived/events.py:485
+#: selfdrive/selfdrived/events.py:486
+#: selfdrive/selfdrived/events.py:487
+#, python-format
+msgid "paramsd Permanent Error"
+msgstr "paramsd 永久錯誤"
+
+#: selfdrive/selfdrived/events.py:506
+#, python-format
+msgid "Cancel Pressed"
+msgstr "按下取消按鈕"
+
+#: selfdrive/selfdrived/events.py:511
+#, python-format
+msgid "Press Resume to Exit Brake Hold"
+msgstr "按下「res」鍵退出煞車保持狀態"
+
+#: selfdrive/selfdrived/events.py:519
+#, python-format
+msgid "Parking Brake Engaged"
+msgstr "駐車煞車已啟用"
+
+#: selfdrive/selfdrived/events.py:524
+#, python-format
+msgid "Pedal Pressed"
+msgstr "油門已踏下"
+
+#: selfdrive/selfdrived/events.py:530
+#, python-format
+msgid "Steering Pressed"
+msgstr "轉向已碰觸"
+
+#: selfdrive/selfdrived/events.py:535
+#, python-format
+msgid "Release Brake to Engage"
+msgstr "鬆開煞車即可啟用"
+
+#: selfdrive/selfdrived/events.py:563
+#, python-format
+msgid "Press Set to Engage"
+msgstr "準備就緒"
+
+#: selfdrive/selfdrived/events.py:568
+#, python-format
+msgid "Adaptive Cruise Disabled"
+msgstr "自適應巡航功能已停用"
+
+#: selfdrive/selfdrived/events.py:573
+#, python-format
+msgid "Steering Temporarily Unavailable"
+msgstr "轉向功能暫時無法使用"
+
+#: selfdrive/selfdrived/events.py:577
+#, python-format
+msgid "Vehicle Steering Time Limit"
+msgstr "車輛轉向時間限制"
+
+#: selfdrive/selfdrived/events.py:583
+#, python-format
+msgid "Out of Storage"
+msgstr "儲存空間不足"
+
+#: selfdrive/selfdrived/events.py:592
+#: selfdrive/selfdrived/events.py:596
+#: selfdrive/selfdrived/events.py:597
+#, python-format
+msgid "Sensor Data Invalid"
+msgstr "感測器資料無效"
+
+#: selfdrive/selfdrived/events.py:593
+#, python-format
+msgid "Possible Hardware Issue"
+msgstr "可能有硬體問題"
+
+#: selfdrive/selfdrived/events.py:604
+#, python-format
+msgid "Distraction Level Too High"
+msgstr "注意力分散程度過高"
+
+#: selfdrive/selfdrived/events.py:608
+#, python-format
+msgid "Excessive Actuation"
+msgstr "過度驅動"
+
+#: selfdrive/selfdrived/events.py:619
+#, python-format
+msgid "Gear not D"
+msgstr "檔位 不在 Dˇ檔"
+
+#: selfdrive/selfdrived/events.py:630
+#: selfdrive/selfdrived/events.py:631
+#, python-format
+msgid "Calibration Invalid: Remount Device & Recalibrate"
+msgstr "校正無效：重新安裝設備並重新校正"
+
+#: selfdrive/selfdrived/events.py:636
+#: selfdrive/selfdrived/events.py:903
+#, python-format
+msgid "Calibration Incomplete"
+msgstr "校正未完成"
+
+#: selfdrive/selfdrived/events.py:637
+#, python-format
+msgid "Calibration in Progress"
+msgstr "校正進行中"
+
+#: selfdrive/selfdrived/events.py:642
+#: selfdrive/selfdrived/events.py:643
+#, python-format
+msgid "Device Remount Detected: Recalibrating"
+msgstr "偵測到設備重新安裝：正在重新校正"
+
+#: selfdrive/selfdrived/events.py:647
+#, python-format
+msgid "Door Open"
+msgstr "車門開啟"
+
+#: selfdrive/selfdrived/events.py:652
+#: selfdrive/selfdrived/events.py:653
+#, python-format
+msgid "Seatbelt Unlatched"
+msgstr "安全帶未繫好"
+
+#: selfdrive/selfdrived/events.py:657
+#: selfdrive/selfdrived/events.py:658
+#, python-format
+msgid "Electronic Stability Control Disabled"
+msgstr "電子穩定控制系統已停用"
+
+#: selfdrive/selfdrived/events.py:662
+#: selfdrive/selfdrived/events.py:663
+#, python-format
+msgid "Low Battery"
+msgstr "電量過低"
+
+#: selfdrive/selfdrived/events.py:675
+#, python-format
+msgid "Low Communication Rate Between Processes"
+msgstr "程式間通訊速率過低"
+
+#: selfdrive/selfdrived/events.py:680
+#, python-format
+msgid "System Lagging"
+msgstr "系統延遲"
+
+#: selfdrive/selfdrived/events.py:691
+#, python-format
+msgid "Low Communication Rate Selfdrive Process Lagging: Reboot Your Device"
+msgstr "自駕系統延遲：請重新啟動設備"
+
+#: selfdrive/selfdrived/events.py:696
+#, python-format
+msgid "Radar Error: Restart the Car"
+msgstr "雷達暫時無法使用"
+
+#: selfdrive/selfdrived/events.py:182
+#: selfdrive/selfdrived/events.py:704
+#: selfdrive/selfdrived/events.py:705
+#, python-format
+msgid "Driving Model Lagging"
+msgstr "駕駛模型延遲"
+
+#: selfdrive/selfdrived/events.py:722
+#: selfdrive/selfdrived/events.py:723
+#, python-format
+msgid "Device Fell Off Mount"
+msgstr "設備從支架上掉落"
+
+#: selfdrive/selfdrived/events.py:727
+#: selfdrive/selfdrived/events.py:729
+#, python-format
+msgid "Low Memory: Reboot Your Device"
+msgstr "記憶體不足：請重新啟動設備"
+
+#: selfdrive/selfdrived/events.py:733
+#: selfdrive/selfdrived/events.py:735
+#, python-format
+msgid "Cruise Fault: Restart the Car"
+msgstr "巡航控制故障：重新啟動車輛"
+
+#: selfdrive/selfdrived/events.py:734
+#, python-format
+msgid "Cruise Fault: Restart the car to engage"
+msgstr "巡航控制故障：重新啟動車輛即可恢復巡航控制"
+
+#: selfdrive/selfdrived/events.py:739
+#, python-format
+msgid "Electronic Stability Control Active"
+msgstr "電子穩定控制系統處於啟動狀態"
+
+#: selfdrive/selfdrived/events.py:744
+#, python-format
+msgid "Controls Mismatch"
+msgstr "控制不匹配"
+
+#: selfdrive/selfdrived/events.py:751
+#: selfdrive/selfdrived/events.py:752
+#: selfdrive/selfdrived/events.py:753
+#, python-format
+msgid "USB Error: Reboot Your Device"
+msgstr "USB錯誤：請重新啟動裝置"
+
+#: selfdrive/selfdrived/events.py:761
+#, python-format
+msgid "CAN Error"
+msgstr "CAN 錯誤"
+
+#: selfdrive/selfdrived/events.py:763
+#, python-format
+msgid "CAN Error: Check Connections"
+msgstr "CAN 錯誤：檢查連接"
+
+#: selfdrive/selfdrived/events.py:771
+#, python-format
+msgid "CAN Bus Disconnected"
+msgstr "CAN 總線 已斷開連接"
+
+#: selfdrive/selfdrived/events.py:773
+#, python-format
+msgid "CAN Bus Disconnected: Likely Faulty Cable"
+msgstr "CAN 總線 斷開：可能是電纜故障"
+
+#: selfdrive/selfdrived/events.py:777
+#, python-format
+msgid "CAN Bus Disconnected: Check Connections"
+msgstr "CAN 總線 斷開連接：請檢查連接"
+
+#: selfdrive/selfdrived/events.py:808
+#, python-format
+msgid "Check Hardware"
+msgstr "檢查硬體"
+
+#: selfdrive/selfdrived/events.py:814
+#, python-format
+msgid "openpilot Canceled"
+msgstr "openpilot 已取消"
+
+#: selfdrive/selfdrived/events.py:814
+#, python-format
+msgid "sunnypilot Canceled"
+msgstr "sunnypilot 已取消"
+
+#: selfdrive/selfdrived/events.py:815
+#, python-format
+msgid "Speed too low"
+msgstr "速度過低"
+
+#: selfdrive/selfdrived/events.py:823
+#, python-format
+msgid "Speed Too High"
+msgstr "速度過快"
+
+#: selfdrive/selfdrived/events.py:824
+#, python-format
+msgid "Model uncertain at this speed"
+msgstr "以這種速度，模型的不確定性仍然存在。"
+
+#: selfdrive/selfdrived/events.py:827
+#, python-format
+msgid "Slow down to engage"
+msgstr "放慢節奏，積極參與"
+
+#: selfdrive/selfdrived/events.py:831
+#, python-format
+msgid "Vehicle Sensors Invalid"
+msgstr "車輛感知器無效"
+
+#: selfdrive/selfdrived/events.py:832
+#: selfdrive/selfdrived/events.py:833
+#, python-format
+msgid "Vehicle Sensors Calibrating"
+msgstr "車輛感測器校正"
+
+#: selfdrive/selfdrived/events.py:832
+#, python-format
+msgid "Drive to Calibrate"
+msgstr "車輛校正"
+
+#: selfdrive/selfdrived/events.py:832
+#, python-format
+msgid "Bookmark Saved"
+msgstr "已收藏"
+
+#: selfdrive/selfdrived/events.py:875
+#, python-format
+msgid "Steer Left"
+msgstr "向左轉向"
+
+#: selfdrive/selfdrived/events.py:882
+#, python-format
+msgid "Steer Right"
+msgstr "向右轉向"
+
+#: selfdrive/selfdrived/events.py:876
+#: selfdrive/selfdrived/events.py:883
+#, python-format
+msgid "Confirm Lane Change"
+msgstr "確認變換車道"
+
+#: selfdrive/selfdrived/events.py:889
+#, python-format
+msgid "Car in Blindspot"
+msgstr "盲點內的車輛"
+
+#: selfdrive/selfdrived/events.py:896
+#, python-format
+msgid "take control"
+msgstr "立即控制"
+
+#: selfdrive/selfdrived/events.py:889
+#, python-format
+msgid "turn exceeds limit"
+msgstr "轉彎超出限制"
+
+#, python-format
+msgid "Calibrating"
+msgstr "校正中"
+
+#: selfdrive/selfdrived/events.py:908
+#, python-format
+msgid "Reverse"
+msgstr "倒車"
+
+#: openpilot/selfdrive/ui/layouts/sidebar.py:144
+#: openpilot/selfdrive/ui/layouts/sidebar.py:72
+#: selfdrive/ui/layouts/settings/toggles.py:17
+msgid "Use the openpilot system for adaptive cruise control and lane keep driver assistance. Your attention is required at all times to use this feature."
+msgstr "使用 openpilot 進行 ACC 與車道維持輔助。使用此功能時，您必須始終保持專注。"
+
+msgid "You must accept the Terms and Conditions in order to use sunnypilot."
+msgstr "您必須接受條款與細則才能使用 sunnypilot。"
+
+msgid "You must accept the Terms and Conditions to use sunnypilot. Read the latest terms at https://comma.ai/terms before continuing."
+msgstr "您必須接受條款與細則才能使用 sunnypilot。繼續前請閱讀 https://comma.ai/terms 上的最新條款。"
+
+#: selfdrive/ui/layouts/settings/device.py:165
+#, python-format
+msgid "openpilot is continuously calibrating, resetting is rarely required. Resetting calibration will restart openpilot if the car is powered on."
+msgstr "openpilot 會持續校正，通常不需重設。若車輛通電，重設校正將重新啟動 openpilot。"
+
+#: selfdrive/ui/layouts/settings/device.py:162
+msgid "Are you sure you want to reset all openpilot settings to default? Once the settings are reset, there is no going back."
+msgstr "您確定要將所有 openpilot 設定重設為預設值嗎？設定一旦重置，就無法恢復。"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/sunnylink.py:31
+#, python-format
+msgid "🚀 sunnylink 🚀"
+msgstr "🚀 sunnylink 🚀"
+
+#: openpilot/selfdrive/ui/sunnypilot/layouts/settings/models.py:126
+#, python-format
+msgid "Clear Cache:"
+msgstr "清除快取"
+
