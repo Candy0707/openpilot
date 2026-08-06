@@ -1,4 +1,4 @@
-from opendbc.car.structs import car
+from opendbc.car import structs
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle
 from openpilot.selfdrive.controls.lib.latcontrol_torque import LatControlTorque
@@ -11,7 +11,7 @@ class LatControlDynamic(LatControl):
     self.torque_ctrl = LatControlTorque(CP, CP_SP, CI, dt)
 
     # 預設使用 CP 讀出來的設定值
-    self.use_angle = (CP.steerControlType == car.CarParams.SteerControlType.angle)
+    self.use_angle = (CP.steerControlType == structs.CarParams.SteerControlType.angle)
 
   # ==========================================
   # 🌟 新增：Sunnypilot Torque 專屬代理轉發 (Proxy)
