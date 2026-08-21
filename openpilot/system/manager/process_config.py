@@ -190,6 +190,11 @@ procs += [
   NativeProcess("locationd_llk", "openpilot/sunnypilot/selfdrive/locationd", ["./locationd"], only_onroad),
 ]
 
+# candypilot
+procs += [
+  PythonProcess("tdx", "openpilot.sunnypilot.selfdrive.controls.lib.tdx", only_onroad),
+]
+
 if os.path.exists("./github_runner.sh"):
   procs += [NativeProcess("github_runner_start", "openpilot/system/manager",
                           ["./github_runner.sh", "start"], and_(only_offroad, use_github_runner), sigkill=False)]

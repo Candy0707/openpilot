@@ -487,6 +487,35 @@ struct ModelDataV2SP @0xa1680744031fdb2d {
   }
 }
 
+struct Tdx @0xa4f1eb3323f5f582 {
+  trafficStatus @0 :TrafficStatus;
+  roadEvent @1 :RoadEvent;
+
+  struct TrafficStatus {
+    sectionId @0 :Text;
+    speed @1 :Int32;
+    nextSectionId @2 :Text;
+    nextSpeed @3 :Int32;
+    status @4 :Status;
+
+    enum Status {
+      unknown @0;
+      freeFlow @1;
+      heavyTraffic @2;
+      severeCongestion @3;
+    }
+  }
+
+  struct RoadEvent {
+    sectionId @0 :Text;
+    description @1 :Text;
+    distance @2 :Float32;
+    isActive @3 :Bool;
+  }
+
+
+}
+
 struct CustomReserved10 @0xcb9fd56c7057593a {
 }
 
@@ -512,7 +541,4 @@ struct CustomReserved17 @0xa30662f84033036c {
 }
 
 struct CustomReserved18 @0xc86a3d38d13eb3ef {
-}
-
-struct CustomReserved19 @0xa4f1eb3323f5f582 {
 }

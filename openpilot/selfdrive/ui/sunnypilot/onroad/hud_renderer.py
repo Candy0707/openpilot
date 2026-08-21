@@ -20,6 +20,7 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.speed_renderer import SpeedRendere
 from openpilot.selfdrive.ui.sunnypilot.onroad.radar_ui import RadarUiRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.visual_ui import VisualUiRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.trend_ui import TrendRenderer
+from openpilot.selfdrive.ui.sunnypilot.onroad.tdx_ui import TdxUiRenderer
 
 
 from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
@@ -50,6 +51,7 @@ class HudRendererSP(HudRenderer):
     self.speed_cluster: float = 0.0
     self.speed_conv: float = CV.MS_TO_KPH if ui_state.is_metric else CV.MS_TO_MPH
     self.trend_ui = TrendRenderer()
+    self.tdx_ui = TdxUiRenderer()
 
 
   def _update_state(self) -> None:
@@ -69,6 +71,7 @@ class HudRendererSP(HudRenderer):
     self.circular_alerts_renderer.update()
     self.speed_renderer.update()
     self.visual_ui._update_state()
+    self.tdx_ui._update_state()
 
   def _get_icbm_status(self):
     if not self.pcm_cruise_speed and ui_state.sm['carControl'].enabled:
@@ -157,6 +160,7 @@ class HudRendererSP(HudRenderer):
     self.circular_alerts_renderer.render(rect)
     self.rocket_fuel.render(rect, ui_state.sm)
     self.trend_ui.render(rect)
+    self.tdx_ui._render(rect)
 
   def set_model_renderer(self, model_renderer):
     self.model_renderer = model_renderer

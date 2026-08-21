@@ -44,6 +44,7 @@ class UIStateSP:
       "carParamsSP",
       "liveDelay",
       "liveTracks",
+      "tdx",
     ]
 
     self.sunnylink_state = SunnylinkState()
