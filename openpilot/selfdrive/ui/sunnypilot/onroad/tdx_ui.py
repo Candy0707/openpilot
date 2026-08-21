@@ -55,7 +55,7 @@ class TdxUiRenderer(Widget):
     # ==========================================
     if self.tdx_next_speed > 0:
       speed_text = f"前方車速: {self.tdx_next_speed} km/h"
-      tdx_speed_font_size = self._label_size * 1.2
+      tdx_speed_font_size = self.label_size * 1.2
       speed_size = measure_text_cached(self._font_bold, speed_text, tdx_speed_font_size)
 
       # 將 Y 軸改為中間位置 (目前速度下方)，並置中顯示 X 軸
@@ -76,7 +76,7 @@ class TdxUiRenderer(Widget):
       # SP 專有的底部狀態列留白高度
       bottom_offset = 30
 
-      tdx_event_font_size = self._label_size
+      tdx_event_font_size = self.label_size
       max_text_width = rect.width - 200
 
       text = self.tdx_event_desc
