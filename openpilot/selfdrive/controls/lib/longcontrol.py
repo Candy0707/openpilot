@@ -65,12 +65,21 @@ class LongControl:
       output_accel = 0.
 
     elif self.long_control_state == LongCtrlState.stopping:
-      output_accel = self.last_output_accel
-      if output_accel > self.CP.stopAccel:
+      if not CS.standstill:
+        # [階段一：車輛滑行中]
+        error = a_target - CS.aEgo
+        output_accel = self.pid.update(error, speed=CS.vEgo,
+                                       feedforward=a_target)
         output_accel = min(output_accel, 0.0)
-        # TODO: can we just go straight to stopAccel?
-        output_accel -= 1.0 * DT_CTRL  # m/s^2/s while trying to stop
-      self.reset()
+
+      else:
+        # [階段二：車輛完全停止]
+        output_accel = self.last_output_accel
+        if output_accel > self.CP.stopAccel:
+          output_accel = min(output_accel, 0.0)
+          # TODO: can we just go straight to stopAccel?
+          output_accel -= 1.0 * DT_CTRL  # m/s^2/s while trying to stop
+        self.reset()
 
     else:  # LongCtrlState.pid
       error = a_target - CS.aEgo
