@@ -21,7 +21,7 @@ def download_freeway_shapes_guest():
   try:
     # 使用 openpilot 內部連線池 (自帶 5 次指數退避重試)
     pool = URLFile.pool_manager()
-    response = pool.request("GET", url, headers=headers, timeout=15)
+    response = pool.request("GET", url, headers=headers, timeout=3, retries=False)
     if response.status not in (200, 206):
       raise Exception(f"HTTP 狀態碼異常: {response.status}")
 
@@ -369,7 +369,7 @@ def main():
   # ==========================================
   # 測試點設定 (可自行開關) True or False
   # ==========================================
-  TEST_MODE = False
+  TEST_MODE = True
   TEST_LAT = 25.126123
   TEST_LON = 121.697325
   TEST_BEARING = 180.0

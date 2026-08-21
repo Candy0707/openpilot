@@ -11,7 +11,7 @@ class TdxUiRenderer(Widget):
   def __init__(self):
     super().__init__()
     # 設定字體大小與字型，補全粗體與半粗體資源宣告避免屬性遺失
-    self.label_size = 60
+    self.label_size = 80
     self._font_bold: rl.Font = gui_app.font(FontWeight.BOLD)
 
     # --- TDX 路況預警變數 ---
