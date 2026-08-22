@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from openpilot.sunnypilot.selfdrive.controls.lib.traffic_stop.traffic_stop_controller import (
+  TrafficState,
   TrafficStopController,
   TrafficStopState,
 )
@@ -178,3 +179,52 @@ def test_distance_adjust_is_clamped_to_plus_minus_5m():
   ctrl.params.put("TrafficStopDistanceAdjust", -999)
   ctrl._poll_params()
   assert ctrl.distance_adjust_m == -5
+
+
+def test_obstacle_releases_on_off_not_just_green():
+  """Mirrors cp's post-state-machine override exactly:
+
+    if trafficState in [off, green] or xState not in [e2eStop, e2eStopped]:
+      stop_model_x = 1000.0
+
+  The obstacle must be released the instant traffic_state reads `off` --
+  not only on a confirmed `green` -- even though the internal `state`
+  (our xState-equivalent) has not formally transitioned back to `cruise`.
+  """
+  ctrl = _enabled_controller()
+  car_state = _car_state()
+  radar_state = _no_lead()
+
+  # Get into an active `stopping` state with a red light.
+  res = None
+  for _ in range(40):
+    res = ctrl.update(_make_model(stop_dist_m=30.0, v0=10.0), car_state, radar_state,
+                       v_ego=10.0, a_ego=0.0, v_cruise=10.0)
+  assert res.state == TrafficStopState.stopping
+  assert res.stop_dist_m is not None
+
+  # Simulate a single-frame detector flicker to `off` (model neither
+  # confidently predicts a stop nor confidently predicts green), by
+  # monkeypatching the internal detector for exactly one update() call.
+  real_check = ctrl._check_model_stopping
+
+  def _force_off(*args, **kwargs):
+    ctrl.traffic_state = TrafficState.off
+
+  ctrl._check_model_stopping = _force_off
+  try:
+    res_flicker = ctrl.update(_make_model(stop_dist_m=30.0, v0=10.0), car_state, radar_state,
+                               v_ego=10.0, a_ego=0.0, v_cruise=10.0)
+  finally:
+    ctrl._check_model_stopping = real_check
+
+  # Obstacle must be released this frame even though `state` is still `stopping`.
+  assert res_flicker.traffic_state == TrafficState.off
+  assert res_flicker.state == TrafficStopState.stopping
+  assert res_flicker.stop_dist_m is None
+
+  # Once the detector reports red again next frame, braking resumes immediately.
+  res_resumed = ctrl.update(_make_model(stop_dist_m=30.0, v0=10.0), car_state, radar_state,
+                             v_ego=10.0, a_ego=0.0, v_cruise=10.0)
+  assert res_resumed.state == TrafficStopState.stopping
+  assert res_resumed.stop_dist_m is not None
