@@ -27,6 +27,15 @@ The core idea, unchanged from carrot:
      in `selfdrive/controls/lib/longitudinal_mpc_lib/long_mpc.py`. The MPC
      itself does not need to know this obstacle came from a traffic light;
      it is simply the closest thing to brake for.
+  4. The obstacle is released (stop_dist_m -> None) the instant
+     `traffic_state` reads `off` OR `green` -- not only on a confirmed
+     `green` -- even if the internal `state` (our xState-equivalent) has
+     not yet formally transitioned back to `cruise`. This exactly mirrors
+     cp's post-state-machine override (`if trafficState in [off, green] or
+     xState not in [e2eStop, e2eStopped]: stop_model_x = 1000.0`), including
+     the resulting frame-to-frame flicker if the detector itself flickers
+     between `red` and `off`. This was verified against cp's source line by
+     line and matched deliberately rather than smoothed out.
 
 Deliberately NOT ported (out of scope for "一般模式"/general-mode stopping,
 these belonged to carrot's broader navigation/UI stack and are not needed
@@ -297,9 +306,26 @@ class TrafficStopController:
       self._stop_x_rl = stop_model_x_raw  # don't let the rate-limiter carry stale state into the next stop
 
     # --- finalize distance ---------------------------------------------------
-    stop_model_x = NO_STOP_DISTANCE_M
-    if self.state in (TrafficStopState.stopping, TrafficStopState.stopped):
-      stop_model_x = 0.0
+    # Faithfully mirror cp's post-state-machine override:
+    #   if trafficState in [off, green] or xState not in [e2eStop, e2eStopped]:
+    #     stop_model_x = 1000.0
+    #   ...
+    #   if stop_model_x == 1000.0: actual_stop_distance = 0.0
+    #   elif actual_stop_distance > 0: stop_model_x = 0.0
+    #
+    # This means the obstacle is released the instant `traffic_state` reads
+    # off OR green -- not only on a confirmed `green` -- even if the internal
+    # `state` (our xState-equivalent) hasn't formally transitioned back to
+    # `cruise` yet (e.g. state is still `stopping` while trafficState briefly
+    # flickers to `off` between red-detection frames). cp accepts the
+    # resulting frame-to-frame flicker in exchange for never holding the
+    # brake on stale/uncertain detection; we replicate that behavior exactly
+    # rather than smoothing it out, per explicit request to match the
+    # validated cp implementation rather than diverge from it.
+    release = (self.traffic_state in (TrafficState.off, TrafficState.green)
+               or self.state not in (TrafficStopState.stopping, TrafficStopState.stopped))
+
+    stop_model_x = NO_STOP_DISTANCE_M if release else 0.0
 
     self.actual_stop_distance = max(0.0, self.actual_stop_distance - v_ego * DT_MDL)
 
@@ -307,6 +333,8 @@ class TrafficStopController:
       self.actual_stop_distance = 0.0
       return TrafficStopResult(stop_dist_m=None, v_cruise_limited=None,
                                 state=self.state, traffic_state=self.traffic_state)
+    elif self.actual_stop_distance > 0:
+      stop_model_x = 0.0  # no-op in this port (already 0.0 above); kept for structural fidelity with cp
 
     stop_dist = max(0.0, stop_model_x + self.actual_stop_distance)
 
