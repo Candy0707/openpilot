@@ -70,7 +70,7 @@ class LongControl:
         error = a_target - CS.aEgo
         output_accel = self.pid.update(error, speed=CS.vEgo,
                                        feedforward=a_target)
-        output_accel = min(output_accel, -0.3)
+        output_accel = min(output_accel, -0.25)
 
       else:
         # [階段二：車輛完全停止]
