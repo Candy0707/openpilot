@@ -141,6 +141,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"DynamicTurnSpeedController", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"LeadDepartureSmoother", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"PathDeviationMonitor", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"TrafficStopEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"TrafficStopDistanceAdjust", {PERSISTENT | BACKUP, INT, "0"}},  // meters, [-5, 5] fine-tune of the virtual stop-line obstacle position
     {"htd_enabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"htd_turn_angle_threshold", {PERSISTENT | BACKUP, INT, "90"}},
     {"ApiCache_DriveStats", {PERSISTENT, JSON}},

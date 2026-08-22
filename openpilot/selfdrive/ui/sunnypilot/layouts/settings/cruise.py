@@ -30,6 +30,16 @@ ACC_NOLONG_DESCRIPTION = tr_noop("This feature can only be used with sunnypilot 
 ACC_PCMCRUISE_DISABLED_DESCRIPTION = tr_noop("This feature is not supported on this platform due to vehicle limitations.")
 ONROAD_ONLY_DESCRIPTION = tr_noop("Start the vehicle to check vehicle compatibility.")
 
+TRAFFIC_STOP_DESCRIPTION = tr_noop(
+  "Stop for red lights and stop signs using the driving model's own predicted trajectory to place a virtual "
+  "stop-line obstacle for the planner. No separate traffic light detector is required."
+)
+TRAFFIC_STOP_DISTANCE_ADJUST_DESCRIPTION = tr_noop(
+  "Fine-tune where the virtual stop-line obstacle is placed. Positive values move it further away (stop later, "
+  "closer to the line); negative values pull it closer to the car (stop earlier, further back from the line)."
+)
+TRAFFIC_STOP_NOLONG_DESCRIPTION = tr_noop("This feature can only be used with sunnypilot longitudinal control enabled.")
+
 
 class CruiseLayout(Widget):
   def __init__(self):
@@ -115,6 +125,20 @@ class CruiseLayout(Widget):
       description=tr(""),
       param="PathDeviationMonitor")
 
+    self.traffic_stop_toggle = toggle_item_sp(
+      title=tr("Stop at Red Lights / Stop Signs"),
+      description=tr(TRAFFIC_STOP_DESCRIPTION),
+      param="TrafficStopEnabled",
+      callback=self._on_traffic_stop_toggle)
+
+    self.traffic_stop_distance_adjust = option_item_sp(
+      title=tr("Stop Line Position Adjust"),
+      param="TrafficStopDistanceAdjust",
+      min_value=-5, max_value=5, value_change_step=1,
+      description=tr(TRAFFIC_STOP_DISTANCE_ADJUST_DESCRIPTION),
+      label_callback=self._get_traffic_stop_distance_adjust_label,
+      inline=True)
+
 
     items = [
       self.icbm_toggle,
@@ -130,6 +154,8 @@ class CruiseLayout(Widget):
       self.leaddeparturesmoother_toggle,
       self.dynamicturnspeedcontroller_toggle,
       self.pathdeviationmonitor_toggle,
+      self.traffic_stop_toggle,
+      self.traffic_stop_distance_adjust,
     ]
     return items
 
@@ -181,20 +207,26 @@ class CruiseLayout(Widget):
         self.dec_toggle.action_item.set_enabled(has_long)
         self.scc_v_toggle.action_item.set_enabled(True)
         self.scc_m_toggle.action_item.set_enabled(True)
+        self.traffic_stop_toggle.action_item.set_enabled(has_long)
+        if not has_long:
+          ui_state.params.remove("TrafficStopEnabled")
       else:
         ui_state.params.remove("CustomAccIncrementsEnabled")
         ui_state.params.remove("DynamicExperimentalControl")
         ui_state.params.remove("SmartCruiseControlVision")
         ui_state.params.remove("SmartCruiseControlMap")
+        ui_state.params.remove("TrafficStopEnabled")
         self.custom_acc_toggle.action_item.set_enabled(False)
         self.dec_toggle.action_item.set_enabled(False)
         self.scc_v_toggle.action_item.set_enabled(False)
         self.scc_m_toggle.action_item.set_enabled(False)
+        self.traffic_stop_toggle.action_item.set_enabled(False)
 
     else:
       has_icbm = has_long = False
       self.icbm_toggle.action_item.set_enabled(False)
       self.icbm_toggle.set_description(tr(ONROAD_ONLY_DESCRIPTION))
+      self.traffic_stop_toggle.action_item.set_enabled(False)
 
     show_custom_acc_desc = False
 
@@ -219,6 +251,16 @@ class CruiseLayout(Widget):
         self.custom_acc_toggle.show_description(True)
 
     self._on_custom_acc_toggle(self.custom_acc_toggle.action_item.get_state())
+    self._on_traffic_stop_toggle(self.traffic_stop_toggle.action_item.get_state())
+
+  @staticmethod
+  def _get_traffic_stop_distance_adjust_label(value):
+    unit = tr("m")
+    return f"{value:+d} {unit}"
+
+  def _on_traffic_stop_toggle(self, state):
+    self.traffic_stop_distance_adjust.set_visible(state)
+    self.traffic_stop_distance_adjust.action_item.set_enabled(self.traffic_stop_toggle.action_item.enabled)
 
   def _on_custom_acc_toggle(self, state):
     self.custom_acc_short_increment.set_visible(state)

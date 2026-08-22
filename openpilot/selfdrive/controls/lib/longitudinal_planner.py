@@ -16,6 +16,7 @@ from openpilot.selfdrive.car.cruise import V_CRUISE_MAX, V_CRUISE_UNSET
 from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlannerSP
+from openpilot.sunnypilot.selfdrive.controls.lib.traffic_stop.traffic_stop_controller import TrafficStopController
 
 A_CRUISE_MAX_VALS = [1.6, 1.2, 0.8, 0.6]
 A_CRUISE_MAX_BP = [0.0, 10.0, 25.0, 40.0]
@@ -54,6 +55,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
   def __init__(self, CP, CP_SP, init_v=0.0, init_a=0.0, dt=DT_MDL):
     self.CP = CP
     self.mpc = LongitudinalMpc(dt=dt)
+    self.traffic_stop_controller = TrafficStopController()
     LongitudinalPlannerSP.__init__(self, self.CP, CP_SP, self.mpc)
     self.fcw = False
     self.dt = dt
@@ -124,11 +126,20 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     if force_slow_decel:
       v_cruise = 0.0
 
+    # Detect a model-predicted red-light/stop-sign stop and, if active, place a virtual
+    # stationary obstacle at the (speed-corrected) stop line for the MPC to brake for.
+    traffic_stop_result = self.traffic_stop_controller.update(
+      sm['modelV2'], sm['carState'], sm['radarState'], v_ego, self.a_desired, v_cruise,
+    )
+    if traffic_stop_result.v_cruise_limited is not None:
+      v_cruise = min(v_cruise, traffic_stop_result.v_cruise_limited)
+
     self.mpc.set_weights(prev_accel_constraint, personality=sm['selfdriveState'].personality)
     self.mpc.set_cur_state(self.v_desired_filter.x, self.a_desired)
     a_cruise_min_override = LongitudinalPlannerSP.get_cruise_min_accel(self, v_ego)
     self.mpc.update(
-      sm['radarState'], v_cruise, personality=sm['selfdriveState'].personality, a_cruise_min_override=a_cruise_min_override
+      sm['radarState'], v_cruise, personality=sm['selfdriveState'].personality, a_cruise_min_override=a_cruise_min_override,
+      traffic_stop_obstacle_m=traffic_stop_result.stop_dist_m,
     )
 
     self.v_desired_trajectory = np.interp(CONTROL_N_T_IDX, T_IDXS_MPC, self.mpc.v_solution)

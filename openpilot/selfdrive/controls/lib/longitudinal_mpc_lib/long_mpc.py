@@ -10,6 +10,7 @@ from openpilot.common.swaglog import cloudlog
 # WARNING: imports outside of constants will not trigger a rebuild
 from openpilot.selfdrive.modeld.constants import index_function
 from openpilot.selfdrive.controls.radard import _LEAD_ACCEL_TAU
+from openpilot.sunnypilot.selfdrive.controls.lib.traffic_stop.traffic_stop import get_traffic_stop_obstacle_distance
 
 if __name__ == '__main__':  # generating code
   from acados.acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
@@ -25,6 +26,12 @@ JSON_FILE = os.path.join(LONG_MPC_DIR, "acados_ocp_long.json")
 
 LongitudinalPlanSource = log.LongitudinalPlan.LongitudinalPlanSource
 MPC_SOURCES = (LongitudinalPlanSource.lead0, LongitudinalPlanSource.lead1, LongitudinalPlanSource.cruise)
+
+# sunnypilot's LongitudinalPlanSource enum has no dedicated "traffic stop" value
+# (adding one would require a cereal schema change / regenerating bindings).
+# The virtual signal-stop obstacle is reported as `cruise` since, like the
+# cruise obstacle, it is a synthetic target rather than a tracked object.
+TRAFFIC_STOP_DISTANCE_ADJUST = 2.5  # m, matches carrot's default TrafficStopDistanceAdjust
 
 X_DIM = 3
 U_DIM = 1
@@ -306,7 +313,16 @@ class LongitudinalMpc:
     lead_xv = self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau)
     return lead_xv
 
-  def update(self, radarstate, v_cruise, personality=log.LongitudinalPersonality.standard, a_cruise_min_override=None):
+  def update(self, radarstate, v_cruise, personality=log.LongitudinalPersonality.standard, a_cruise_min_override=None,
+             traffic_stop_obstacle_m=None):
+    """
+    traffic_stop_obstacle_m: optional distance (m) to a virtual, stationary
+      obstacle placed at a detected red-light/stop-sign stop line, e.g. from
+      `TrafficStopController.update().stop_dist_m`
+      (openpilot/sunnypilot/selfdrive/controls/lib/traffic_stop/). When set,
+      it is merged into the same obstacle list used for lead cars and cruise,
+      exactly like carrot's `traffic_stop.py` port does in long_mpc.py.
+    """
     t_follow = get_T_FOLLOW(personality)
     a_cruise_min = a_cruise_min_override if a_cruise_min_override is not None else CRUISE_MIN_ACCEL
     v_ego = self.x0[1]
@@ -328,8 +344,17 @@ class LongitudinalMpc:
     v_cruise_clipped = np.clip(v_cruise * np.ones(N + 1), v_lower, v_upper)
     cruise_obstacle = np.cumsum(T_DIFFS * v_cruise_clipped) + get_safe_obstacle_distance(v_cruise_clipped, t_follow)
 
-    x_obstacles = np.column_stack([lead_0_obstacle, lead_1_obstacle, cruise_obstacle])
-    self.source = MPC_SOURCES[np.argmin(x_obstacles[0])]
+    obstacle_cols = [lead_0_obstacle, lead_1_obstacle, cruise_obstacle]
+    obstacle_sources = list(MPC_SOURCES)
+    if traffic_stop_obstacle_m is not None:
+      traffic_stop_obstacle = get_traffic_stop_obstacle_distance(traffic_stop_obstacle_m, TRAFFIC_STOP_DISTANCE_ADJUST)
+      # Constant position across the whole horizon == a stationary obstacle at the stop line,
+      # handled by the same np.min() distance constraint as a real lead car.
+      obstacle_cols.append(traffic_stop_obstacle * np.ones(N + 1))
+      obstacle_sources.append(LongitudinalPlanSource.cruise)
+
+    x_obstacles = np.column_stack(obstacle_cols)
+    self.source = obstacle_sources[int(np.argmin(x_obstacles[0]))]
 
     self.yref[:, :] = 0.0
     for i in range(N):
