@@ -256,10 +256,19 @@ class TrafficStopController:
 
     self._check_model_stopping(v_cruise, v, v_ego, a_ego, float(x[-1]), y, d_rel)
 
-    if car_state.gasPressed:
-      self._starting_suppress_count = STARTING_SUPPRESS_FRAMES
-    else:
-      self._starting_suppress_count = max(0, self._starting_suppress_count - 1)
+    # NOTE: this counter is only ever *armed* (reset to STARTING_SUPPRESS_FRAMES)
+    # inside the `stopping` branch below, when the driver overrides an ALREADY
+    # active stop by pressing the gas -- exactly mirroring cp's scoping
+    # (`traffic_starting_count` is only set inside the `e2eStop` branch's
+    # gasPressed override, never during normal cruise/manual driving). It must
+    # only ever *decrement* here, unconditionally. An earlier version of this
+    # port incorrectly re-armed it on ANY gas press regardless of state, which
+    # meant routine manual driving before engaging cruise (or just cruising
+    # normally) kept re-arming a fresh 10-second suppression window -- so if a
+    # light was reached within 10s of the driver's last gas release (e.g. the
+    # driver engaged cruise shortly before the light), entry into `stopping`
+    # was silently suppressed for that light. Fixed to match cp exactly.
+    self._starting_suppress_count = max(0, self._starting_suppress_count - 1)
 
     # --- state machine -----------------------------------------------------
     if self.state == TrafficStopState.stopped:
@@ -347,6 +356,17 @@ class TrafficStopController:
     if stop_dist < 300.0:
       stop_dist_soft = max(stop_dist - 1.0, 0.0)
       v_cruise_limited = float(np.sqrt(max(0.0, 2.0 * self.comfort_brake * stop_dist_soft)))
+      # Never request MORE speed than the car is currently doing while we're
+      # actively managing a stop. Without this, if the car arrived at this
+      # moment already going slower than the physics-only comfort-brake curve
+      # allows (e.g. DEC/e2e was decelerating for its own, unrelated reasons
+      # right before our controller took over -- see the is_e2e bypass in
+      # longitudinal_planner.py), the pure-distance formula above could
+      # momentarily exceed v_ego and command a brief acceleration before
+      # braking resumes as the car closes in on the line. Clamping to v_ego
+      # here guarantees a monotonically non-increasing speed target for the
+      # entire approach once we've committed to a stop.
+      v_cruise_limited = min(v_cruise_limited, v_ego)
 
     return TrafficStopResult(stop_dist_m=stop_dist, v_cruise_limited=v_cruise_limited,
                               state=self.state, traffic_state=self.traffic_state)
