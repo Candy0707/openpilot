@@ -81,9 +81,34 @@ from openpilot.sunnypilot.selfdrive.controls.lib.traffic_stop.traffic_stop impor
 # matching carrot's `x[31]` for a 33-point trajectory.
 STOP_MODEL_IDX = -2
 
+# modelV2.position.x is in DEVICE frame (camera/device mounting location as
+# origin), not front-bumper frame -- see cereal/log.capnp: "All SI units and
+# in device frame" on XYZTData. sunnypilot already accounts for this exact
+# offset for real lead cars in radard.py:
+#   RADAR_TO_CAMERA = 1.52  # RADAR is ~1.5m ahead from center of mesh frame
+#   dRel = lead_msg.x[0] - RADAR_TO_CAMERA
+# Our virtual stop-line obstacle is built directly from modelV2.position.x
+# and was never given the same correction, so it sat a fixed ~1.5m further
+# from the car than a real lead at the same reported model distance would --
+# manifesting as a constant overshoot independent of the UI's distance_adjust
+# (adjusting on top of an already-offset base doesn't remove the base offset).
+# Reuse the same constant radard.py uses for the equivalent correction.
+#
+# NOTE: cp's own carrot_functions.py does NOT apply this correction either --
+# it also uses the raw device-frame x[31] directly. This means the ~1.5m
+# overshoot this fixes is a pre-existing characteristic of cp's original
+# implementation too, not something this port introduced. Applying the
+# correction here is a deliberate departure from bit-for-bit cp fidelity,
+# scoped ONLY to the final obstacle position fed to the MPC (where the
+# overshoot is actually observed). It intentionally does NOT touch
+# `_check_model_stopping`'s entry-detection thresholds (model_x_end comparisons
+# against d_rel and the speed-based distance bp) -- those were empirically
+# tuned by cp against the raw, uncorrected value, and shifting them changes
+# *when* a stop is detected, not *where* the car ends up stopping, which is a
+# separate concern from the reported symptom.
+CAMERA_TO_FRONT_M = 1.52
 NO_STOP_DISTANCE_M = 1000.0  # "no active stop" sentinel, mirrors carrot's stop_model_x = 1000.0
 DEFAULT_COMFORT_BRAKE = 2.5  # m/s^2, only used for the soft v_cruise cap below, independent of the MPC's own comfort brake
-DEFAULT_STOP_DISTANCE_ADJUST = 2.5  # m, matches carrot's default TrafficStopDistanceAdjust
 LEAD_CLOSE_TO_STOP_LINE_M = 2.0  # if a real lead is within this margin of the stop line, defer to lead-following
 STOPPED_SPEED_MS = 0.3  # below this we consider the car fully halted at the line
 STOPPING_HOLD_FRAMES = int(0.5 / DT_MDL)  # debounce frames before declaring "stopped"
@@ -133,12 +158,14 @@ class TrafficStopResult:
 
 class TrafficStopController:
   """
-  Note: this controller returns the raw stop-line obstacle distance
-  (equivalent to carrot's `carrot.stop_dist`). The final
-  `get_traffic_stop_obstacle_distance()` correction (adding the
-  configurable `distance_adjust` offset) is applied on the MPC side in
-  `long_mpc.py`, exactly mirroring carrot's architecture where the
-  controller and the MPC are separate layers.
+  Note: this controller returns the FINAL stop-line obstacle distance,
+  already including the UI's `distance_adjust_m` (-5..+5m) offset. Unlike
+  an earlier version of this port, `long_mpc.py` no longer re-applies a
+  second, hardcoded offset on top of this -- that duplication silently
+  capped how far the UI slider could actually move the obstacle (see the
+  history note next to where `long_mpc.py` used to call
+  `get_traffic_stop_obstacle_distance()`). This is the single source of
+  truth for the obstacle's final position.
   """
 
   def __init__(self, comfort_brake: float = DEFAULT_COMFORT_BRAKE):
@@ -242,7 +269,7 @@ class TrafficStopController:
     y = model_v2.position.y
     v = model_v2.velocity.x
 
-    stop_model_x_raw = self._update_stop_dist(float(x[STOP_MODEL_IDX]))
+    stop_model_x_raw = self._update_stop_dist(max(0.0, float(x[STOP_MODEL_IDX]) - CAMERA_TO_FRONT_M))
 
     if self._stop_x_rl is None:
       self._stop_x_rl = stop_model_x_raw
