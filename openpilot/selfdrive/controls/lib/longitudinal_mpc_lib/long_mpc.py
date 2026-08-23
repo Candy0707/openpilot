@@ -10,7 +10,6 @@ from openpilot.common.swaglog import cloudlog
 # WARNING: imports outside of constants will not trigger a rebuild
 from openpilot.selfdrive.modeld.constants import index_function
 from openpilot.selfdrive.controls.radard import _LEAD_ACCEL_TAU
-from openpilot.sunnypilot.selfdrive.controls.lib.traffic_stop.traffic_stop import get_traffic_stop_obstacle_distance
 
 if __name__ == '__main__':  # generating code
   from acados.acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
@@ -31,7 +30,18 @@ MPC_SOURCES = (LongitudinalPlanSource.lead0, LongitudinalPlanSource.lead1, Longi
 # (adding one would require a cereal schema change / regenerating bindings).
 # The virtual signal-stop obstacle is reported as `cruise` since, like the
 # cruise obstacle, it is a synthetic target rather than a tracked object.
-TRAFFIC_STOP_DISTANCE_ADJUST = 2.5  # m, matches carrot's default TrafficStopDistanceAdjust
+#
+# NOTE: there used to be a second, hardcoded TRAFFIC_STOP_DISTANCE_ADJUST=2.5m
+# offset applied here on top of whatever `traffic_stop_obstacle_m` already
+# carried in from TrafficStopController (which already includes the UI's
+# -5..+5m adjustment). That meant the UI slider's effective range was never
+# actually -5..+5m relative to the detected line -- it was -2.5..+7.5m, with
+# a hidden +2.5m floor the UI couldn't reach or even display. Setting the
+# slider to its most negative value could never pull the obstacle back more
+# than 2.5m, which silently capped how far "back" a driver could correct an
+# overshooting stop no matter what they set. Removed: the UI-adjustable path
+# is now the single source of truth for this offset, cp's original static
+# default is no longer separately re-applied here.
 
 X_DIM = 3
 U_DIM = 1
@@ -347,7 +357,7 @@ class LongitudinalMpc:
     obstacle_cols = [lead_0_obstacle, lead_1_obstacle, cruise_obstacle]
     obstacle_sources = list(MPC_SOURCES)
     if traffic_stop_obstacle_m is not None:
-      traffic_stop_obstacle = get_traffic_stop_obstacle_distance(traffic_stop_obstacle_m, TRAFFIC_STOP_DISTANCE_ADJUST)
+      traffic_stop_obstacle = max(0.0, traffic_stop_obstacle_m)
       # Constant position across the whole horizon == a stationary obstacle at the stop line,
       # handled by the same np.min() distance constraint as a real lead car.
       obstacle_cols.append(traffic_stop_obstacle * np.ones(N + 1))
