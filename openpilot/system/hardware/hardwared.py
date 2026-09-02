@@ -250,10 +250,10 @@ def hardware_thread(end_event, hw_queue) -> None:
 
     # 全域設定並覆寫亮度為 40%
     try:
-      HARDWARE.set_screen_brightness(40)
+      HARDWARE.set_screen_brightness(25)
     except Exception:
       pass
-    msg.deviceState.screenBrightnessPercent = 40
+    msg.deviceState.screenBrightnessPercent = 25
 
     set_usb_state(msg.deviceState, last_hw_state.usb_state)
 
