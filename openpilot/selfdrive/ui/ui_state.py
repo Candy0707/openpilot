@@ -29,7 +29,7 @@ BACKLIGHT_OFFROAD = 65 if HARDWARE.get_device_type() == "mici" else 50
 # that field is populated elsewhere (system/hardware/hardwared.py) by reading
 # the actual hardware brightness back, so it will correctly reflect the real,
 # scaled-down value rather than the logical one.
-MAX_HARDWARE_BRIGHTNESS_RATIO = 1.0
+MAX_HARDWARE_BRIGHTNESS_RATIO = 0.4
 PARAM_UPDATE_TIME = 1 / 5.0
 
 
