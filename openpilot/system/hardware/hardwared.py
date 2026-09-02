@@ -248,7 +248,12 @@ def hardware_thread(end_event, hw_queue) -> None:
 
     msg.deviceState.modemTempC = last_hw_state.modem_temps
 
-    msg.deviceState.screenBrightnessPercent = HARDWARE.get_screen_brightness()
+    # 全域設定並覆寫亮度為 40%
+    try:
+      HARDWARE.set_screen_brightness(40)
+    except Exception:
+      pass
+    msg.deviceState.screenBrightnessPercent = 40
 
     set_usb_state(msg.deviceState, last_hw_state.usb_state)
 
