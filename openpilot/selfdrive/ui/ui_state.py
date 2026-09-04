@@ -16,20 +16,6 @@ from openpilot.common.hardware import HARDWARE, PC
 from openpilot.selfdrive.ui.sunnypilot.ui_state import UIStateSP, DeviceSP
 
 BACKLIGHT_OFFROAD = 65 if HARDWARE.get_device_type() == "mici" else 50
-
-# Scales the value actually written to the hardware backlight, without
-# touching anything upstream (light sensor curve, offroad/onroad settings,
-# DeviceSP overrides, the smoothing filter, alert-driven sleep timers, etc.)
-# -- all of that continues to compute in the normal 0..100 logical range as
-# if 100 were the true maximum. Only the final HARDWARE.set_screen_brightness()
-# call below is scaled, so e.g. 1.0 stays "100% logical -> 100% hardware"
-# (no change from stock), while 0.4 caps the physical backlight output at
-# 40% while every calculation still believes it's driving up to 100%.
-# NOTE: this does NOT affect deviceState.screenBrightnessPercent telemetry --
-# that field is populated elsewhere (system/hardware/hardwared.py) by reading
-# the actual hardware brightness back, so it will correctly reflect the real,
-# scaled-down value rather than the logical one.
-MAX_HARDWARE_BRIGHTNESS_RATIO = 0.4
 PARAM_UPDATE_TIME = 1 / 5.0
 
 
@@ -294,8 +280,7 @@ class Device(DeviceSP):
     while True:
       self._brightness_event.wait()
       self._brightness_event.clear()
-      hardware_brightness = int(round(self._brightness_target * MAX_HARDWARE_BRIGHTNESS_RATIO))
-      HARDWARE.set_screen_brightness(hardware_brightness)
+      HARDWARE.set_screen_brightness(self._brightness_target)
 
   def set_offroad_brightness(self, brightness: int | None):
     if brightness is None:
