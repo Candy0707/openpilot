@@ -64,14 +64,9 @@ class LongitudinalPlannerSP:
 
     return experimental_mode and self.dec.mode() == "blended"
 
-  def get_accel_clip(self, v_ego: float) -> list[float] | None:
+  def get_accel(self, v_ego: float) -> float | None:
     if self.accel_controller.is_enabled():
-      return [ACCEL_MIN, self.accel_controller.get_max_accel(v_ego)]
-    return None
-
-  def get_cruise_min_accel(self, v_ego: float) -> float | None:
-    if self.accel_controller.is_enabled():
-      return self.accel_controller.get_min_accel(v_ego)
+      return self.accel_controller.get_max_accel(v_ego)
     return None
 
   def update_targets(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float) -> tuple[float, float]:
