@@ -44,8 +44,8 @@ class RadarUiRenderer(Widget):
     self.is_metric = ui_state.is_metric
 
     sm = ui_state.sm
-    if sm.updated['liveTracks']:
-      radarpoint = sm['liveTracks'].points
+    if sm.updated['radarTracks']:
+      radarpoint = sm['radarTracks'].points
       vEgo = sm['carState'].vEgo
       self.radar.Points = self.radar.update(radarpoint)
 

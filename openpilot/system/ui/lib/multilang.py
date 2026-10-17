@@ -19,14 +19,6 @@ UI_DIR = files("openpilot.selfdrive.ui")
 TRANSLATIONS_DIR = UI_DIR.joinpath("translations")
 LANGUAGES_FILE = TRANSLATIONS_DIR.joinpath("languages.json")
 
-FONT_FALLBACK_LANGUAGES = [
-  "th",
-  "zh-CHT",
-  "zh-CHS",
-  "ko",
-  "ja",
-]
-
 # Plural form selectors for supported languages
 PLURAL_SELECTORS = {
   'en': lambda n: 0 if n == 1 else 1,
@@ -164,10 +156,6 @@ class Multilang:
   @property
   def language(self) -> str:
     return self._language
-
-  def requires_font_fallback(self) -> bool:
-    # return self._language in FONT_FALLBACK_LANGUAGES
-    return False
 
   def setup(self):
     try:
