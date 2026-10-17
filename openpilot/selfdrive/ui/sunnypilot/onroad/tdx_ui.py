@@ -75,7 +75,7 @@ class TdxUiRenderer(Widget):
       rl.Color(255, 255, 255, 255),
     )
 
-    val_text = f"{self.tdx_next_speed}"
+    val_text = f"{self.tdx_next_speed}" if self.tdx_next_speed > 0 else "--"
     tdx_next_speed = measure_text_cached(self._font_bold, val_text, self.label_size * 1.25).x
     rl.draw_text_ex(
       self._font_bold,
