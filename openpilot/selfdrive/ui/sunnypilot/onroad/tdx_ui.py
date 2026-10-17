@@ -1,9 +1,11 @@
 import math
 import pyray as rl
+
 from openpilot.system.ui.lib.application import gui_app, FontWeight
-from openpilot.system.ui.widgets import Widget
-from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.text_measure import measure_text_cached
+from openpilot.system.ui.widgets import Widget
+from openpilot.selfdrive.ui import UI_BORDER_SIZE
+from openpilot.selfdrive.ui.ui_state import ui_state
 
 
 class TdxUiRenderer(Widget):
@@ -50,24 +52,39 @@ class TdxUiRenderer(Widget):
     else:
       speed_color = rl.WHITE
 
-    # ==========================================
-    # 前方車速: 置中顯示
-    # ==========================================
-    if self.tdx_next_speed > 0:
-      speed_text = f"前方車速: {self.tdx_next_speed} km/h"
-      tdx_speed_font_size = self.label_size * 1.2
-      speed_size = measure_text_cached(self._font_bold, speed_text, tdx_speed_font_size)
+    # 1. 定義固定尺寸與卡片位置
+    card_width = 200   # 固定卡片寬度（可依 UI 比例調整）
+    card_height = 204  # 固定卡片高度（可依 UI 比例調整）
 
-      # 將 Y 軸改為中間位置 (目前速度下方)，並置中顯示 X 軸
-      top_y = rect.y + (rect.height / 2) - 150
-      speed_x = rect.x + rect.width / 2 - speed_size.x / 2
+    # 水平置中於畫面 rect，Y 軸定位在目前速度下方
+    card_x = rect.x + 40 + (200 - card_width) // 2
+    card_y = rect.y + 280
+    bg_rect = rl.Rectangle(card_x, card_y, card_width, card_height)
 
-      bg_rect = rl.Rectangle(
-        speed_x - bg_padding_x, top_y - bg_padding_y,
-        speed_size.x + bg_padding_x * 2, speed_size.y + bg_padding_y * 2,
-      )
-      rl.draw_rectangle_rounded(bg_rect, 0.2, 10, rl.Color(0, 0, 0, 160))
-      rl.draw_text_ex(self._font_bold, speed_text, rl.Vector2(speed_x, top_y), tdx_speed_font_size, 0, speed_color)
+    rl.draw_rectangle_rounded(bg_rect, 0.35, 10, rl.Color(0, 0, 0, 166))
+    rl.draw_rectangle_rounded_lines_ex(bg_rect, 0.35, 10, 6, rl.Color(255, 255, 255, 75))
+
+    max_text = "前方車速"
+    max_text_width = measure_text_cached(self._font_bold, max_text, self.label_size * 0.5).x
+    rl.draw_text_ex(
+      self._font_bold,
+      max_text,
+      rl.Vector2(card_x + (card_width - max_text_width) / 2, card_y + 27),
+      self.label_size * 0.5,
+      0,
+      rl.Color(255, 255, 255, 255),
+    )
+
+    val_text = f"{self.tdx_next_speed}"
+    tdx_next_speed = measure_text_cached(self._font_bold, val_text, self.label_size * 1.25).x
+    rl.draw_text_ex(
+      self._font_bold,
+      val_text,
+      rl.Vector2(card_x + (card_width - tdx_next_speed) / 2, card_y + 77),
+      self.label_size * 1.25,
+      0,
+      speed_color,
+    )
 
     # ==========================================
     # 事件跑馬燈: 單向滾動 (從頭到尾)

@@ -66,12 +66,10 @@ class TrendRenderer(Widget):
   def _render(self, rect: rl.Rectangle) -> None:
     # === 計算受限畫布 ===
     is_wide = rect.width >= 2000
-    draw_w = min(rect.width, 600) if is_wide else min(rect.width, 460)
-    draw_h = min(rect.height, 210)
-    draw_x = int(rect.width / 2 + 240)
+    draw_w = 600 if is_wide else 460
+    draw_h = 210
+    draw_x = int(rect.x + rect.width - rect.width // 4 - draw_w // 2)
     draw_y = int(rect.y + 40)
-    draw_w = min(draw_w, rect.width - (draw_x - rect.x))
-    draw_h = min(draw_h, rect.height - (draw_y - rect.y))
 
     # === 背景 + 外框 ===
     rl.draw_rectangle(draw_x, draw_y, draw_w, draw_h, rl.Color(30, 30, 30, 180))
