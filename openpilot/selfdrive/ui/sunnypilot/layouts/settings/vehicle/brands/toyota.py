@@ -25,9 +25,6 @@ DESCRIPTIONS = {
     'sunnypilot will allow some Toyota/Lexus cars to auto resume during stop and go traffic. ' +
     'This feature is only applicable to certain models that are able to use longitudinal control. This is an alpha feature. Use at your own risk.'
   ),
-  'ToyotaEnableAngleControl': tr_noop(
-    'Enable Using Angle Control'
-  ),
   "ToyotaEnableAutoHold": tr_noop(
     "<h1>For use on vehicles without auto braking.</h1><br>" +
     "ON：Start when the vehicle is in Drive (D) gear.<br>" +
@@ -56,14 +53,6 @@ class ToyotaSettings(BrandSettings):
       enabled=lambda: not ui_state.engaged,
     )
 
-    self.enable_angle_control = toggle_item_sp(
-      lambda: tr("Enable Angle Control (TSS2)"),
-      description=lambda: tr(DESCRIPTIONS["ToyotaEnableAngleControl"]),
-      initial_state=ui_state.params.get_bool("ToyotaEnableAngleControl"),
-      callback=self._on_enable_angle_control,
-      enabled=lambda: not ui_state.started,
-    )
-
     self.enable_auto_hold = multiple_button_item_sp(
       lambda: tr("Enable AUTO HOLD BRAKE (TSS2)"),
       description=lambda: tr(DESCRIPTIONS["ToyotaEnableAutoHold"]),
@@ -76,7 +65,6 @@ class ToyotaSettings(BrandSettings):
     self.items = [
       self.enforce_stock_longitudinal,
       self.stop_and_go_hack,
-      self.enable_angle_control,
       self.enable_auto_hold
     ]
 
@@ -120,25 +108,6 @@ class ToyotaSettings(BrandSettings):
 
     else:
       ui_state.params.put_bool("ToyotaStopAndGoHack", False)
-      ui_state.params.put_bool("OnroadCycleRequested", True)
-
-  def _on_enable_angle_control(self, state: bool):
-    if state:
-      def confirm_callback(result: int):
-        if result == DialogResult.CONFIRM:
-          ui_state.params.put_bool("ToyotaEnableAngleControl", True)
-          ui_state.params.put_bool("OnroadCycleRequested", True)
-        else:
-          self.enable_angle_control.action_item.set_state(False)
-
-      content = (f"<h1>{self.enable_angle_control.title}</h1><br>" +
-                 f"<p>{self.enable_angle_control.description}</p>")
-
-      dlg = ConfirmDialog(content, tr("Enable"), rich=True, callback=confirm_callback)
-      gui_app.push_widget(dlg)
-
-    else:
-      ui_state.params.put_bool("ToyotaEnableAngleControl", False)
       ui_state.params.put_bool("OnroadCycleRequested", True)
 
   def _set_enable_auto_hold(self, selected_index: int):
