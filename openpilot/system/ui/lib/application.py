@@ -725,7 +725,7 @@ class GuiApplication(GuiApplicationExt):
           cmap = tt_font.getBestCmap()
           codepoints = sorted(cmap.keys())
           codepoint_buffer = rl.ffi.new("int[]", codepoints)
-          font = rl.load_font_ex(font_path, 48,
+          font = rl.load_font_ex(font_path, 32,
             rl.ffi.cast("int *", codepoint_buffer), len(codepoints))
         print(f"字體：{font_weight_file}，已載入 {len(codepoints)} 個字元")
 
