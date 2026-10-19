@@ -147,7 +147,7 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
                                      accel_coast, self.allow_throttle)
 
     # ACC 限制
-    max_accel = LongitudinalPlannerSP.get_accel(v_ego)
+    max_accel = LongitudinalPlannerSP.get_accel(self, v_ego)
     if max_accel is not None:
       self.a_cruise = np.clip(self.a_cruise, ACCEL_MIN, max_accel)
 

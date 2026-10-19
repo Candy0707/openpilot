@@ -21,10 +21,9 @@ class LatControlDynamic(LatControl):
     # 當外層要求 extension 時，直接把 torque_ctrl 的 extension 交出去
     return self.torque_ctrl.extension
 
-  def update_live_torque_params(self, latAccelFactor, latAccelOffset, frictionCoefficient):
+  def update_torque_parameters(self, latAccelFactor, latAccelOffset, frictionCoefficient):
     # 將即時參數更新指令轉發給內部的 torque_ctrl
-    if hasattr(self.torque_ctrl, 'update_live_torque_params'):
-      self.torque_ctrl.update_live_torque_params(latAccelFactor, latAccelOffset, frictionCoefficient)
+    self.torque_ctrl.update_torque_parameters(latAccelFactor, latAccelOffset, frictionCoefficient)
   # ==========================================
 
   def update(self, active, CS, VM, params, steer_limited_by_safety, desired_curvature, calibrated_pose, curvature_limited, lat_delay):
