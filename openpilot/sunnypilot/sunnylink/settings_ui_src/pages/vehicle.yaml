@@ -26,7 +26,6 @@ sections:
       equals: true
     enablement:
     - $ref: '#/macros/offroad'
-    - $ref: '#/macros/longitudinal'
 - id: subaru
   title: Subaru Settings
   description: ''
@@ -59,10 +58,9 @@ sections:
   - key: TeslaMadsScreenButton
     widget: multiple_button
     title: MADS Screen Activation
-    description: 'Use a multi-finger press on the infotainment screen to toggle MADS.
-      This allows the use of full MADS functionality when enabled. Selecting a higher
-      finger count may reduce accidental activations. Note: Setting this to Off will
-      reset your MADS settings to default.'
+    description: 'Use a multi-finger press on the infotainment screen to toggle MADS. This allows the use of full MADS functionality
+      when enabled. Selecting a higher finger count may reduce accidental activations. Note: Setting this to Off will reset
+      your MADS settings to default.'
     options:
     - value: 0
       label: 'Off'
@@ -97,7 +95,6 @@ sections:
       applicable to certain models that are able to use longitudinal control. This is an alpha feature. Use at your own risk.
     enablement:
     - $ref: '#/macros/not_engaged'
-    - $ref: '#/macros/longitudinal'
     - type: param
       key: ToyotaEnforceStockLongitudinal
       equals: false

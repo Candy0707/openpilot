@@ -82,16 +82,12 @@ sections:
     description: Replaces normal lateral control with a deterministic test sequence. NOT for road use.
     enablement:
     - $ref: '#/macros/not_engaged'
-    - type: capability
-      field: torque_allowed
-      equals: true
   - key: LongitudinalManeuverMode
     widget: toggle
     title: '[TEST] Longitudinal Maneuver Mode'
     description: Replaces normal longitudinal control with a deterministic test sequence. NOT for road use.
     enablement:
     - $ref: '#/macros/not_engaged'
-    - $ref: '#/macros/longitudinal'
 - id: advanced_services
   title: Advanced Settings
   description: ''

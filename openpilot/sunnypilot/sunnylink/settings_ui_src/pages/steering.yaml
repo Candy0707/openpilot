@@ -120,26 +120,13 @@ sections:
 - id: torque
   title: Torque Control
   description: Steering torque tuning and lateral control method
-  enablement:
-  - type: capability
-    field: torque_allowed
-    equals: true
   items:
   - key: EnforceTorqueControl
     widget: toggle
     title: Enforce Torque Lateral Control
     description: Enable this to enforce sunnypilot to steer with Torque lateral control.
-    visibility:
-    - type: not
-      condition:
-        type: capability
-        field: steer_control_type
-        equals: angle
     enablement:
     - $ref: '#/macros/offroad'
-    - type: capability
-      field: torque_allowed
-      equals: true
     - type: param
       key: NeuralNetworkLateralControl
       equals: false
@@ -155,13 +142,8 @@ sections:
     - key: LateralJerkTorqueController
       widget: toggle
       title: Lateral Jerk Torque Controller
-      description: Looks ahead at planned steering to reduce sudden corrections, so the wheel moves more smoothly through turns. Works with Self-Tune and custom tuning. Thanks to @twilsonco for the implementation.
-      visibility:
-      - type: not
-        condition:
-          type: capability
-          field: steer_control_type
-          equals: angle
+      description: Looks ahead at planned steering to reduce sudden corrections, so the wheel moves more smoothly through
+        turns. Works with Self-Tune and custom tuning. Thanks to @twilsonco for the implementation.
       enablement:
       - $ref: '#/macros/offroad'
       - type: param
@@ -263,10 +245,9 @@ sections:
   - key: AutoLaneChangeTimer
     widget: option
     title: Auto Lane Change by Blinker
-    description: |-
-      Set a timer to delay the auto lane change operation when the blinker is used. No nudge on the steering wheel is required to auto lane change if a timer is set. Default is Nudge.
-    details: |-
-      Please use caution when using this feature. Only use the blinker when traffic and road conditions permit.
+    description: Set a timer to delay the auto lane change operation when the blinker is used. No nudge on the steering wheel
+      is required to auto lane change if a timer is set. Default is Nudge.
+    details: Please use caution when using this feature. Only use the blinker when traffic and road conditions permit.
     options:
     - value: -1
       label: 'Off'
@@ -289,8 +270,8 @@ sections:
   - key: AutoLaneChangeBsmDelay
     widget: toggle
     title: 'Auto Lane Change: Delay with Blind Spot'
-    description: Toggle to enable a delay timer for lane changes when blind spot monitoring (BSM) detects a vehicle in your blind
-      spot.
+    description: Toggle to enable a delay timer for lane changes when blind spot monitoring (BSM) detects a vehicle in your
+      blind spot.
     enablement:
     - type: capability
       field: enable_bsm

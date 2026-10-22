@@ -14,16 +14,10 @@ sections:
   - key: ExperimentalMode
     widget: toggle
     title: Experimental Mode
-    enablement:
-    - $ref: '#/macros/longitudinal'
   - key: DynamicExperimentalControl
     widget: toggle
     title: Dynamic Experimental Control
     description: Let the model decide when to use sunnypilot ACC or sunnypilot End to End Longitudinal.
-    visibility:
-    - $ref: '#/macros/longitudinal'
-    enablement:
-    - $ref: '#/macros/longitudinal'
   - key: DisengageOnAccelerator
     widget: toggle
     title: Disengage Cruise on Accelerator Pedal
@@ -41,8 +35,6 @@ sections:
       label: Standard
     - value: 2
       label: Relaxed
-    enablement:
-    - $ref: '#/macros/longitudinal'
   - key: IntelligentCruiseButtonManagement
     widget: toggle
     title: Intelligent Cruise Button Management (ICBM) (Alpha)
@@ -66,10 +58,6 @@ sections:
     title: Enable AccelPersonality Control
     description: Replace the stock acceleration limits with a cruise-speed-aware accel/decel profile for smoother approach
       to the set speed.
-    visibility:
-    - $ref: '#/macros/longitudinal'
-    enablement:
-    - $ref: '#/macros/longitudinal'
     sub_items:
     - key: AccelPersonality
       widget: multiple_button
@@ -83,7 +71,6 @@ sections:
       - value: 2
         label: ECO
       enablement:
-      - $ref: '#/macros/longitudinal'
       - type: param
         key: AccelPersonalityEnabled
         equals: true
@@ -92,69 +79,27 @@ sections:
     title: Enable LeadDepartureSmoother Control
     description: Rate-limits the cruise target speed with a constant-acceleration profile when the lead car pulls away or
       you close in, so speed rises and falls smoothly.
-    visibility:
-    - $ref: '#/macros/longitudinal'
-    enablement:
-    - $ref: '#/macros/longitudinal'
   - key: DynamicTurnSpeedController
     widget: toggle
     title: Enable Dynamic Turn Speed Controller (DTSC)
     description: Slows down before curves using the driving model's predicted path (curvature and lateral G at the apex),
       without relying on map data.
-    visibility:
-    - $ref: '#/macros/longitudinal'
-    enablement:
-    - $ref: '#/macros/longitudinal'
   - key: PathDeviationMonitor
     widget: toggle
     title: Enable Path Deviation Monitor (PDM)
-    description: Monitors whether the car's actual heading follows the model's planned path and smoothly slows down on
-      understeer, slip or an unsignalled swerve. A turn signal is treated as intentional.
-    visibility:
-    - $ref: '#/macros/longitudinal'
-    enablement:
-    - $ref: '#/macros/longitudinal'
+    description: Monitors whether the car's actual heading follows the model's planned path and smoothly slows down on understeer,
+      slip or an unsignalled swerve. A turn signal is treated as intentional.
 - id: custom_acc_increments
   title: Custom ACC Speed Intervals
   description: ''
   enablement:
   - $ref: '#/macros/offroad'
-  - type: any
-    conditions:
-    - type: all
-      conditions:
-      - type: capability
-        field: has_longitudinal_control
-        equals: true
-      - type: not
-        condition:
-          type: capability
-          field: pcm_cruise
-          equals: true
-    - type: capability
-      field: has_icbm
-      equals: true
   items:
   - key: CustomAccIncrementsEnabled
     widget: toggle
     title: Enable Custom ACC Speed Intervals
     enablement:
     - $ref: '#/macros/offroad'
-    - type: any
-      conditions:
-      - type: all
-        conditions:
-        - type: capability
-          field: has_longitudinal_control
-          equals: true
-        - type: not
-          condition:
-            type: capability
-            field: pcm_cruise
-            equals: true
-      - type: capability
-        field: has_icbm
-        equals: true
   sub_panels:
   - id: custom_acc_intervals
     label: Custom ACC Speed Intervals Settings
@@ -206,14 +151,6 @@ sections:
       - value: 3
         label: Assist
         enablement:
-        - type: any
-          conditions:
-          - type: capability
-            field: has_longitudinal_control
-            equals: true
-          - type: capability
-            field: has_icbm
-            equals: true
         - type: not
           condition:
             type: capability
@@ -270,57 +207,12 @@ sections:
 - id: smart_cruise
   title: Smart Cruise Control
   description: ''
-  enablement:
-  - type: any
-    conditions:
-    - type: capability
-      field: has_longitudinal_control
-      equals: true
-    - type: capability
-      field: has_icbm
-      equals: true
   items:
   - key: SmartCruiseControlVision
     widget: toggle
     title: Vision
     description: Use vision path predictions to estimate the appropriate speed to drive through turns ahead.
-    visibility:
-    - type: any
-      conditions:
-      - type: capability
-        field: has_longitudinal_control
-        equals: true
-      - type: capability
-        field: has_icbm
-        equals: true
-    enablement:
-    - type: any
-      conditions:
-      - type: capability
-        field: has_longitudinal_control
-        equals: true
-      - type: capability
-        field: has_icbm
-        equals: true
   - key: SmartCruiseControlMap
     widget: toggle
     title: Map
     description: Use map data to estimate the appropriate speed to drive through turns ahead.
-    visibility:
-    - type: any
-      conditions:
-      - type: capability
-        field: has_longitudinal_control
-        equals: true
-      - type: capability
-        field: has_icbm
-        equals: true
-    enablement:
-    - type: any
-      conditions:
-      - type: capability
-        field: has_longitudinal_control
-        equals: true
-      - type: capability
-        field: has_icbm
-        equals: true

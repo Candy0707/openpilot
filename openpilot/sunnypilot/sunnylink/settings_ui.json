@@ -312,37 +312,15 @@
           "id": "torque",
           "title": "Torque Control",
           "description": "Steering torque tuning and lateral control method",
-          "enablement": [
-            {
-              "type": "capability",
-              "field": "torque_allowed",
-              "equals": true
-            }
-          ],
           "items": [
             {
               "key": "EnforceTorqueControl",
               "widget": "toggle",
               "title": "Enforce Torque Lateral Control",
               "description": "Enable this to enforce sunnypilot to steer with Torque lateral control.",
-              "visibility": [
-                {
-                  "type": "not",
-                  "condition": {
-                    "type": "capability",
-                    "field": "steer_control_type",
-                    "equals": "angle"
-                  }
-                }
-              ],
               "enablement": [
                 {
                   "type": "offroad_only"
-                },
-                {
-                  "type": "capability",
-                  "field": "torque_allowed",
-                  "equals": true
                 },
                 {
                   "type": "param",
@@ -368,16 +346,6 @@
                   "widget": "toggle",
                   "title": "Lateral Jerk Torque Controller",
                   "description": "Looks ahead at planned steering to reduce sudden corrections, so the wheel moves more smoothly through turns. Works with Self-Tune and custom tuning. Thanks to @twilsonco for the implementation.",
-                  "visibility": [
-                    {
-                      "type": "not",
-                      "condition": {
-                        "type": "capability",
-                        "field": "steer_control_type",
-                        "equals": "angle"
-                      }
-                    }
-                  ],
                   "enablement": [
                     {
                       "type": "offroad_only"
@@ -630,34 +598,13 @@
             {
               "key": "ExperimentalMode",
               "widget": "toggle",
-              "title": "Experimental Mode",
-              "enablement": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ]
+              "title": "Experimental Mode"
             },
             {
               "key": "DynamicExperimentalControl",
               "widget": "toggle",
               "title": "Dynamic Experimental Control",
-              "description": "Let the model decide when to use sunnypilot ACC or sunnypilot End to End Longitudinal.",
-              "visibility": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ]
+              "description": "Let the model decide when to use sunnypilot ACC or sunnypilot End to End Longitudinal."
             },
             {
               "key": "DisengageOnAccelerator",
@@ -682,13 +629,6 @@
                 {
                   "value": 2,
                   "label": "Relaxed"
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
                 }
               ]
             },
@@ -729,20 +669,6 @@
               "widget": "toggle",
               "title": "Enable AccelPersonality Control",
               "description": "Replace the stock acceleration limits with a cruise-speed-aware accel/decel profile for smoother approach to the set speed.",
-              "visibility": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ],
               "sub_items": [
                 {
                   "key": "AccelPersonality",
@@ -765,11 +691,6 @@
                   ],
                   "enablement": [
                     {
-                      "type": "capability",
-                      "field": "has_longitudinal_control",
-                      "equals": true
-                    },
-                    {
                       "type": "param",
                       "key": "AccelPersonalityEnabled",
                       "equals": true
@@ -782,61 +703,19 @@
               "key": "LeadDepartureSmoother",
               "widget": "toggle",
               "title": "Enable LeadDepartureSmoother Control",
-              "description": "Rate-limits the cruise target speed with a constant-acceleration profile when the lead car pulls away or you close in, so speed rises and falls smoothly.",
-              "visibility": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ]
+              "description": "Rate-limits the cruise target speed with a constant-acceleration profile when the lead car pulls away or you close in, so speed rises and falls smoothly."
             },
             {
               "key": "DynamicTurnSpeedController",
               "widget": "toggle",
               "title": "Enable Dynamic Turn Speed Controller (DTSC)",
-              "description": "Slows down before curves using the driving model's predicted path (curvature and lateral G at the apex), without relying on map data.",
-              "visibility": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ]
+              "description": "Slows down before curves using the driving model's predicted path (curvature and lateral G at the apex), without relying on map data."
             },
             {
               "key": "PathDeviationMonitor",
               "widget": "toggle",
               "title": "Enable Path Deviation Monitor (PDM)",
-              "description": "Monitors whether the car's actual heading follows the model's planned path and smoothly slows down on understeer, slip or an unsignalled swerve. A turn signal is treated as intentional.",
-              "visibility": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                }
-              ]
+              "description": "Monitors whether the car's actual heading follows the model's planned path and smoothly slows down on understeer, slip or an unsignalled swerve. A turn signal is treated as intentional."
             }
           ]
         },
@@ -847,34 +726,6 @@
           "enablement": [
             {
               "type": "offroad_only"
-            },
-            {
-              "type": "any",
-              "conditions": [
-                {
-                  "type": "all",
-                  "conditions": [
-                    {
-                      "type": "capability",
-                      "field": "has_longitudinal_control",
-                      "equals": true
-                    },
-                    {
-                      "type": "not",
-                      "condition": {
-                        "type": "capability",
-                        "field": "pcm_cruise",
-                        "equals": true
-                      }
-                    }
-                  ]
-                },
-                {
-                  "type": "capability",
-                  "field": "has_icbm",
-                  "equals": true
-                }
-              ]
             }
           ],
           "items": [
@@ -885,34 +736,6 @@
               "enablement": [
                 {
                   "type": "offroad_only"
-                },
-                {
-                  "type": "any",
-                  "conditions": [
-                    {
-                      "type": "all",
-                      "conditions": [
-                        {
-                          "type": "capability",
-                          "field": "has_longitudinal_control",
-                          "equals": true
-                        },
-                        {
-                          "type": "not",
-                          "condition": {
-                            "type": "capability",
-                            "field": "pcm_cruise",
-                            "equals": true
-                          }
-                        }
-                      ]
-                    },
-                    {
-                      "type": "capability",
-                      "field": "has_icbm",
-                      "equals": true
-                    }
-                  ]
                 }
               ]
             }
@@ -994,21 +817,6 @@
                       "value": 3,
                       "label": "Assist",
                       "enablement": [
-                        {
-                          "type": "any",
-                          "conditions": [
-                            {
-                              "type": "capability",
-                              "field": "has_longitudinal_control",
-                              "equals": true
-                            },
-                            {
-                              "type": "capability",
-                              "field": "has_icbm",
-                              "equals": true
-                            }
-                          ]
-                        },
                         {
                           "type": "not",
                           "condition": {
@@ -1113,103 +921,18 @@
           "id": "smart_cruise",
           "title": "Smart Cruise Control",
           "description": "",
-          "enablement": [
-            {
-              "type": "any",
-              "conditions": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
-                },
-                {
-                  "type": "capability",
-                  "field": "has_icbm",
-                  "equals": true
-                }
-              ]
-            }
-          ],
           "items": [
             {
               "key": "SmartCruiseControlVision",
               "widget": "toggle",
               "title": "Vision",
-              "description": "Use vision path predictions to estimate the appropriate speed to drive through turns ahead.",
-              "visibility": [
-                {
-                  "type": "any",
-                  "conditions": [
-                    {
-                      "type": "capability",
-                      "field": "has_longitudinal_control",
-                      "equals": true
-                    },
-                    {
-                      "type": "capability",
-                      "field": "has_icbm",
-                      "equals": true
-                    }
-                  ]
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "any",
-                  "conditions": [
-                    {
-                      "type": "capability",
-                      "field": "has_longitudinal_control",
-                      "equals": true
-                    },
-                    {
-                      "type": "capability",
-                      "field": "has_icbm",
-                      "equals": true
-                    }
-                  ]
-                }
-              ]
+              "description": "Use vision path predictions to estimate the appropriate speed to drive through turns ahead."
             },
             {
               "key": "SmartCruiseControlMap",
               "widget": "toggle",
               "title": "Map",
-              "description": "Use map data to estimate the appropriate speed to drive through turns ahead.",
-              "visibility": [
-                {
-                  "type": "any",
-                  "conditions": [
-                    {
-                      "type": "capability",
-                      "field": "has_longitudinal_control",
-                      "equals": true
-                    },
-                    {
-                      "type": "capability",
-                      "field": "has_icbm",
-                      "equals": true
-                    }
-                  ]
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "any",
-                  "conditions": [
-                    {
-                      "type": "capability",
-                      "field": "has_longitudinal_control",
-                      "equals": true
-                    },
-                    {
-                      "type": "capability",
-                      "field": "has_icbm",
-                      "equals": true
-                    }
-                  ]
-                }
-              ]
+              "description": "Use map data to estimate the appropriate speed to drive through turns ahead."
             }
           ]
         }
@@ -1632,13 +1355,6 @@
                     "field": "device_type",
                     "equals": "mici"
                   }
-                }
-              ],
-              "enablement": [
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
                 }
               ]
             }
@@ -2088,11 +1804,6 @@
               "enablement": [
                 {
                   "type": "not_engaged"
-                },
-                {
-                  "type": "capability",
-                  "field": "torque_allowed",
-                  "equals": true
                 }
               ]
             },
@@ -2104,11 +1815,6 @@
               "enablement": [
                 {
                   "type": "not_engaged"
-                },
-                {
-                  "type": "capability",
-                  "field": "has_longitudinal_control",
-                  "equals": true
                 }
               ]
             }
@@ -2288,24 +1994,9 @@
               "widget": "toggle",
               "title": "Neural Network Lateral Control (NNLC)",
               "description": "Use a neural network for lateral control instead of the default torque controller.",
-              "visibility": [
-                {
-                  "type": "not",
-                  "condition": {
-                    "type": "capability",
-                    "field": "steer_control_type",
-                    "equals": "angle"
-                  }
-                }
-              ],
               "enablement": [
                 {
                   "type": "offroad_only"
-                },
-                {
-                  "type": "capability",
-                  "field": "torque_allowed",
-                  "equals": true
                 },
                 {
                   "type": "param",
@@ -2381,11 +2072,6 @@
           "enablement": [
             {
               "type": "offroad_only"
-            },
-            {
-              "type": "capability",
-              "field": "has_longitudinal_control",
-              "equals": true
             }
           ]
         }
@@ -2504,11 +2190,6 @@
           "enablement": [
             {
               "type": "not_engaged"
-            },
-            {
-              "type": "capability",
-              "field": "has_longitudinal_control",
-              "equals": true
             },
             {
               "type": "param",

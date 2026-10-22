@@ -60,8 +60,6 @@ sections:
       label: All
     visibility:
     - $ref: '#/macros/hide_on_mici'
-    enablement:
-    - $ref: '#/macros/longitudinal'
 - id: developer_ui
   title: Developer UI Info
   description: Speedometer and debug display options
