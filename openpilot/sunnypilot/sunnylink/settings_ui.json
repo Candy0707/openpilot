@@ -269,6 +269,46 @@
           ]
         },
         {
+          "id": "htd",
+          "title": "Human Turn Detection (HTD)",
+          "description": "Temporarily pause steering while the driver turns the wheel by hand",
+          "items": [
+            {
+              "key": "htd_enabled",
+              "widget": "toggle",
+              "title": "Enable Human Turn Detection (HTD)",
+              "description": "Unavailable during cruise control. Automatically pause steering when the driver applies large manual steering input, then smoothly resume.",
+              "enablement": [
+                {
+                  "type": "offroad_only"
+                }
+              ],
+              "sub_items": [
+                {
+                  "key": "htd_turn_angle_threshold",
+                  "widget": "option",
+                  "title": "HTD Trigger Angle",
+                  "description": "Driver steering angle that triggers HTD.",
+                  "min": 60,
+                  "max": 120,
+                  "step": 5,
+                  "unit": "\u00b0",
+                  "enablement": [
+                    {
+                      "type": "offroad_only"
+                    },
+                    {
+                      "type": "param",
+                      "key": "htd_enabled",
+                      "equals": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
           "id": "torque",
           "title": "Torque Control",
           "description": "Steering torque tuning and lateral control method",
@@ -674,6 +714,127 @@
                     "field": "has_longitudinal_control",
                     "equals": true
                   }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "fork_longitudinal",
+          "title": "Custom Longitudinal Controls",
+          "description": "Fork longitudinal features. Re-read about once per second, so changes apply while driving.",
+          "items": [
+            {
+              "key": "AccelPersonalityEnabled",
+              "widget": "toggle",
+              "title": "Enable AccelPersonality Control",
+              "description": "Replace the stock acceleration limits with a cruise-speed-aware accel/decel profile for smoother approach to the set speed.",
+              "visibility": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ],
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ],
+              "sub_items": [
+                {
+                  "key": "AccelPersonality",
+                  "widget": "multiple_button",
+                  "title": "Accel Personality",
+                  "description": "Sport accelerates harder, ECO is the gentlest.",
+                  "options": [
+                    {
+                      "value": 0,
+                      "label": "Sport"
+                    },
+                    {
+                      "value": 1,
+                      "label": "Normal"
+                    },
+                    {
+                      "value": 2,
+                      "label": "ECO"
+                    }
+                  ],
+                  "enablement": [
+                    {
+                      "type": "capability",
+                      "field": "has_longitudinal_control",
+                      "equals": true
+                    },
+                    {
+                      "type": "param",
+                      "key": "AccelPersonalityEnabled",
+                      "equals": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "key": "LeadDepartureSmoother",
+              "widget": "toggle",
+              "title": "Enable LeadDepartureSmoother Control",
+              "description": "Rate-limits the cruise target speed with a constant-acceleration profile when the lead car pulls away or you close in, so speed rises and falls smoothly.",
+              "visibility": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ],
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ]
+            },
+            {
+              "key": "DynamicTurnSpeedController",
+              "widget": "toggle",
+              "title": "Enable Dynamic Turn Speed Controller (DTSC)",
+              "description": "Slows down before curves using the driving model's predicted path (curvature and lateral G at the apex), without relying on map data.",
+              "visibility": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ],
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ]
+            },
+            {
+              "key": "PathDeviationMonitor",
+              "widget": "toggle",
+              "title": "Enable Path Deviation Monitor (PDM)",
+              "description": "Monitors whether the car's actual heading follows the model's planned path and smoothly slows down on understeer, slip or an unsignalled swerve. A turn signal is treated as intentional.",
+              "visibility": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ],
+              "enablement": [
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
                 }
               ]
             }
@@ -1523,6 +1684,26 @@
               ]
             },
             {
+              "key": "RadarUIInfo",
+              "widget": "option",
+              "title": "Radar Info UI",
+              "description": "Display Radar Points and Info.",
+              "options": [
+                {
+                  "value": 0,
+                  "label": "Off"
+                },
+                {
+                  "value": 1,
+                  "label": "Point"
+                },
+                {
+                  "value": 2,
+                  "label": "Info"
+                }
+              ]
+            },
+            {
               "key": "TrueVEgoUI",
               "widget": "toggle",
               "title": "Speedometer: Always Display True Speed",
@@ -2333,6 +2514,32 @@
               "type": "param",
               "key": "ToyotaEnforceStockLongitudinal",
               "equals": false
+            }
+          ]
+        },
+        {
+          "key": "ToyotaEnableAutoHold",
+          "widget": "multiple_button",
+          "needs_onroad_cycle": true,
+          "title": "Enable AUTO HOLD BRAKE (TSS2)",
+          "description": "For use on vehicles without auto braking. ON: start when the vehicle is in Drive (D) gear. SPEED: start when the vehicle speed is greater than 5 m/s (18 km/h).",
+          "options": [
+            {
+              "value": 0,
+              "label": "OFF"
+            },
+            {
+              "value": 1,
+              "label": "ON"
+            },
+            {
+              "value": 2,
+              "label": "SPEED"
+            }
+          ],
+          "enablement": [
+            {
+              "type": "not_engaged"
             }
           ]
         }

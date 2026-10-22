@@ -127,7 +127,8 @@ class QRScannerDialog(NavWidget):
     else:
       label_y = rect.y + rect.height * 3 / 4
       label_rect = rl.Rectangle(rect.x, label_y + (rect.height - label_y) / 2 - 20, rect.width, 40)
-      text = "not an LPA code" if rl.get_time() < self._invalid_code_until else "hold QR code to camera"
+      # dp - mici zh-CHT (sp only): translate scan hints
+      text = tr("not an LPA code") if rl.get_time() < self._invalid_code_until else tr("hold QR code to camera")
       gui_label(label_rect, text, font_size=32, font_weight=FontWeight.MEDIUM,
                 alignment=TextAlignment.CENTER,
                 color=rl.Color(255, 255, 255, int(255 * 0.9)))
@@ -295,7 +296,7 @@ class EsimProfileButton(BigButton):
 class EsimErrorDialog(NavRawScrollPanel):
   def __init__(self, error: str):
     super().__init__()
-    self._title = UnifiedLabel("esim error", font_size=64, font_weight=FontWeight.BOLD)
+    self._title = UnifiedLabel(lambda: tr("esim error"), font_size=64, font_weight=FontWeight.BOLD)
     self._error = UnifiedLabel(error, font_size=36, elide=False)
 
   def _render(self, rect: rl.Rectangle):

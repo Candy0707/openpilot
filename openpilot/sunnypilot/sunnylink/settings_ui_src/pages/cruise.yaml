@@ -57,6 +57,63 @@ sections:
         type: capability
         field: has_longitudinal_control
         equals: true
+- id: fork_longitudinal
+  title: Custom Longitudinal Controls
+  description: Fork longitudinal features. Re-read about once per second, so changes apply while driving.
+  items:
+  - key: AccelPersonalityEnabled
+    widget: toggle
+    title: Enable AccelPersonality Control
+    description: Replace the stock acceleration limits with a cruise-speed-aware accel/decel profile for smoother approach
+      to the set speed.
+    visibility:
+    - $ref: '#/macros/longitudinal'
+    enablement:
+    - $ref: '#/macros/longitudinal'
+    sub_items:
+    - key: AccelPersonality
+      widget: multiple_button
+      title: Accel Personality
+      description: Sport accelerates harder, ECO is the gentlest.
+      options:
+      - value: 0
+        label: Sport
+      - value: 1
+        label: Normal
+      - value: 2
+        label: ECO
+      enablement:
+      - $ref: '#/macros/longitudinal'
+      - type: param
+        key: AccelPersonalityEnabled
+        equals: true
+  - key: LeadDepartureSmoother
+    widget: toggle
+    title: Enable LeadDepartureSmoother Control
+    description: Rate-limits the cruise target speed with a constant-acceleration profile when the lead car pulls away or
+      you close in, so speed rises and falls smoothly.
+    visibility:
+    - $ref: '#/macros/longitudinal'
+    enablement:
+    - $ref: '#/macros/longitudinal'
+  - key: DynamicTurnSpeedController
+    widget: toggle
+    title: Enable Dynamic Turn Speed Controller (DTSC)
+    description: Slows down before curves using the driving model's predicted path (curvature and lateral G at the apex),
+      without relying on map data.
+    visibility:
+    - $ref: '#/macros/longitudinal'
+    enablement:
+    - $ref: '#/macros/longitudinal'
+  - key: PathDeviationMonitor
+    widget: toggle
+    title: Enable Path Deviation Monitor (PDM)
+    description: Monitors whether the car's actual heading follows the model's planned path and smoothly slows down on
+      understeer, slip or an unsignalled swerve. A turn signal is treated as intentional.
+    visibility:
+    - $ref: '#/macros/longitudinal'
+    enablement:
+    - $ref: '#/macros/longitudinal'
 - id: custom_acc_increments
   title: Custom ACC Speed Intervals
   description: ''

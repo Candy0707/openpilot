@@ -81,6 +81,17 @@ sections:
       label: Right
     - value: 3
       label: Right & Bottom
+  - key: RadarUIInfo
+    widget: option
+    title: Radar Info UI
+    description: Display Radar Points and Info.
+    options:
+    - value: 0
+      label: 'Off'
+    - value: 1
+      label: Point
+    - value: 2
+      label: Info
   - key: TrueVEgoUI
     widget: toggle
     title: 'Speedometer: Always Display True Speed'

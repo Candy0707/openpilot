@@ -3113,3 +3113,1447 @@ msgstr "點位"
 # 說明: 選項 - 資訊
 msgid "Info"
 msgstr "資訊"
+
+# ===== mici zh-CHT (ported from dp0111nodm + sp-only additions) =====
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid "1. sunnypilot is a driver assistance system."
+msgstr "1. sunnypilot 是駕駛輔助系統。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "2. You must pay attention at all times."
+msgstr "2. 你必須隨時注意路況。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "3. You must be ready to take over at any time."
+msgstr "3. 你必須隨時準備接管。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "4. You are fully responsible for driving the car."
+msgstr "4. 你須對駕駛車輛負完全責任。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "<b>Unsupported branch detected</b> - The current version of <b><u>%1</u></b> branch is no longer supported on the comma three. Please go to <b>[Device > Software]</b> and install a supported branch with <b><u>-tici</u></b> in the branch name for the comma three."
+msgstr "<b>偵測到不支援的分支</b> - 目前版本的 <b><u>%1</u></b> 分支已不再支援 comma three。請前往 <b>[裝置 > 軟體]</b>，為 comma three 安裝分支名稱包含 <b><u>-tici</u></b> 的支援分支。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "ACTIVE"
+msgstr "啟用中"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "Access the device remotely using your SSH keys."
+msgstr "使用您的 SSH 金鑰遠端存取裝置。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: new (sp-only string)
+msgid "Allow cellular data roaming."
+msgstr "允許行動數據漫遊。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "Any fast phone or laptop charger should be fine."
+msgstr "任何手機或筆電的快充充電器都可以。"
+
+#: openpilot/selfdrive/ui/mici/onroad/cabin_camera_dialog.py
+# mici zh-CHT: new (sp-only string)
+msgid "Awareness: {}%"
+msgstr "專注度：{}%"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Chestnut USB link is slow. Check the USB cable. The current speed is %1."
+msgstr "Chestnut USB 連線速度過慢，請檢查 USB 線材。目前速度為 %1。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Chestnut detected! Switch to the %1 branch to use chestnut-class models."
+msgstr "偵測到 Chestnut！請切換到 %1 分支以使用 chestnut 等級的模型。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Chestnut model not compiled. Keep ignition on and reboot the comma."
+msgstr "Chestnut 模型尚未編譯。請保持點火狀態並重新啟動 comma。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Chestnut not detected. Check USB and 12V connections."
+msgstr "未偵測到 Chestnut。請檢查 USB 與 12V 連接。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Chestnut overheated. Ensure good airflow. Current GPU temperature is %1."
+msgstr "Chestnut 過熱，請確保通風良好。目前 GPU 溫度為 %1。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Chestnut update failed. Check the USB cable."
+msgstr "Chestnut 更新失敗，請檢查 USB 線材。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Connect to internet to check for updates. sunnypilot won't automatically start until it connects to internet to check for updates."
+msgstr "請連上網路以檢查更新。在連上網路檢查更新之前，sunnypilot 不會自動啟動。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "Control the car with a joystick for debugging."
+msgstr "使用搖桿控制車輛以進行除錯。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "Device must be registered with the comma.ai backend to pair."
+msgstr "裝置必須先向 comma.ai 後端註冊才能配對。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: dp0111nodm
+msgid "Device temperature too high. System cooling down before starting. Current internal component temperature: %1"
+msgstr "裝置溫度過高。系統降溫後才會啟動。目前內部元件溫度：%1"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "Disengage to power off"
+msgstr "請先脫離以關機"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "Disengage to reboot"
+msgstr "請先脫離以重新啟動"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "Disengage to reset"
+msgstr "請先脫離以重設"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "Disengage to uninstall"
+msgstr "請先脫離以解除安裝"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "Do all of my segments get pulled in Firehose Mode?"
+msgstr "Firehose 模式會擷取我所有的片段嗎？"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "Does it matter how or where I drive?"
+msgstr "駕駛方式或地點有影響嗎？"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "Does it matter which software I run?"
+msgstr "使用的軟體有影響嗎？"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"Enable to use sunnypilot driver assistance.\n"
+"Disable to use your car's stock driver assistance."
+msgstr ""
+"啟用以使用 sunnypilot 駕駛輔助。\n"
+"停用則使用車輛原廠的駕駛輔助。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "Enabling this will switch to openpilot longitudinal control."
+msgstr "啟用後將改由 openpilot 進行縱向控制。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "End-to-End Longitudinal Control"
+msgstr "端到端縱向控制"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "Ensure you're connected to the internet and try again."
+msgstr "請確認已連上網路後再試一次。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Excessive %1 actuation detected on your last drive. Please visit https://community.sunnypilot.ai/ and share your device's Dongle ID for troubleshooting."
+msgstr "上次行駛偵測到過度的 %1 作動。請前往 https://community.sunnypilot.ai/ 並提供裝置的 Dongle ID 以協助排查。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "Experimental mode enables alpha-level features that aren't ready for chill mode."
+msgstr "實驗模式會啟用尚未適合放鬆模式的 alpha 等級功能。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "Failed to get available branches. Ensure you're connected to the internet and try again."
+msgstr "無法取得可用的分支。請確認已連上網路後再試一次。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: dp0111nodm
+msgid "Failed to register with comma.ai backend. It will not connect or upload to comma.ai servers, and receives no support from comma.ai. If this is a device purchased at comma.ai/shop, open a ticket at https://comma.ai/support."
+msgstr "無法向 comma.ai 後端註冊。裝置將不會連線或上傳至 comma.ai 伺服器，也無法獲得 comma.ai 的支援。若此裝置購自 comma.ai/shop，請至 https://comma.ai/support 提交問題單。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"For maximum effectiveness, bring your device inside and connect to a good USB-C adapter and Wi-Fi weekly.\n"
+"\n"
+"Firehose Mode can also work while you're driving if connected to a hotspot or unlimited SIM card."
+msgstr ""
+"為了達到最佳效果，請每週將裝置帶進室內，接上良好的 USB-C 充電器並連上 Wi-Fi。\n"
+"\n"
+"若連接熱點或使用吃到飽的 SIM 卡，Firehose 模式在行駛中也能運作。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "Frequently Asked Questions"
+msgstr "常見問題"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "Grant SSH access to all public keys in your GitHub settings. Only enter your own username."
+msgstr "授予 GitHub 設定中所有公開金鑰 SSH 存取權。請只輸入您自己的使用者名稱。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "INACTIVE: connect to an unmetered network"
+msgstr "未啟用：請連線至不限流量的網路"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "If it does not have a clear view of the driver, unplug and remount before continuing."
+msgstr "若無法清楚拍到駕駛，請重新安裝裝置後再繼續。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "Immediately connect to the internet to check for updates. If you do not connect to the internet, sunnypilot won't engage in %1"
+msgstr "請立即連上網路以檢查更新。若未連上網路，sunnypilot 將在 %1 後無法啟動"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"Let the driving model control gas and brakes.\n"
+"Includes stopping for red lights and stop signs.\n"
+"Set speed is a maximum, not a target.\n"
+"These are alpha features. Expect mistakes.\n"
+"The path colors show acceleration and braking."
+msgstr ""
+"讓駕駛模型控制油門與煞車。\n"
+"包含在紅燈與停止標誌前停車。\n"
+"設定車速是上限，不是目標車速。\n"
+"這些是 alpha 功能，可能會出錯。\n"
+"路徑顏色代表加速與煞車。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "Let the driving model control the gas and brakes."
+msgstr "讓駕駛模型控制油門與煞車。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "Loading..."
+msgstr "載入中..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: new (sp-only string)
+msgid "Metered prevents large uploads on this Wi-Fi connection. Default uses the network’s detected setting."
+msgstr "計量會避免在此 Wi-Fi 連線上大量上傳。預設會使用網路偵測到的設定。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "Monitor the driver even when sunnypilot is not engaged."
+msgstr "即使 sunnypilot 未啟動，也持續監控駕駛。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: new (sp-only string)
+msgid "Mount the device within 4° left or right and 5° up or 9° down. openpilot calibrates continuously; resetting is rarely needed. Resetting clears learned calibration."
+msgstr "請將裝置安裝在左右 4° 內、向上 5° 或向下 9° 以內。openpilot 會持續校正，通常不需要重設。重設會清除已學習的校正資料。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "New Driving Visualization"
+msgstr "全新駕駛視覺化"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "Next, we'll check if comma four can detect the driver properly."
+msgstr "接下來檢查 comma four 是否能正確偵測駕駛。"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "No models are available for this hardware yet. Connect to the internet and refresh the model list."
+msgstr "此硬體目前沒有可用的模型。請連上網路並重新整理模型列表。"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "No models available"
+msgstr "沒有可用的模型"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "No, we selectively pull a subset of your segments."
+msgstr "不會，我們只會選擇性擷取部分片段。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "Nope, just drive as you normally would."
+msgstr "沒有，照平常方式駕駛即可。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "Not set"
+msgstr "未設定"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "On this car, openpilot defaults to the stock system's built-in ACC."
+msgstr "此車款的 openpilot 預設使用原廠內建的 ACC。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"OpenStreetMap database is out of date. New maps must be downloaded if you wish to continue using OpenStreetMap data for Enhanced Speed Control and road name display.\n"
+"\n"
+"%1"
+msgstr ""
+"OpenStreetMap 資料庫已過期。若要繼續使用 OpenStreetMap 資料進行增強速度控制與道路名稱顯示，必須下載新的地圖。\n"
+"\n"
+"%1"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "Please connect to Wi-Fi to complete initial pairing."
+msgstr "請連線至 Wi-Fi 以完成初次配對。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "Please connect to Wi-Fi to fetch your key."
+msgstr "請連線至 Wi-Fi 以取得金鑰。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: dp0111nodm
+msgid "Please connect to Wi-Fi to update."
+msgstr "請連線至 Wi-Fi 以進行更新。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: dp0111nodm
+msgid "Poor visibility detected for driver monitoring. Ensure the device has a clear view of the driver. This can be checked in the device settings. Extreme lighting conditions and/or unconventional mounting positions may also trigger this alert."
+msgstr "駕駛監控視野不佳。請確認裝置能清楚看見駕駛，可在裝置設定中檢查。極端光線條件或非常規的安裝位置也可能觸發此警示。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: new (sp-only string)
+msgid "Prevent large uploads over the cellular connection."
+msgstr "避免透過行動網路大量上傳。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: new (sp-only string)
+msgid "Preview the cabin camera to check driver monitoring visibility. The vehicle must be off."
+msgstr "預覽車內鏡頭，確認駕駛監控的視野。車輛必須熄火。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"Record microphone audio while driving.\n"
+"Audio is included in dashcam videos in sunnylink."
+msgstr ""
+"行駛時錄製麥克風音訊。\n"
+"音訊會包含在 sunnylink 的行車記錄影片中。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "Red for braking, green for acceleration, and gray for coasting."
+msgstr "紅色代表煞車，綠色代表加速，灰色代表滑行。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "Remount if your face is blocked, or driver monitoring has difficulty tracking your face."
+msgstr "若臉部被遮擋或駕駛監控無法追蹤，請調整裝置位置。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "Remove openpilot from this device."
+msgstr "從此裝置移除 openpilot。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "Run lateral maneuvers for testing steering control."
+msgstr "執行橫向操作測試，以檢驗轉向控制。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "Run longitudinal maneuvers for testing gas and brake control."
+msgstr "執行縱向操作測試，以檢驗油門與煞車控制。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "SSH keys"
+msgstr "SSH 金鑰"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: new (sp-only string)
+msgid "Set the access point name required by your cellular carrier. Leave blank for automatic configuration."
+msgstr "設定電信業者要求的存取點名稱（APN）。留空則自動設定。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: new (sp-only string)
+msgid "Share the device’s internet connection through a Wi-Fi hotspot."
+msgstr "透過 Wi-Fi 熱點分享裝置的網路連線。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid "Sharing your data with comma helps improve openpilot and sunnypilot for everyone."
+msgstr "與 comma 分享您的資料，有助於讓所有人使用的 openpilot 和 sunnypilot 變得更好。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "Show touch locations and the UI frame rate."
+msgstr "顯示觸控位置與介面更新率。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"Standard is recommended.\n"
+"Aggressive follows closer, with firmer gas and braking.\n"
+"Relaxed leaves more space.\n"
+"Use the steering wheel distance button on supported cars."
+msgstr ""
+"建議使用標準。\n"
+"積極：跟車較近，油門與煞車較果斷。\n"
+"從容：保留較大車距。\n"
+"支援的車款可使用方向盤上的車距按鈕切換。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "The path will change colors to communicate acceleration intent."
+msgstr "路徑會改變顏色，以表示加速意圖。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "The set speed will only act as an upper bound."
+msgstr "設定車速只會作為上限。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "This is an alpha quality feature; mistakes should be expected."
+msgstr "這是 alpha 品質的功能，可能會出錯。"
+
+#: openpilot/selfdrive/ui/mici/onroad/cabin_camera_dialog.py
+# mici zh-CHT: new (sp-only string)
+msgid "Touch Wheel"
+msgstr "請握住方向盤"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: dp0111nodm
+msgid ""
+"Unable to download updates\n"
+"%1"
+msgstr ""
+"無法下載更新\n"
+"%1"
+
+#: openpilot/selfdrive/ui/mici/layouts/offroad_alerts.py
+# mici zh-CHT: dp0111nodm
+msgid "Update available {}. Click to update. Read the release notes at blog.comma.ai."
+msgstr "有可用更新 {}。點擊以更新。版本說明請見 blog.comma.ai。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "Upload cabin camera data to help improve driver monitoring."
+msgstr "上傳車內鏡頭資料，協助改善駕駛監控。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "Use Android Debug Bridge (ADB) over USB or the network."
+msgstr "透過 USB 或網路使用 Android Debug Bridge（ADB）。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "Use alpha openpilot longitudinal control instead of stock ACC. This may disable Automatic Emergency Braking (AEB)."
+msgstr "使用 alpha 版 openpilot 縱向控制取代原廠 ACC。這可能會停用自動緊急煞車（AEB）。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "WARNING: alpha longitudinal control may disable Automatic Emergency Braking (AEB)"
+msgstr "警告：Alpha 縱向控制可能會停用自動緊急煞車（AEB）"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"Warn when you drift across a detected lane line.\n"
+"Only above 31 mph (50 km/h), with no turn signal."
+msgstr ""
+"偏離偵測到的車道線時發出警示。\n"
+"僅在時速 50 公里（31 mph）以上且未打方向燈時作用。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "What's a good USB-C adapter?"
+msgstr "什麼樣的 USB-C 充電器比較好？"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/firehose.py
+# mici zh-CHT: dp0111nodm
+msgid "Yes, only upstream openpilot (and particular forks) are able to be used for training."
+msgstr "有，只有上游 openpilot（及特定分支）的資料可用於訓練。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid "You must accept the Terms of Service to use sunnypilot."
+msgstr "您必須接受服務條款才能使用 sunnypilot。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"accept\n"
+"terms"
+msgstr ""
+"接受\n"
+"條款"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "active"
+msgstr "使用中"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "active model"
+msgstr "目前模型"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "add profile"
+msgstr "新增設定檔"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "aggressive"
+msgstr "積極"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "allow data uploading"
+msgstr "允許上傳資料"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "alpha longitudinal"
+msgstr "Alpha 縱向控制"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "always-on driver monitor"
+msgstr "持續監控駕駛"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: dp0111nodm
+msgid "apn settings"
+msgstr "APN 設定"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "backing up"
+msgstr "備份中"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "backup"
+msgstr "備份"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "backup settings"
+msgstr "備份設定"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/widgets/sunnylink_pairing_dialog.py
+# mici zh-CHT: new (sp-only string)
+msgid "become a sunnypilot sponsor"
+msgstr "成為 sunnypilot 贊助者"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "big model"
+msgstr "大模型"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "big models"
+msgstr "大模型"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "branch"
+msgstr "分支"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "cancel download"
+msgstr "取消下載"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "cancel verification"
+msgstr "取消驗證"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: dp0111nodm
+msgid "cellular metered"
+msgstr "行動網路計量"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "check for update"
+msgstr "檢查更新"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "clear cache"
+msgstr "清除快取"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "clearing..."
+msgstr "清除中..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "connect"
+msgstr "連線"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "connected"
+msgstr "已連線"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/__init__.py
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "connecting..."
+msgstr "連線中..."
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"decline &\n"
+"uninstall"
+msgstr ""
+"拒絕並\n"
+"解除安裝"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "device ID"
+msgstr "裝置識別碼"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "device id"
+msgstr "裝置 ID"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"disable\n"
+"sunnylink"
+msgstr ""
+"停用\n"
+"sunnylink"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/settings.py
+# mici zh-CHT: new (sp-only string)
+msgid "disengage to enable always offroad"
+msgstr "請先脫離才能啟用保持 Offroad"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "do you want to share video data for training?"
+msgstr "是否分享影像資料供模型訓練？"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "download failed"
+msgstr "下載失敗"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: dp0111nodm
+msgid "download update"
+msgstr "下載更新"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "downloaded"
+msgstr "已下載"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "downloading"
+msgstr "下載中"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"driver\n"
+"camera preview"
+msgstr ""
+"車內鏡頭\n"
+"預覽"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "driver camera data"
+msgstr "車內鏡頭資料"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"driver monitoring\n"
+"check"
+msgstr ""
+"駕駛監控\n"
+"檢查"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "driving personality"
+msgstr "駕駛風格"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: dp0111nodm
+msgid "edit"
+msgstr "編輯"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"enable\n"
+"experimental mode"
+msgstr ""
+"啟用\n"
+"實驗模式"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"enable\n"
+"sunnylink"
+msgstr ""
+"啟用\n"
+"sunnylink"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "enable ADB"
+msgstr "啟用 ADB"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid "enable SSH"
+msgstr "啟用 SSH"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"enable alpha\n"
+"longitudinal"
+msgstr ""
+"啟用 Alpha\n"
+"縱向控制"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: dp0111nodm
+msgid "enable roaming"
+msgstr "啟用漫遊"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "enable sunnylink"
+msgstr "啟用 sunnylink"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "enable sunnypilot"
+msgstr "啟用 sunnypilot"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: dp0111nodm
+msgid "enable tethering"
+msgstr "啟用網路共享"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"enabling\n"
+"experimental mode"
+msgstr ""
+"正在啟用\n"
+"實驗模式"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "enabling alpha longitudinal"
+msgstr "啟用 Alpha 縱向控制"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: dp0111nodm
+msgid "enter APN..."
+msgstr "輸入 APN..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "enter GitHub username..."
+msgstr "輸入 GitHub 使用者名稱..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "enter a nickname..."
+msgstr "輸入暱稱..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "enter password..."
+msgstr "輸入密碼..."
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "error"
+msgstr "錯誤"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "esim error"
+msgstr "eSIM 錯誤"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "experimental mode"
+msgstr "實驗模式"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "failed"
+msgstr "失敗"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: dp0111nodm
+msgid "failed to update"
+msgstr "更新失敗"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "fetching..."
+msgstr "取得中..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "forgetting..."
+msgstr "正在刪除網路..."
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "getting ready"
+msgstr "準備中"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "hold QR code to camera"
+msgstr "請將 QR 碼對準鏡頭"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"joystick debug\n"
+"mode"
+msgstr ""
+"搖桿除錯\n"
+"模式"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "lane departure warnings"
+msgstr "車道偏離警示"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "lateral maneuver mode"
+msgstr "橫向操控模式"
+
+#: openpilot/selfdrive/ui/mici/onroad/cabin_camera_dialog.py
+# mici zh-CHT: new (sp-only string)
+msgid "level {}"
+msgstr "等級 {}"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "longitudinal maneuver mode"
+msgstr "縱向操控模式"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "looking for driver"
+msgstr "正在尋找駕駛"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"make sure comma\n"
+"four can see your face"
+msgstr ""
+"確認 comma four\n"
+"能看見你的臉"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/settings.py
+# mici zh-CHT: new (sp-only string)
+msgid "models"
+msgstr "模型"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: dp0111nodm
+msgid "network usage"
+msgstr "網路用量"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "nickname"
+msgstr "暱稱"
+
+#: openpilot/selfdrive/ui/mici/layouts/offroad_alerts.py
+# mici zh-CHT: dp0111nodm
+msgid "no alerts"
+msgstr "沒有警示"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "no internet"
+msgstr "沒有網路"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "no, don't upload"
+msgstr "不要上傳"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "not an LPA code"
+msgstr "不是 LPA 代碼"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/__init__.py
+# mici zh-CHT: dp0111nodm
+msgid "not connected"
+msgstr "未連線"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "not in range"
+msgstr "不在範圍內"
+
+#: openpilot/selfdrive/ui/mici/onroad/augmented_road_view.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"openpilot can't start\n"
+"check alerts"
+msgstr ""
+"openpilot 無法啟動\n"
+"請查看警示"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "openpilot defaults to driving in chill mode."
+msgstr "openpilot 預設以放鬆模式駕駛。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "openpilot will drive as it thinks a human would, including stopping for red lights and stop signs."
+msgstr "openpilot 會依照它認為人類會採取的方式駕駛，包含在紅燈與停止標誌前停車。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid "or go to https://sunnypilot.ai/terms"
+msgstr "或前往 https://sunnypilot.ai/terms"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: dp0111nodm
+msgid "pair"
+msgstr "配對"
+
+#: openpilot/selfdrive/ui/mici/widgets/pairing_dialog.py
+# mici zh-CHT: dp0111nodm
+msgid "pair with comma connect"
+msgstr "與 comma connect 配對"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/widgets/sunnylink_pairing_dialog.py
+# mici zh-CHT: new (sp-only string)
+msgid "pair with sunnylink"
+msgstr "與 sunnylink 配對"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: dp0111nodm
+msgid "paired"
+msgstr "已配對"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "please connect to WiFi & try again"
+msgstr "請連上 Wi-Fi 後再試一次"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "please reboot & try again"
+msgstr "請重新啟動後再試一次"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "power off"
+msgstr "關機"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "progress"
+msgstr "進度"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "queued"
+msgstr "排隊中"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "reboot"
+msgstr "重新啟動"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: new (sp-only string)
+msgid "record & upload cabin camera"
+msgstr ""
+"錄製並上傳\n"
+"車內鏡頭"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "record & upload mic audio"
+msgstr ""
+"錄製並上傳\n"
+"麥克風音訊"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "refresh models"
+msgstr "重新整理模型"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "regulatory info"
+msgstr "法規資訊"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "relaxed"
+msgstr "舒適"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: new (sp-only string)
+msgid "reset"
+msgstr "重設"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "reset calibration"
+msgstr "重設校正"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "restore"
+msgstr "還原"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "restore settings"
+msgstr "還原設定"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "restoring"
+msgstr "還原中"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"review\n"
+"training guide"
+msgstr ""
+"檢視\n"
+"使用教學"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "scan QR code"
+msgstr "掃描 QR 碼"
+
+#: openpilot/selfdrive/ui/mici/widgets/dialog.py
+# mici zh-CHT: new (sp-only string)
+msgid "scroll for details"
+msgstr "捲動以查看詳情"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "scroll to continue"
+msgstr "捲動以繼續"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "select model"
+msgstr "選擇模型"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "selected"
+msgstr "已選取"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "serial"
+msgstr "序號"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "settings backed up"
+msgstr "設定已備份"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "slide to"
+msgstr "滑動以"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"slide to\n"
+"power off"
+msgstr ""
+"滑動以\n"
+"關機"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"slide to\n"
+"reboot"
+msgstr ""
+"滑動以\n"
+"重新啟動"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"slide to\n"
+"reset"
+msgstr ""
+"滑動以\n"
+"重設"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"slide to\n"
+"uninstall"
+msgstr ""
+"滑動以\n"
+"解除安裝"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "slide to backup"
+msgstr "滑動以備份"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "slide to delete"
+msgstr "滑動以刪除"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/settings.py
+# mici zh-CHT: new (sp-only string)
+msgid "slide to exit always offroad"
+msgstr "滑動以結束保持 Offroad"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/settings.py
+# mici zh-CHT: new (sp-only string)
+msgid "slide to force offroad"
+msgstr "滑動以強制 Offroad"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "slide to forget"
+msgstr "滑動以刪除網路"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "slide to restart"
+msgstr "滑動以重新啟動"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "slide to restore"
+msgstr "滑動以還原"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "small model"
+msgstr "小模型"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "small models"
+msgstr "小模型"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "sponsor"
+msgstr "贊助"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "sponsor tier"
+msgstr "贊助等級"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "standard"
+msgstr "標準"
+
+#: openpilot/selfdrive/ui/mici/onroad/augmented_road_view.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"start the car to\n"
+"use sunnypilot"
+msgstr ""
+"請發動車輛\n"
+"以使用 sunnypilot"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/__init__.py
+# mici zh-CHT: dp0111nodm
+msgid "starting"
+msgstr "啟動中"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "starting..."
+msgstr "啟動中..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "subscribed"
+msgstr "已訂閱"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "sunnylink dongle id not found"
+msgstr "找不到 sunnylink 裝置 ID"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid "sunnylink enables secured remote access to your comma device from anywhere."
+msgstr "sunnylink 讓您可以從任何地方安全地遠端存取 comma 裝置。"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "sunnylink uploader"
+msgstr "sunnylink 上傳"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "sunnypilot detected a change in the device's mounting position. Ensure the device is fully seated in the mount and the mount is firmly secured to the windshield."
+msgstr "sunnypilot 偵測到裝置的安裝位置改變。請確認裝置已完全卡入支架，且支架已牢固固定在擋風玻璃上。"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid "sunnypilot uses the cabin camera to check if the driver is distracted."
+msgstr "sunnypilot 會使用車內鏡頭確認駕駛是否分心。"
+
+#: openpilot/selfdrive/selfdrived/alerts_offroad.json
+# mici zh-CHT: new (sp-only string)
+msgid "sunnypilot was unable to identify your car. Your car is either unsupported or its ECUs are not recognized. Please select your vehicle manually at https://www.sunnylink.ai/. Need help? Visit https://community.sunnypilot.ai/"
+msgstr "sunnypilot 無法辨識您的車輛。您的車輛可能不受支援，或其 ECU 無法辨識。請至 https://www.sunnylink.ai/ 手動選擇車型。需要協助？請前往 https://community.sunnypilot.ai/"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: dp0111nodm
+msgid "swipe for QR code"
+msgstr "滑動以顯示 QR 碼"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "switch"
+msgstr "切換"
+
+#: openpilot/selfdrive/ui/mici/onroad/augmented_road_view.py
+# mici zh-CHT: dp0111nodm
+msgid "system booting"
+msgstr "系統啟動中"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"terms &\n"
+"conditions"
+msgstr ""
+"條款與\n"
+"細則"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid ""
+"terms of\n"
+"service"
+msgstr ""
+"服務\n"
+"條款"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "tethering"
+msgstr "網路共享"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/network_layout.py
+# mici zh-CHT: dp0111nodm
+msgid "tethering password"
+msgstr "網路共享密碼"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "thanks"
+msgstr "感謝"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "try again later."
+msgstr "請稍後再試。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/developer.py
+# mici zh-CHT: dp0111nodm
+msgid "ui debug mode"
+msgstr "介面除錯模式"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/sunnylink.py
+# mici zh-CHT: new (sp-only string)
+msgid "unable to restore"
+msgstr "無法還原"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "unavailable"
+msgstr "無法使用"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "uninstall"
+msgstr "解除安裝"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "uninstall sunnypilot"
+msgstr "解除安裝 sunnypilot"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "unsupported"
+msgstr "不支援"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: dp0111nodm
+msgid "up to date"
+msgstr "已是最新版本"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: dp0111nodm
+msgid ""
+"updater failed\n"
+"to respond"
+msgstr ""
+"更新程式\n"
+"沒有回應"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "upgrade to prime"
+msgstr "升級 Prime"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/toggles.py
+# mici zh-CHT: dp0111nodm
+msgid "use metric units"
+msgstr "使用公制單位"
+
+#: openpilot/selfdrive/ui/sunnypilot/mici/layouts/models.py
+# mici zh-CHT: new (sp-only string)
+msgid "verifying"
+msgstr "驗證中"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "version"
+msgstr "版本"
+
+#: openpilot/selfdrive/ui/mici/layouts/onboarding.py
+# mici zh-CHT: new (sp-only string)
+msgid "what is sunnypilot?"
+msgstr "什麼是 sunnypilot？"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/__init__.py
+# mici zh-CHT: dp0111nodm
+msgid "wi-fi"
+msgstr "Wi-Fi"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "wrong password"
+msgstr "密碼錯誤"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "Select the software branch to download on the next update check."
+msgstr "選擇下次檢查更新時要下載的軟體分支。"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/__init__.py
+# mici zh-CHT: new (sp-only string)
+msgid "esim"
+msgstr "eSIM"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "install now"
+msgstr "立即安裝"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "installing profile"
+msgstr "正在安裝設定檔"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/device.py
+# mici zh-CHT: dp0111nodm
+msgid "language"
+msgstr "語言"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/__init__.py
+# mici zh-CHT: new (sp-only string)
+msgid "loading..."
+msgstr "載入中..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/esim_ui.py
+# mici zh-CHT: new (sp-only string)
+msgid "please wait..."
+msgstr "請稍候..."
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/network/wifi_ui.py
+# mici zh-CHT: dp0111nodm
+msgid "searching for networks"
+msgstr "正在搜尋網路"
+
+#: openpilot/selfdrive/ui/mici/layouts/settings/software.py
+# mici zh-CHT: new (sp-only string)
+msgid "target branch"
+msgstr "目標分支"

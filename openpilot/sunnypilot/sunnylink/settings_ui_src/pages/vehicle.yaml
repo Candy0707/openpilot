@@ -101,3 +101,18 @@ sections:
     - type: param
       key: ToyotaEnforceStockLongitudinal
       equals: false
+  - key: ToyotaEnableAutoHold
+    widget: multiple_button
+    needs_onroad_cycle: true
+    title: Enable AUTO HOLD BRAKE (TSS2)
+    description: 'For use on vehicles without auto braking. ON: start when the vehicle is in Drive (D) gear. SPEED: start
+      when the vehicle speed is greater than 5 m/s (18 km/h).'
+    options:
+    - value: 0
+      label: 'OFF'
+    - value: 1
+      label: 'ON'
+    - value: 2
+      label: SPEED
+    enablement:
+    - $ref: '#/macros/not_engaged'
