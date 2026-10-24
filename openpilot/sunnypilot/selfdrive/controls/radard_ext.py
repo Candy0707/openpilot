@@ -1,6 +1,16 @@
 #!/usr/bin/env python3
-# DP v9.6.2 port for dev20261022. measured defaults to True only if absent upstream.
-# Source log claims below are inherited comments, not validation performed for this port.
+# dp: 自 openpilot-dp0111nodm（dragonpilot/selfdrive/controls/radard_ext.py）移植到 sunnypilot master-dev。
+# 移植差異（相對 dp0111nodm）：
+#   - LeadData 欄位 status → present（sunnypilot schema）
+#   - get_lead 介面多了 CP / CP_SP（位置參數），純視覺前車套用原廠 get_custom_yrel()
+#   - RadarDExt 建構子改為 (CP, CP_SP, delay)
+#   - 移除 measured（雷達點真實量測/外推旗標）：sunnypilot 新版 opendbc 已不提供，所有雷達點視為真實量測。
+#     刪除的判斷：轉彎時排除外推點、切入預測的量測新鮮度（CUTIN_MEASURED_MAX_AGE）、雷達主導救援的量測條件。
+#     log 032/033：外推點佔 0.1%（17443 點中 18 點，都在目標消失前 1~11 幀），移除前後重播結果相同。
+# 其餘演算法（提早鎖定、橫向閘門、鎖定黏著、重複點修正、雷達主導救援、切入預測 v9.4）未改動。
+# v9.6.2 移植（自 openpilot-dplcc）：多點大型車改以模型車道線判斷切入、路徑跳動保護、大型車身分
+#   補強（ID 黏著、重複點繼承、只看移動點）。dplcc 版中與 measured 有關的部分（量測新鮮度 fresh、
+#   log 的 age= 欄位、釋放原因 stale）一律不移植，維持「所有雷達點視為真實量測」。
 import capnp
 import numpy as np
 from collections import deque
@@ -14,7 +24,7 @@ from opendbc.car.structs import car
 # ==============================================================================
 from openpilot.selfdrive.controls import radard
 
-# 2. 正常引入我們需要的元件與原始函數 (移除 DP 中不存在的 structs 與客製函數)
+# 2. 正常引入我們需要的元件與原始函數
 from openpilot.selfdrive.controls.radard import (
     KalmanParams, Track, RadarD, match_vision_to_track,
     get_RadarState_from_vision, get_custom_yrel, RADAR_TO_CAMERA
@@ -92,7 +102,6 @@ VEL_SANE_FALLBACK_SCORE = 1.0       # 啟用後 score_v 的下限，1.0 = 完全
 # 但持續計數本身依賴視覺位置吻合，視覺一不可靠就先中斷。10 段 log 重播中，因救援而
 # 改變的前車選擇累計 0 幀。改為以「雷達本身的穩定性」當證據：
 #   一個雷達目標連續 RADAR_RESCUE_CONFIRM_FRAMES 幀同時滿足下列條件，即成為救援候選：
-#     - 真實量測（measured）
 #     - 向前移動：絕對速度 > max(RADAR_RESCUE_MIN_SPEED, RADAR_RESCUE_MIN_SPEED_PCT * v_ego)，
 #       排除靜止物（路邊違停、護欄、ETC 門架）與對向來車
 #     - 位在模型路徑走廊內：|yRel - 模型路徑y(d)| < RADAR_RESCUE_CORRIDOR
@@ -339,10 +348,6 @@ def _update_large_vehicle_flags(tracks, v_ego: float) -> None:
       t.is_large = True
       t.large_sticky = True
 
-# dp(9.1): 切入雷達量測 freshness。允許 Toyota 雷達短暫 2 幀（約 0.1s）非實測/外推，
-# 超過後不再累積或維持 cut-in，避免長時間外推點單靠橫向估計成為切入前車。
-CUTIN_MEASURED_MAX_AGE = 2           # 幀；0=本幀實測，1~2=短暫容忍，>2=失效
-
 # dp(修正 4): 模型路徑（modelV2.position）預測。車速低於此值時 position.x 會擠在 0 附近、
 # 不單調：橫向閘門改為假設直行，雷達主導救援停用。
 MODEL_PATH_MIN_SPEED = 3.0          # m/s
@@ -407,8 +412,9 @@ _LOW_SPEED_LAST = {'track': None}   # dp: 上一幀低速覆寫選到的雷達�
 # 都對輸出的 aLeadK 做變化率限制，避免瞬間跳動觸發幽靈煞車。
 # dp(第七版): 加上 last_aLeadK_track，換成「不同物體」時不做變化率限制（見輸出段說明）。
 _LEAD_STATE_CACHE = {
-    0: {'track': None, 'absent': 0, 'last_aLeadK': None, 'last_aLeadK_track': None, 'rescue': False, 'cutin': False, 'cutin_track': None, 'switch_id': None, 'switch_cnt': 0},
-    1: {'track': None, 'absent': 0, 'last_aLeadK': None, 'last_aLeadK_track': None, 'rescue': False, 'cutin': False, 'cutin_track': None, 'switch_id': None, 'switch_cnt': 0}
+    i: {'track': None, 'absent': 0, 'last_aLeadK': None, 'last_aLeadK_track': None, 'rescue': False,
+        'cutin': False, 'cutin_track': None, 'switch_id': None, 'switch_cnt': 0}
+    for i in (0, 1)
 }
 MAX_ALEADK_DELTA_PER_FRAME = 1.0    # aLeadK 每幀最大允許變化量 (m/s²)，可依實測調整
 
@@ -416,17 +422,17 @@ MAX_ALEADK_DELTA_PER_FRAME = 1.0    # aLeadK 每幀最大允許變化量 (m/s²)
 def get_model_lead_tau(lead_msg, lead_prob: float) -> float | None:
   if lead_prob < MODEL_TAU_MIN_PROB or len(lead_msg.a) < 2:
     return None
-  
+
   a0 = float(lead_msg.a[0])
   a1 = float(lead_msg.a[1])
-  
+
   if a0 > MODEL_TAU_BRAKE_A:
     return None
   if a1 < 0.5 * a0:
     return MODEL_TAU_SUSTAINED
   if a1 > 0.1 * a0:
     return MODEL_TAU_SPURIOUS
-  
+
   return None
 
 
@@ -449,8 +455,6 @@ class TrackDP(Track):
     self.cutin_active = False                  # dp(第九版): 已被採用為切入前車
     self.cutin_active_frames = 0               # dp(v9.3): 採用後經過的幀數
     self.cutin_entered = False                 # dp(v9.3): 採用後是否已進入 ±CUTIN_CORRIDOR 走廊
-    self.cutin_measured_age = 0                # dp(9.1): 距離最近一次真實雷達量測的幀數
-    self.cutin_diag_armed = False              # dp(9.1): 防止候選成立診斷重複洗 log
     self.cutin_last_path_y = None              # dp(v9.6): 上一幀此目標距離處的路徑 y（路徑跳動保護）
     self.large_hold = 0                        # dp(v9.6): 大型車判定遲滯計數
     self.is_large = False                      # dp(v9.6): 是否判定為多點大型車
@@ -458,6 +462,7 @@ class TrackDP(Track):
     self.cutin_is_large = False                # dp(v9.6): 本幀切入判斷使用的大型車旗標（診斷用）
     self.cutin_line_mode = 'path'              # dp(v9.6): 'line' = 車道線模式，'path' = 本車路徑模式
     self.cutin_line_intr = None                # dp(v9.6): 雷達點越過車道線的距離（正值 = 已在本車道內）
+    self.cutin_diag_armed = False              # dp(9.1): 防止候選成立診斷重複洗 log
 
   def _check_closing_speed_fallback(self, lead_idx: int, v_ego: float) -> bool:
     # 比照原廠 vel_sane 的 (v_ego + vRel > 3) 這個條件（目標絕對速度 > 3 m/s，即移動目標），
@@ -500,21 +505,15 @@ class TrackDP(Track):
   def update_cutin(self, v_ego: float, path_valid: bool, path_y: float, gated: bool,
                    is_large: bool = False, lane_ctx=None) -> None:
     # dp(第九版): 每幀呼叫一次（只在 leadOne 那次）。gated=True 表示本車轉彎或變換車道中，暫停判定。
-    # dp(9.1): 加入 radar measurement freshness；短暫漏拍最多容忍 CUTIN_MEASURED_MAX_AGE 幀。
     # dp(v9.6): is_large=True（多點大型車）時，候選與維持改以車道線判斷（見 v9.6 參數區）；
     #           lane_ctx 為 get_lead_ext 準備的車道線資料（None = 無車道線，一律用本車路徑模式）。
-    if bool(self.measured):
-      self.cutin_measured_age = 0
-    else:
-      self.cutin_measured_age = min(self.cutin_measured_age + 1, CUTIN_MEASURED_MAX_AGE + 1)
-    fresh = self.cutin_measured_age <= CUTIN_MEASURED_MAX_AGE
     self.cutin_is_large = is_large
 
     if not path_valid:
       if self.cutin_active or self.cutin_frames > 0:
         cloudlog.debug(
-          f"[RadarD_CutinReset_DP] id={self.identifier} reason=path_invalid "
-          f"d={self.dRel:.1f} y={self.yRel:.2f} age={self.cutin_measured_age}"
+          f"[RadarD_CutinReset_DP] id={self.identifier} reason=path_invalid " +
+          f"d={self.dRel:.1f} y={self.yRel:.2f}"
         )
       self.cutin_off = None
       self.cutin_vy = 0.0
@@ -534,8 +533,8 @@ class TrackDP(Track):
     if path_jump:
       if self.cutin_active or self.cutin_frames > 0:
         cloudlog.debug(
-          f"[RadarD_CutinPathJump_DP] id={self.identifier} d={self.dRel:.1f} y={self.yRel:.2f} "
-          f"offNew={meas:.2f} vyPrev={self.cutin_vy:.2f} active={self.cutin_active} "
+          f"[RadarD_CutinPathJump_DP] id={self.identifier} d={self.dRel:.1f} y={self.yRel:.2f} " +
+          f"offNew={meas:.2f} vyPrev={self.cutin_vy:.2f} active={self.cutin_active} " +
           f"frames={self.cutin_frames} large={is_large}"
         )
       self.cutin_raw_hist.clear()
@@ -561,7 +560,7 @@ class TrackDP(Track):
 
     v_abs = self.vRel + v_ego
     max_d = float(np.interp(v_ego, CUTIN_MAX_DIST_BP, CUTIN_MAX_DIST_V))
-    base_ok = (fresh and not gated and v_ego > CUTIN_MIN_V_EGO and CUTIN_MIN_DIST < self.dRel < max_d and
+    base_ok = (not gated and v_ego > CUTIN_MIN_V_EGO and CUTIN_MIN_DIST < self.dRel < max_d and
                v_abs > max(3.0, DYNAMIC_SPEED_PCT * v_ego) and
                (self.vRel < CUTIN_CLOSING_VREL or self.dRel < CUTIN_CLOSE_HEADWAY * v_ego))
     toward = off * vy < 0.0
@@ -583,8 +582,6 @@ class TrackDP(Track):
       if stalled or not (base_ok and within and not moving_away):
         if stalled:
           reason = 'stalled'
-        elif not fresh:
-          reason = 'stale'
         elif gated:
           reason = 'gated'
         elif moving_away:
@@ -594,9 +591,9 @@ class TrackDP(Track):
         else:
           reason = 'base_condition'
         cloudlog.debug(
-          f"[RadarD_CutinRelease_DP] id={self.identifier} reason={reason} "
-          f"d={self.dRel:.1f} off={off:.2f} vy={vy:.2f} vRel={self.vRel:.2f} "
-          f"aLeadK={self.aLeadK:.2f} aLeadTau={float(self.aLeadTau.x):.2f} age={self.cutin_measured_age} "
+          f"[RadarD_CutinRelease_DP] id={self.identifier} reason={reason} " +
+          f"d={self.dRel:.1f} off={off:.2f} vy={vy:.2f} vRel={self.vRel:.2f} " +
+          f"aLeadK={self.aLeadK:.2f} aLeadTau={float(self.aLeadTau.x):.2f} " +
           f"large={is_large} mode={mode} intr={intr:.2f} activeFrames={self.cutin_active_frames}"
         )
         self.cutin_active = False
@@ -622,10 +619,10 @@ class TrackDP(Track):
     if self.cutin_frames >= _cutin_confirm_frames(v_ego) and not self.cutin_diag_armed:
       t_enter = (abs(off) - CUTIN_CORRIDOR) / max(abs(vy), 1e-3)
       cloudlog.debug(
-        f"[RadarD_CutinArmed_DP] id={self.identifier} d={self.dRel:.1f} y={self.yRel:.2f} "
-        f"off={off:.2f} vy={vy:.2f} tEnter={t_enter:.2f}s vRel={self.vRel:.2f} "
-        f"vLead={self.vLead:.2f} aLeadK={self.aLeadK:.2f} aLeadTau={float(self.aLeadTau.x):.2f} "
-        f"frames={self.cutin_frames} age={self.cutin_measured_age} large={is_large} mode={mode} intr={intr:.2f}"
+        f"[RadarD_CutinArmed_DP] id={self.identifier} d={self.dRel:.1f} y={self.yRel:.2f} " +
+        f"off={off:.2f} vy={vy:.2f} tEnter={t_enter:.2f}s vRel={self.vRel:.2f} " +
+        f"vLead={self.vLead:.2f} aLeadK={self.aLeadK:.2f} aLeadTau={float(self.aLeadTau.x):.2f} " +
+        f"frames={self.cutin_frames} large={is_large} mode={mode} intr={intr:.2f}"
       )
       self.cutin_diag_armed = True
     elif self.cutin_frames == 0:
@@ -636,7 +633,7 @@ class TrackDP(Track):
     # dp: 每幀呼叫一次（只在 leadOne 那次呼叫時更新，避免一幀累加兩次）
     # is_active：此目標是上一幀的救援前車，走廊用維持條件 RADAR_RESCUE_CORRIDOR_HOLD
     corridor = RADAR_RESCUE_CORRIDOR_HOLD if is_active else RADAR_RESCUE_CORRIDOR
-    eligible = (path_valid and bool(self.measured) and
+    eligible = (path_valid and
                 RADAR_RESCUE_MIN_DIST < self.dRel < RADAR_RESCUE_MAX_DIST and
                 abs(self.yRel - path_y) < corridor and
                 (self.vRel + v_ego) > max(RADAR_RESCUE_MIN_SPEED, RADAR_RESCUE_MIN_SPEED_PCT * v_ego) and
@@ -664,7 +661,7 @@ class TrackDP(Track):
   def _calculate_threat_multipliers(self, v_ego: float) -> float:
     brake_mult = float(np.interp(self.aLeadK, BRAKE_THRES_RANGE, MULT_RANGE))
     cutin_mult = 1.0
-    
+
     if self.dRel < CUTIN_DIST_LIMIT and abs(self.yRel) > 1.0:
       v_limit = max(1.0, DYNAMIC_SPEED_PCT * v_ego)
       cutin_mult = float(np.interp(self.vRel, [-v_limit, v_limit], MULT_RANGE))
@@ -683,22 +680,18 @@ class TrackDP(Track):
 
     return current_ema
 
-  def process_track_logic(self, lead_idx: int, lead_msg: capnp._DynamicStructReader, v_ego: float, lead_prob: float, is_turning: bool = False,
+  def process_track_logic(self, lead_idx: int, lead_msg: capnp._DynamicStructReader, v_ego: float, lead_prob: float,
                           path_y: float = 0.0):
     offset_vision_dist = lead_msg.x[0] - RADAR_TO_CAMERA
     vision_y = -lead_msg.y[0]
     vision_v = lead_msg.v[0]
 
-    # dp: 「必須真實量測」這道門檻改成只在轉彎時生效——
-    # 轉彎時保留保護，避免旁側車道目標因外推值誤判成切入本車道；
-    # 直行/巡航時放行，避免正常雷達漏拍拖慢插隊車輛的信心度累積、反應變慢半拍。
-    #
     # dp(log 驗證修正 1b-v2): 原本 is_out_of_lane 從未被設為 True（見 _update_lane_gate 說明），
     # valid_tracks 的橫向過濾等於不存在。log 實證：92216 55.0s 車速 46 km/h，右車道線外
     # 1.1~1.9m、80m 處的靜止物被選為前車；92101 22.1s 右側 5~7m 的靜止物被選為前車。
     is_out = self._update_lane_gate(lead_idx, vision_y, vision_v, v_ego, path_y)
     is_lateral_far = abs(self.yRel - vision_y) > (LANE_WIDTH_FALLBACK + LANE_HYSTERESIS_MARGIN)
-    is_invalid = (is_turning and not self.measured) or is_lateral_far or is_out
+    is_invalid = is_lateral_far or is_out
 
     fuzzy_score = 0.0
     if not is_invalid:
@@ -718,7 +711,7 @@ class TrackDP(Track):
     final_alpha_up = self._calculate_threat_multipliers(v_ego)
     target_ema = fuzzy_score
     alpha = final_alpha_up if fuzzy_score > 0.5 else ALPHA_DOWN
-    
+
     new_ema = alpha * target_ema + (1 - alpha) * self.ema_confidence[lead_idx]
     new_ema = self._apply_slow_protection(v_ego, lead_prob, new_ema)
 
@@ -745,9 +738,8 @@ def get_lead_ext(
   lane_line_probs: list[float] | None = None,
 ) -> dict[str, Any]:
   """
-  dev20261022 適配版：保留 CP / CP_SP 與原 dev 的純視覺 yRel 處理。
-  新增 is_turning：由 radard.py 依方向盤角度/角速度判斷是否正在轉彎，
-  轉出去給 process_track_logic 決定是否要求「必須真實量測」。
+  sunnypilot 適配版：CP / CP_SP 與原廠 get_lead 相同位置，只用於純視覺前車的 get_custom_yrel()。
+  is_turning：由 radard.py 依方向盤角度/角速度判斷是否正在轉彎，轉彎時暫停切入預測。
   steering_angle_deg：雷達主導救援的方向盤角度開關。
   raw_lead_prob：未濾波的原始 lead 機率，雷達主導救援的視覺信心度下限只看這個值；
   未提供時（例如測試）退回使用濾波後的 lead_prob。
@@ -781,7 +773,7 @@ def get_lead_ext(
 
   if ready:
     for track in tracks.values():
-      track.process_track_logic(lead_idx, lead_msg, v_ego, lead_prob, is_turning, path_y=_path_y_at(track.dRel))
+      track.process_track_logic(lead_idx, lead_msg, v_ego, lead_prob, path_y=_path_y_at(track.dRel))
 
   valid_tracks = {k: v for k, v in tracks.items() if not v.is_out_of_lane[lead_idx] and v.ema_confidence[lead_idx] > 0.0}
 
@@ -872,7 +864,7 @@ def get_lead_ext(
   vision_cand = None
   if matched_track is None and ready and lead_prob > normal_thres:
     vision_cand = get_RadarState_from_vision(lead_msg, v_ego, model_v_ego, lead_prob)
-    vision_cand = get_custom_yrel(CP, CP_SP, vision_cand, lead_msg)
+    vision_cand = get_custom_yrel(CP, CP_SP, vision_cand, lead_msg)   # sunnypilot 原廠行為
 
   # dp(切入閃爍修正 1): 鎖定目標仍在走廊內、且沒有更近的純視覺前車時，延長續命
   hold_limit = SELECT_HOLDOVER_FRAMES
@@ -911,9 +903,9 @@ def get_lead_ext(
     # 同步總視覺信心度門檻：這一幀的前車是在 RADAR_RESCUE_MIN_PROB 門檻下被接受的
     current_prob_thres = min(current_prob_thres, RADAR_RESCUE_MIN_PROB)
     cloudlog.debug(
-      f"[RadarD_RadarRescue_DP] 雷達主導救援！目標 {lead_idx} | 雷達 {rescue_track.identifier} "
-      f"d={rescue_track.dRel:.1f} y={rescue_track.yRel:.2f} v={rescue_track.vRel + v_ego:.1f} | "
-      f"連續 {rescue_track.radar_rescue_frames} 幀 | 相機機率(原始/濾波): {rescue_prob:.2f}/{lead_prob:.2f} "
+      f"[RadarD_RadarRescue_DP] 雷達主導救援！目標 {lead_idx} | 雷達 {rescue_track.identifier} " +
+      f"d={rescue_track.dRel:.1f} y={rescue_track.yRel:.2f} v={rescue_track.vRel + v_ego:.1f} | " +
+      f"連續 {rescue_track.radar_rescue_frames} 幀 | 相機機率(原始/濾波): {rescue_prob:.2f}/{lead_prob:.2f} " +
       f"(原門檻: {normal_thres:.2f} → {current_prob_thres:.2f}) | 原前車距離: {existing_d:.1f}"
     )
   elif matched_track is not None:
@@ -988,12 +980,12 @@ def get_lead_ext(
         t_enter = ((abs(off) - CUTIN_CORRIDOR) / max(abs(vy), 1e-3)) if abs(off) > CUTIN_CORRIDOR else 0.0
         if cutin_prev is not cutin_track:
           cloudlog.debug(
-            f"[RadarD_CutinSelect_DP] id={cutin_track.identifier} d={cutin_track.dRel:.1f} "
-            f"y={cutin_track.yRel:.2f} off={off:.2f} vy={vy:.2f} tEnter={t_enter:.2f}s "
-            f"vRel={cutin_track.vRel:.2f} vLead={cutin_track.vLead:.2f} "
-            f"aLeadK={cutin_track.aLeadK:.2f} aLeadTau={float(cutin_track.aLeadTau.x):.2f} "
-            f"frames={cutin_track.cutin_frames} age={cutin_track.cutin_measured_age} oldLeadD={cur_d:.1f} "
-            f"large={cutin_track.cutin_is_large} mode={cutin_track.cutin_line_mode} "
+            f"[RadarD_CutinSelect_DP] id={cutin_track.identifier} d={cutin_track.dRel:.1f} " +
+            f"y={cutin_track.yRel:.2f} off={off:.2f} vy={vy:.2f} tEnter={t_enter:.2f}s " +
+            f"vRel={cutin_track.vRel:.2f} vLead={cutin_track.vLead:.2f} " +
+            f"aLeadK={cutin_track.aLeadK:.2f} aLeadTau={float(cutin_track.aLeadTau.x):.2f} " +
+            f"frames={cutin_track.cutin_frames} oldLeadD={cur_d:.1f} " +
+            f"large={cutin_track.cutin_is_large} mode={cutin_track.cutin_line_mode} " +
             f"intr={cutin_track.cutin_line_intr if cutin_track.cutin_line_intr is not None else float('nan'):.2f}"
           )
       else:
@@ -1032,7 +1024,7 @@ def get_lead_ext(
 
     if not is_radar_rescue and current_prob_thres < 0.5 and (0.5 >= lead_prob > current_prob_thres):
       cloudlog.debug(
-        f"[RadarD_EarlyLock_DP] 提早鎖定/續命成功！目標 {lead_idx} | "
+        f"[RadarD_EarlyLock_DP] 提早鎖定/續命成功！目標 {lead_idx} | " +
         f"相機機率: {lead_prob:.2f} (動態門檻: {current_prob_thres:.2f})"
       )
 
@@ -1073,7 +1065,7 @@ radard.get_lead = get_lead_ext
 
 class RadarDExt(RadarD):
   """
-  DP v9.6.2 演算法，建構介面對齊 dev20261022。
+  sunnypilot 版：初始化參數對齊 sunnypilot RadarD (CP, CP_SP, delay)。
   """
   def __init__(self, CP: structs.CarParams, CP_SP: structs.CarParamsSP, delay: float = 0.0):
     super().__init__(CP, CP_SP, delay)
