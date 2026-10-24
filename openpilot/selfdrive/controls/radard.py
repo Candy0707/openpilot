@@ -62,13 +62,12 @@ class Track:
     self.K_K = kalman_params.K
     self.kf = KF1D([[v_lead], [0.0]], self.K_A, self.K_C, self.K_K)
 
-  def update(self, d_rel: float, y_rel: float, v_rel: float, v_lead: float, measured: bool = True):
+  def update(self, d_rel: float, y_rel: float, v_rel: float, v_lead: float):
     # relative values, copy
     self.dRel = d_rel   # LONG_DIST
     self.yRel = y_rel   # -LAT_DIST
     self.vRel = v_rel   # REL_SPEED
     self.vLead = v_lead
-    self.measured = bool(measured)  # Preserve explicit flags when available; dev lacks this field.
 
     # computed velocity and accelerations
     if self.cnt > 0:
@@ -231,7 +230,7 @@ class RadarD:
     # 而且警示燈（左右方向燈同時亮）在國道壅塞時很常見，原本會讓切入預測整個停用。
     lane_change = sm['modelV2'].meta.laneChangeState != log.LaneChangeState.off
 
-    ar_pts = {pt.trackId: [pt.dRel, pt.yRel, pt.vRel, getattr(pt, "measured", True)] for pt in rr.points}
+    ar_pts = {pt.trackId: [pt.dRel, pt.yRel, pt.vRel] for pt in rr.points}
 
     # *** remove missing points from meta data ***
     for ids in list(self.tracks.keys()):
@@ -248,7 +247,7 @@ class RadarD:
       # create the track if it doesn't exist or it's a new track
       if ids not in self.tracks:
         self.tracks[ids] = Track(ids, v_lead, self.kalman_params)
-      self.tracks[ids].update(rpt[0], rpt[1], rpt[2], v_lead, rpt[3])
+      self.tracks[ids].update(rpt[0], rpt[1], rpt[2], v_lead)
 
     # *** publish radarState ***
     self.radar_state_valid = sm.all_checks()
@@ -274,6 +273,7 @@ class RadarD:
       # lead 機率（雷達主導救援的視覺信心度下限只看原始值，最嚴格版本）。
       path_x = list(sm['modelV2'].position.x)
       path_y = list(sm['modelV2'].position.y)
+      # dp(v9.6): 傳入模型車道線（每條線的 x/y）與信心度，供多點大型車的切入判斷改用車道線。
       lane_lines = [(list(ll.x), list(ll.y)) for ll in sm['modelV2'].laneLines]
       lane_line_probs = list(sm['modelV2'].laneLineProbs)
       # dp(第七版): 擴充參數一律用關鍵字傳入，避免位置參數錯位；原廠 get_lead 以 **kwargs 吸收。
