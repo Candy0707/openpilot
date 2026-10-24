@@ -62,12 +62,13 @@ class Track:
     self.K_K = kalman_params.K
     self.kf = KF1D([[v_lead], [0.0]], self.K_A, self.K_C, self.K_K)
 
-  def update(self, d_rel: float, y_rel: float, v_rel: float, v_lead: float):
+  def update(self, d_rel: float, y_rel: float, v_rel: float, v_lead: float, measured: bool = True):
     # relative values, copy
     self.dRel = d_rel   # LONG_DIST
     self.yRel = y_rel   # -LAT_DIST
     self.vRel = v_rel   # REL_SPEED
     self.vLead = v_lead
+    self.measured = bool(measured)  # Preserve explicit flags when available; dev lacks this field.
 
     # computed velocity and accelerations
     if self.cnt > 0:
@@ -230,7 +231,7 @@ class RadarD:
     # 而且警示燈（左右方向燈同時亮）在國道壅塞時很常見，原本會讓切入預測整個停用。
     lane_change = sm['modelV2'].meta.laneChangeState != log.LaneChangeState.off
 
-    ar_pts = {pt.trackId: [pt.dRel, pt.yRel, pt.vRel] for pt in rr.points}
+    ar_pts = {pt.trackId: [pt.dRel, pt.yRel, pt.vRel, getattr(pt, "measured", True)] for pt in rr.points}
 
     # *** remove missing points from meta data ***
     for ids in list(self.tracks.keys()):
@@ -247,7 +248,7 @@ class RadarD:
       # create the track if it doesn't exist or it's a new track
       if ids not in self.tracks:
         self.tracks[ids] = Track(ids, v_lead, self.kalman_params)
-      self.tracks[ids].update(rpt[0], rpt[1], rpt[2], v_lead)
+      self.tracks[ids].update(rpt[0], rpt[1], rpt[2], v_lead, rpt[3])
 
     # *** publish radarState ***
     self.radar_state_valid = sm.all_checks()
@@ -273,15 +274,19 @@ class RadarD:
       # lead 機率（雷達主導救援的視覺信心度下限只看原始值，最嚴格版本）。
       path_x = list(sm['modelV2'].position.x)
       path_y = list(sm['modelV2'].position.y)
+      lane_lines = [(list(ll.x), list(ll.y)) for ll in sm['modelV2'].laneLines]
+      lane_line_probs = list(sm['modelV2'].laneLineProbs)
       # dp(第七版): 擴充參數一律用關鍵字傳入，避免位置參數錯位；原廠 get_lead 以 **kwargs 吸收。
       self.radar_state.leadOne = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[0], model_v_ego, self.lead_prob_filters[0].x,
                                           self.CP, self.CP_SP, low_speed_override=True,
                                           is_turning=is_turning, steering_angle_deg=steering_angle_deg,
-                                          raw_lead_prob=leads_v3[0].prob, lane_change=lane_change, path_x=path_x, path_y=path_y)
+                                          raw_lead_prob=leads_v3[0].prob, lane_change=lane_change, path_x=path_x, path_y=path_y,
+                                          lane_lines=lane_lines, lane_line_probs=lane_line_probs)
       self.radar_state.leadTwo = get_lead(self.v_ego, self.ready, self.tracks, leads_v3[1], model_v_ego, self.lead_prob_filters[1].x,
                                           self.CP, self.CP_SP, low_speed_override=False,
                                           is_turning=is_turning, steering_angle_deg=steering_angle_deg,
-                                          raw_lead_prob=leads_v3[1].prob, lane_change=lane_change, path_x=path_x, path_y=path_y)
+                                          raw_lead_prob=leads_v3[1].prob, lane_change=lane_change, path_x=path_x, path_y=path_y,
+                                          lane_lines=lane_lines, lane_line_probs=lane_line_probs)
 
   def publish(self, pm: messaging.PubMaster):
     assert self.radar_state is not None
