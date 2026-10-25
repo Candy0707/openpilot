@@ -10,6 +10,31 @@ from openpilot.cereal import log
 from openpilot.tools.lib.url_file import URLFile
 
 
+def validated_shapes(data):
+  """Accept only usable road geometry; missing/corrupt cache is optional."""
+  if isinstance(data, dict):
+    data = data.get("SectionShapes")
+  if not isinstance(data, list):
+    return []
+  result = []
+  for item in data:
+    if not isinstance(item, dict):
+      continue
+    if not isinstance(item.get("SectionID"), str) or not item["SectionID"]:
+      continue
+    if not isinstance(item.get("Geometry"), str):
+      continue
+    try:
+      coords = _parse_wkt_linestring(item["Geometry"])
+      if len(coords) < 2 or any(len(p) != 2 or not all(math.isfinite(v) for v in p)
+                                or not (-180 <= p[0] <= 180 and -90 <= p[1] <= 90) for p in coords):
+        continue
+    except (ValueError, TypeError, OverflowError):
+      continue
+    result.append(item)
+  return result
+
+
 # ==========================================
 # 工具函數：開機自動下載 TDX 線形圖資 (使用內部 URLFile 連線池與 atomic_write 斷電防護)
 # ==========================================
@@ -27,7 +52,10 @@ def download_freeway_shapes_guest():
 
     data = json.loads(response.data.decode('utf-8'))
 
-    Params().put("TdxFreewayShapes", data)
+    data = validated_shapes(data)
+    if not data:
+      raise ValueError("下載內容沒有有效道路圖資")
+    Params().put("TdxFreewayShapes", data, block=True)
 
     print(f"[系統] ✅ 圖資下載成功！(共 {len(data)} 筆路段)")
     return
@@ -101,7 +129,7 @@ class LocalMapMatcher:
     self.topology_next = {}
 
     data = Params().get("TdxFreewayShapes")
-    raw_shapes = data.get("SectionShapes", data) if isinstance(data, dict) else data
+    raw_shapes = validated_shapes(data)
     print("[圖資] 正在建立空間網格與幾何拓樸...")
 
     for item in raw_shapes:
@@ -352,6 +380,8 @@ def main():
   MAX_HORIZONTAL_ACCURACY = 50.0
   MAX_DEAD_RECKONING_SEC = 20.0  # liveLocationKalman 失去真實GPS校正超過此秒數就不再信任其位置
   last_gps_ok_time = 0
+  last_shape_attempt = time.monotonic()
+  SHAPE_RETRY_INTERVAL = 300.0
   last_api_call = 0
   UPDATE_INTERVAL = 60
 
@@ -379,9 +409,15 @@ def main():
     if TEST_MODE:
       time.sleep(0.1)
     else:
-      sm.update()
+      sm.update(1000)
 
     current_time = time.time()
+
+    # Missing maps must not kill this display-only service. Retry at most every 5 min.
+    if not matcher.sections and time.monotonic() - last_shape_attempt >= SHAPE_RETRY_INTERVAL:
+      last_shape_attempt = time.monotonic()
+      download_freeway_shapes_guest()
+      matcher = LocalMapMatcher()
 
     if current_time - last_api_call >= UPDATE_INTERVAL:
       client.update_data(matcher)
