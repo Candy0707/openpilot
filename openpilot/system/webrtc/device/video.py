@@ -56,7 +56,12 @@ class LiveStreamVideoStreamTrack(TiciVideoStreamTrack):
     return messaging.sub_sock(self.camera_to_sock_mapping[camera_type], conflate=True)
 
   def switch_camera(self, camera_type: str) -> None:
+    if camera_type not in self.camera_to_sock_mapping:
+      return
     self._sock = self._make_sock(camera_type)
+    # 換到另一個編碼器的串流：要求立即補一張關鍵幀，避免解碼器拿到別條串流的 P-frame 而花屏
+    self._seen_keyframe = False
+    self.request_keyframe()
 
   def enable(self, enabled: bool):
     self.video_enabled = enabled

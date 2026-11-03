@@ -68,6 +68,13 @@ def only_offroad(started: bool, params: Params, CP: car.CarParams) -> bool:
 def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
   return params.get_bool("IsLiveStreaming")
 
+def opview(started: bool, params: Params, CP: car.CarParams) -> bool:
+  return started and params.get_bool("dp_dev_opview")
+
+def opview_server(started: bool, params: Params, CP: car.CarParams) -> bool:
+  # opview 主畫面 offroad 也要能讀寫車型
+  return params.get_bool("dp_dev_opview")
+
 def use_copyparty(started, params, CP: car.CarParams) -> bool:
   return bool(params.get_bool("EnableCopyparty"))
 
@@ -111,7 +118,7 @@ procs = [
 
   NativeProcess("loggerd", "openpilot/system/loggerd", ["./loggerd"], logging),
   NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], only_onroad),
-  NativeProcess("stream_encoderd", "openpilot/system/loggerd", ["./encoderd", "--stream"], or_(livestream, notcar)),
+  NativeProcess("stream_encoderd", "openpilot/system/loggerd", ["./encoderd", "--stream"], or_(or_(livestream, notcar), opview)),
   PythonProcess("logmessaged", "openpilot.system.logmessaged", always_run),
 
   NativeProcess("camerad", "openpilot/system/camerad", ["./camerad"], or_(driverview, livestream), enabled=not WEBCAM),
@@ -156,7 +163,7 @@ procs = [
 
   # debug procs
   NativeProcess("bridge", "openpilot/cereal/messaging", ["./bridge"], notcar),
-  PythonProcess("webrtcd", "openpilot.system.webrtc.webrtcd", or_(livestream, notcar)),
+  PythonProcess("webrtcd", "openpilot.system.webrtc.webrtcd", or_(or_(livestream, notcar), opview)),
   PythonProcess("joystick", "openpilot.tools.joystick.joystick_control", and_(joystick, iscar)),
 
   # sunnylink <3
@@ -185,6 +192,11 @@ procs += [
 # candypilot
 procs += [
   PythonProcess("tdx", "openpilot.sunnypilot.selfdrive.controls.lib.tdx", only_onroad),
+]
+
+# opview（車型讀寫 :5088，對應 dragonpilot dashy 的 /api/models）
+procs += [
+  PythonProcess("opview_serverd", "openpilot.sunnypilot.opview.opview_serverd", opview_server),
 ]
 
 if os.path.exists("../../sunnypilot/sunnylink/uploader.py"):

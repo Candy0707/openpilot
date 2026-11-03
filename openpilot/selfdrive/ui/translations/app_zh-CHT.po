@@ -5092,3 +5092,9 @@ msgstr "接近"
 msgid "Accel"
 msgstr "加速度"
 
+
+msgid "opview Streaming"
+msgstr "opview 串流"
+
+msgid "Stream the road camera and driving data to the opview phone app over the local network (port 5001) while onroad. Uses extra encoder and network resources."
+msgstr "上路時透過區域網路（port 5001）把道路影像與行車資料串流到手機的 opview。會額外佔用編碼器與網路資源。"
