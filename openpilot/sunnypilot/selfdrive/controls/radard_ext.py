@@ -50,6 +50,9 @@ dragonpilot radard 擴充（radard_ext），sunnypilot dev 版：在原廠 radar
   v9.6.11 正前方靜止車救援納入爬行車：進入的目標速度從 |v| < 1 m/s 放寬到移動救援門檻以下
          （max(3 m/s, 0.2 × 本車速)），補上「1 m/s ~ 移動救援門檻」兩條救援都不收的速度帶（log 040
          減速車流 4~13 km/h）；視覺速度上限同步放寬為 max(4 m/s, 門檻 + 2 m/s)。
+  v9.6.12 正前方靜止車救援的進入車速上限 80 → 130 km/h（距離上限不變，70 km/h 以上 120m）。80 km/h 以上
+         120m 不足以停住，目的是降低撞擊速度。新增「視覺前車是移動車」排除：雷達在視覺前車距離附近、
+         本車路徑上有移動目標時，視覺描述的是那台移動車，靜止點（門架／天橋）不得借用它當佐證。
 
 與原廠（cp）的刻意分歧：
   - 低速覆寫：現有雷達前車與最近目標為同一物體時不替換（原廠只要更近就替換，重複點會每幀互換）。
@@ -190,8 +193,14 @@ STATIC_RESCUE_MAX_ABS_SPEED = 1.0   # m/s，目標絕對速度下限為 −此�
 # 與移動救援銜接成連續速度帶（v9.6.10 以前為 |v| < 1 m/s，1 m/s ~ 門檻的爬行車兩條救援都不收）。
 # 門架／天橋為 0 m/s，放寬速度帶不增加其誤觸；擋下它們的是視覺佐證（距離吻合 + 視覺速度低）。
 STATIC_RESCUE_VIS_SPEED_MARGIN = 2.0   # m/s，視覺速度上限 = max(VIS_MAX_SPEED, 移動救援門檻 + 此值)
+# v9.6.12 移動車排除：視覺前車距離 ± max(VIS_DIST_ABS, VIS_DIST_PCT × 距離) 內、路徑 ±TWIN_CORRIDOR 內有
+# 絕對速度 >= 移動救援門檻的雷達目標時，視覺前車就是那台移動車，靜止救援不得進入（維持不受影響）。
+# log 033／045／841：80~130 km/h 正前方靜止點 253 幀中，87 幀只靠「視覺速度」擋下（前車正好開過門架，
+# 視覺前車與門架同距離），此條件提供第二層防護。
+STATIC_RESCUE_MOVING_TWIN_CHECK = True
+STATIC_RESCUE_TWIN_CORRIDOR = 1.5      # m
 STATIC_RESCUE_MIN_V_EGO = 30.0 / 3.6   # m/s，進入：本車速下限（已在救援中不限）
-STATIC_RESCUE_MAX_V_EGO = 80.0 / 3.6   # m/s，進入：本車速上限（已在救援中不限）（v9.6.8：60）
+STATIC_RESCUE_MAX_V_EGO = 130.0 / 3.6  # m/s，進入：本車速上限（已在救援中不限）（v9.6.8：60、v9.6.9：80）
 # v9.6.10 進入距離上限隨本車速放大（維持沿用 RADAR_RESCUE_MAX_DIST）。分支 long_mpc + planner 閉迴路
 # （致動延遲 0.15 秒、ACCEL_MIN −3.5）對靜止車，「確認 1 秒後採用」仍能停住的最短出現距離：
 #   40 km/h 51m、50 km/h 68m、60 km/h 87m、70 km/h 109m、80 km/h 134m（MPC 最大減速約 −3.0~−3.2）。
@@ -575,7 +584,7 @@ class TrackDP(Track):
                           is_active: bool = False, line_intr: float | None = None, vision=None) -> None:
     # 每幀呼叫一次（leadOne）。is_active：此目標是上一幀的救援前車，走廊用維持條件。
     # line_intr：目標側車道線可靠時的越線距離（None = 車道線不可靠，不檢查）。
-    # vision：(原始機率, 距離（雷達座標）, 速度) 的視覺前車，正前方靜止車救援的佐證；None = 不判定。
+    # vision：(原始機率, 距離（雷達座標）, 速度, 是否為移動車) 的視覺前車，正前方靜止車救援的佐證；None = 不判定。
     corridor = RADAR_RESCUE_CORRIDOR_HOLD if is_active else RADAR_RESCUE_CORRIDOR
     line_ok = line_intr is None or line_intr >= (RADAR_RESCUE_LINE_HOLD if is_active else RADAR_RESCUE_LINE_ENTER)
     v_ok = is_active or v_ego > RADAR_RESCUE_MIN_V_EGO
@@ -595,7 +604,7 @@ class TrackDP(Track):
     static_ok = False
     if (STATIC_RESCUE_ENABLED and vision is not None and path_valid and line_ok and
         abs(steering_angle_deg) < RADAR_RESCUE_MAX_ANGLE):
-      vis_prob, vis_d, vis_v = vision
+      vis_prob, vis_d, vis_v, vis_is_moving_car = vision
       v_abs = self.vRel + v_ego
       moving_thr = max(RADAR_RESCUE_MIN_SPEED, RADAR_RESCUE_MIN_SPEED_PCT * v_ego)   # 移動救援的速度門檻
       speed_ok = -STATIC_RESCUE_MAX_ABS_SPEED < v_abs < moving_thr                   # 靜止 + 爬行
@@ -605,7 +614,7 @@ class TrackDP(Track):
         min_prob, d_pct = STATIC_RESCUE_VIS_PROB_HOLD, STATIC_RESCUE_VIS_DIST_PCT_HOLD
         max_vis_v = max(STATIC_RESCUE_VIS_MAX_SPEED_HOLD, moving_thr + STATIC_RESCUE_VIS_SPEED_MARGIN)
       else:
-        ego_ok = STATIC_RESCUE_MIN_V_EGO < v_ego < STATIC_RESCUE_MAX_V_EGO
+        ego_ok = STATIC_RESCUE_MIN_V_EGO < v_ego < STATIC_RESCUE_MAX_V_EGO and not vis_is_moving_car
         max_d = float(np.interp(v_ego, STATIC_RESCUE_MAX_DIST_BP, STATIC_RESCUE_MAX_DIST_V))
         corridor = STATIC_RESCUE_CORRIDOR
         min_prob, d_pct = STATIC_RESCUE_VIS_PROB, STATIC_RESCUE_VIS_DIST_PCT
@@ -782,6 +791,16 @@ def _update_lead_one_states(tracks, v_ego: float, ready: bool, path: _ModelPath,
   if len(tracks) > 0:
     _update_large_vehicle_flags(tracks, v_ego)
   lane_ctx = _build_lane_ctx(lane_lines, lane_line_probs)
+
+  # v9.6.12 視覺前車是否就是路徑上的移動車（靜止救援不得借用其佐證）
+  if vision is not None:
+    vis_d = vision[1]
+    moving_thr = max(RADAR_RESCUE_MIN_SPEED, RADAR_RESCUE_MIN_SPEED_PCT * v_ego)
+    d_tol = max(STATIC_RESCUE_VIS_DIST_ABS, STATIC_RESCUE_VIS_DIST_PCT * vis_d)
+    is_moving_car = STATIC_RESCUE_MOVING_TWIN_CHECK and any(
+      (t.vRel + v_ego) >= moving_thr and abs(t.dRel - vis_d) < d_tol and
+      abs(t.yRel - path.y_at(t.dRel)) < STATIC_RESCUE_TWIN_CORRIDOR for t in tracks.values())
+    vision = (*vision, is_moving_car)
 
   for track in tracks.values():
     path_y = path.y_at(track.dRel)
