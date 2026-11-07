@@ -5023,6 +5023,12 @@ msgstr "啟用或停用 GitHub Runner 服務。"
 msgid "copyparty Service"
 msgstr "copyparty 服務"
 
+msgid "Enable opview"
+msgstr "啟用 opview"
+
+msgid "Streams the road camera and driving data to the opview App (Android) on the same network (e.g. your phone hotspot). Also lets opview read and set the vehicle while offroad."
+msgstr "將道路影像與行車資料串流到同一網路（例如手機熱點）上的 opview App（Android）。熄火（offroad）時也可讓 opview 讀取與設定車型。"
+
 msgid "Quickboot Mode"
 msgstr "快速開機模式"
 

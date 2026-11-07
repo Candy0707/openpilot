@@ -112,6 +112,11 @@ sections:
       make some edits on some files from your browser. Requires you to connect to your comma locally via its IP address.
     enablement:
     - $ref: '#/macros/advanced_only'
+  - key: OpviewEnabled
+    widget: toggle
+    title: Enable opview
+    description: Streams the road camera and driving data to the opview App (Android) on the same network (e.g. your phone
+      hotspot). Also lets opview read and set the vehicle while offroad.
   - key: QuickBootToggle
     widget: toggle
     title: Quickboot Mode

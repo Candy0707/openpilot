@@ -71,6 +71,14 @@ def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
 def use_copyparty(started, params, CP: car.CarParams) -> bool:
   return bool(params.get_bool("EnableCopyparty"))
 
+def opview(started: bool, params: Params, CP: car.CarParams) -> bool:
+  # opview（手機 App）：行車中提供影像 + cereal 資料（stream_encoderd + webrtcd :5001）
+  return started and params.get_bool("OpviewEnabled")
+
+def opview_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
+  # opviewd（:5088 車型讀寫 / offroad 狀態）：開啟 opview 後 offroad 也要能用
+  return params.get_bool("OpviewEnabled")
+
 def sunnylink_ready_shim(started, params, CP: car.CarParams) -> bool:
   """Shim for sunnylink_ready to match the process manager signature."""
   return sunnylink_ready(params)
@@ -111,7 +119,7 @@ procs = [
 
   NativeProcess("loggerd", "openpilot/system/loggerd", ["./loggerd"], logging),
   NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], only_onroad),
-  NativeProcess("stream_encoderd", "openpilot/system/loggerd", ["./encoderd", "--stream"], or_(livestream, notcar)),
+  NativeProcess("stream_encoderd", "openpilot/system/loggerd", ["./encoderd", "--stream"], or_(livestream, or_(notcar, opview))),
   PythonProcess("logmessaged", "openpilot.system.logmessaged", always_run),
 
   NativeProcess("camerad", "openpilot/system/camerad", ["./camerad"], or_(driverview, livestream), enabled=not WEBCAM),
@@ -156,7 +164,7 @@ procs = [
 
   # debug procs
   NativeProcess("bridge", "openpilot/cereal/messaging", ["./bridge"], notcar),
-  PythonProcess("webrtcd", "openpilot.system.webrtc.webrtcd", or_(livestream, notcar)),
+  PythonProcess("webrtcd", "openpilot.system.webrtc.webrtcd", or_(livestream, or_(notcar, opview))),
   PythonProcess("joystick", "openpilot.tools.joystick.joystick_control", and_(joystick, iscar)),
 
   # sunnylink <3
@@ -177,6 +185,9 @@ procs += [
   # mapd
   NativeProcess("mapd", Paths.mapd_root(), ["bash", "-c", f"{MAPD_PATH} > /dev/null 2>&1"], mapd_ready),
   PythonProcess("mapd_manager", "openpilot.sunnypilot.mapd.mapd_manager", always_run),
+
+  # opview
+  PythonProcess("opviewd", "openpilot.sunnypilot.opview.opviewd", opview_enabled),
 
   # locationd
   NativeProcess("locationd_llk", "openpilot/sunnypilot/selfdrive/locationd", ["./locationd"], only_onroad),

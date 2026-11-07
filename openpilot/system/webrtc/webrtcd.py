@@ -9,6 +9,7 @@ import capnp
 import argparse
 import asyncio
 import contextlib
+import ipaddress
 import json
 import uuid
 import logging
@@ -23,8 +24,89 @@ from openpilot.system.webrtc.schema import generate_field
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.cereal import messaging, log
+from openpilot.cereal.services import SERVICE_LIST
 
 SESSION_TIMEOUT_SECONDS = 300
+
+# --- opview ---
+# opview（Android 手機 App）在區網直接連 webrtcd（:5001），請求格式沿用 dp0111pre 的新版 webrtcd：
+#   {"sdp", "initCamera": "road", "bridge_services_out": [...], "bridge_services_in": []}
+# sunnypilot 的 webrtcd 是 upstream 新版（libdatachannel、只聽 127.0.0.1、要求 cameras + enabled、
+# session 300 秒逾時），以下為了讓 opview 能連上所做的相容處理，全部只作用在 opview session，
+# sunnylink / athena 的 livestream（從 127.0.0.1 來）行為與 upstream 相同。
+OPVIEW_PARAM = "OpviewEnabled"
+OPVIEW_CAMERAS = ("road", "wideRoad", "driver")
+
+
+def _r3(values) -> list[float]:
+  return [round(v, 3) for v in values]
+
+
+def _xyz(xyzt) -> dict:
+  return {"x": _r3(xyzt.x), "y": _r3(xyzt.y), "z": _r3(xyzt.z)}
+
+
+def compact_model_v2(model) -> dict:
+  """opview 用的 modelV2 精簡版（移植自 dp0111pre）：只送畫面用到的欄位，數值四捨五入到小數 3 位。
+  完整 to_dict() 約 31 KB / 筆（20 Hz ≈ 5 Mbps），精簡後約 5.6 KB（≈ 0.9 Mbps）。
+  opview 讀的欄位：position.x/y/z、laneLines[].x/y/z、laneLineProbs、roadEdges[].x/y/z、roadEdgeStds、acceleration.x
+  （見 opview lib/selfdrive/ui/ui_state.dart applyModelV2）。opview 之後若要用其他欄位，需在這裡一併加上。"""
+  return {
+    "frameId": model.frameId,
+    "position": _xyz(model.position),
+    "laneLines": [_xyz(line) for line in model.laneLines],
+    "laneLineProbs": _r3(model.laneLineProbs),
+    "roadEdges": [_xyz(e) for e in model.roadEdges],
+    "roadEdgeStds": _r3(model.roadEdgeStds),
+    "acceleration": {"x": _r3(model.acceleration.x)},
+  }
+
+
+class StreamRequestError(Exception):
+  def __init__(self, status: int, error: str, message: str):
+    super().__init__(message)
+    self.status, self.error, self.message = status, error, message
+
+
+def parse_stream_request(raw: Any, remote_is_local: bool = True) -> tuple[StreamRequestBody, bool]:
+  """回傳 (body, is_opview)。
+  - upstream 格式（sunnylink / athena：cameras + enabled）原樣交給 StreamRequestBody，行為不變。
+  - opview 格式（initCamera，或明確帶 "client": "opview"）：
+      initCamera → cameras=[initCamera]、enabled 預設 True、忽略不認得的欄位（同 dp0111pre）。
+  - 不認得的 cereal service → 500（opview 帶選用 service「tdx」被拒時，會改用不帶 tdx 的請求重試）。
+  - 區網（非 127.0.0.1）來的請求不允許 bridge_services_in：webrtcd 原本只聽 localhost，
+    開放給 opview 後不能讓區網任何人往 comma 發 cereal 訊息（testJoystick、can…）。"""
+  if not isinstance(raw, dict):
+    raise StreamRequestError(400, "invalid_request", "request body must be a JSON object")
+
+  is_opview = raw.get("client") == "opview" or ("initCamera" in raw and "cameras" not in raw)
+  if is_opview:
+    raw = dict(raw)
+    camera = raw.get("initCamera") or "road"
+    if "cameras" not in raw:
+      raw["cameras"] = [camera]
+    raw.setdefault("enabled", True)
+    known = StreamRequestBody.__dataclass_fields__.keys()
+    raw = {k: v for k, v in raw.items() if k in known}
+
+  try:
+    body = StreamRequestBody(**raw)
+  except TypeError as e:
+    raise StreamRequestError(400, "invalid_request", str(e)) from e
+
+  if is_opview:
+    if len(body.cameras) != 1 or body.cameras[0] not in OPVIEW_CAMERAS:
+      raise StreamRequestError(400, "invalid_camera", f"unsupported camera {body.cameras}")
+    unknown = [s for s in (*body.bridge_services_out, *body.bridge_services_in) if s not in SERVICE_LIST]
+    if unknown:
+      # 500：與 dp0111pre / stock webrtcd（SubMaster KeyError）一致，opview 靠這個退回不帶選用 service 的請求
+      raise StreamRequestError(500, "unknown_service", f"unknown services {unknown}")
+
+  if not remote_is_local and body.bridge_services_in:
+    raise StreamRequestError(403, "forbidden", "bridge_services_in is only allowed from localhost")
+
+  return body, is_opview
+
 
 
 # ice candidate parser for logging
@@ -69,12 +151,24 @@ class AsyncTaskRunner:
 
 
 class CerealOutgoingMessageProxy(AsyncTaskRunner):
-  def __init__(self, services: list[str], enabled: bool = True):
+  # opview：data channel 是可靠、有序的，送出佇列沒有上限。網路（例如 iPhone 熱點）或 comma CPU 跟不上時，
+  # 舊訊息會在佇列裡越積越多、照順序晚到，手機上就會看到「車停了還顯示 98 km/h」這種落後好幾秒的畫面。
+  # 佇列超過上限時這一輪不送（SubMaster 只留最新值，下一輪送的就是最新資料），讓延遲維持在上限以內。
+  OPVIEW_MAX_BUFFERED_BYTES = 256 * 1024
+  # opview 只在 modelV2（20 Hz）到達時重畫：carState、controlsState 這類 100 Hz 的 service 多送也看不到，
+  # 每個 service 最多約 33 Hz（間隔 30 ms）。20 Hz 以下的 service（含 modelV2）不受影響。
+  OPVIEW_MIN_SEND_INTERVAL = 0.03
+
+  def __init__(self, services: list[str], enabled: bool = True, opview: bool = False):
     super().__init__()
     self.services = list(services)
     self.sm = messaging.SubMaster(self.services)
     self.channels = []
     self._enabled = enabled
+    self.opview = opview
+    self.skipped = 0
+    self.congested_since: float | None = None
+    self.last_sent: dict[str, float] = {}
 
   def add_channel(self, channel):
     self.channels.append(channel)
@@ -97,6 +191,9 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
   def update(self):
     # this is blocking in async context...
     self.sm.update(0)
+    if self.opview:
+      self._update_opview()
+      return
     for service, updated in self.sm.updated.items():
       if not updated:
         continue
@@ -107,6 +204,37 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
       for channel in self.channels:
         if not channel.is_open():
           continue
+        channel.send(encoded_msg)
+
+  def _update_opview(self):
+    open_channels = [ch for ch in self.channels if ch.is_open()]
+    ready = [ch for ch in open_channels if ch.buffered_amount() <= self.OPVIEW_MAX_BUFFERED_BYTES]
+    n_updated = sum(1 for updated in self.sm.updated.values() if updated)
+    if len(ready) < len(open_channels):
+      if self.congested_since is None:
+        self.congested_since = time.monotonic()
+        buffered = max(ch.buffered_amount() for ch in open_channels)
+        self.logger.warning("opview data channel congested (%d bytes queued), dropping stale messages", buffered)
+      self.skipped += n_updated
+    elif self.congested_since is not None:
+      self.logger.warning("opview data channel recovered after %.1fs, dropped %d messages",
+                          time.monotonic() - self.congested_since, self.skipped)
+      self.congested_since = None
+      self.skipped = 0
+    if not ready:
+      return
+    now = time.monotonic()
+    for service, updated in self.sm.updated.items():
+      if not updated:
+        continue
+      if now - self.last_sent.get(service, 0.0) < self.OPVIEW_MIN_SEND_INTERVAL:
+        continue
+      self.last_sent[service] = now
+      msg_dict = compact_model_v2(self.sm[service]) if service == "modelV2" else self.to_json(self.sm[service])
+      mono_time, valid = self.sm.logMonoTime[service], self.sm.valid[service]
+      outgoing_msg = {"type": service, "logMonoTime": mono_time, "valid": valid, "data": msg_dict}
+      encoded_msg = json.dumps(outgoing_msg).encode()
+      for channel in ready:
         channel.send(encoded_msg)
 
   async def run(self):
@@ -227,13 +355,17 @@ class LivestreamBitrateController(AsyncTaskRunner):
 class StreamSession:
   shared_pub_master = DynamicPubMaster([])
 
-  def __init__(self, body: StreamRequestBody):
+  def __init__(self, body: StreamRequestBody, is_opview: bool = False):
     from openpilot.system.webrtc.device.video import LiveStreamVideoStreamTrack
     from teleoprtc.builder import WebRTCAnswerBuilder
 
     self.identifier = str(uuid.uuid4())
     self.params = Params()
-    builder = WebRTCAnswerBuilder(body.sdp, bind_address=_default_route_ip())
+    self.is_opview = is_opview
+    # opview：不綁定預設路由介面。comma 同時有 LTE 與 WiFi 時預設路由可能是 LTE，
+    # 綁上去 ICE 只會產生 LTE 位址，手機熱點 / 區網的 opview 就連不到。
+    bind_address = None if is_opview else _default_route_ip()
+    builder = WebRTCAnswerBuilder(body.sdp, bind_address=bind_address)
 
     self.enabled = body.enabled
     self.video_tracks = []
@@ -252,7 +384,7 @@ class StreamSession:
     if len(body.bridge_services_in) > 0:
       self.incoming_bridge = CerealIncomingMessageProxy(self.shared_pub_master)
     if len(body.bridge_services_out) > 0:
-      self.outgoing_bridge = CerealOutgoingMessageProxy(body.bridge_services_out, self.enabled)
+      self.outgoing_bridge = CerealOutgoingMessageProxy(body.bridge_services_out, self.enabled, opview=is_opview)
     self.bitrate_controller = LivestreamBitrateController(self.stream.get_receiver_report_stats, self.params, self.enabled)
 
     self.run_task: asyncio.Task | None = None
@@ -260,8 +392,8 @@ class StreamSession:
     self._cleanup_done = False
     self.logger = logging.getLogger("webrtcd")
     cloudlog.warning(
-      "New stream session (%s), video cameras %s, video enabled %s, incoming services %s, outgoing services %s",
-      self.identifier, [t.id for t in self.video_tracks], body.enabled, body.bridge_services_in, body.bridge_services_out,
+      "New stream session (%s), video cameras %s, video enabled %s, incoming services %s, outgoing services %s, opview %s",
+      self.identifier, [t.id for t in self.video_tracks], body.enabled, body.bridge_services_in, body.bridge_services_out, is_opview,
     )
 
   def start(self):
@@ -352,7 +484,8 @@ class StreamSession:
 
       with cloudlog.ctx(session_id=self.identifier):
         cloudlog.warning("webrtcd.session.connected")
-      if self.is_body:
+      if self.is_body or self.is_opview:
+        # opview 是整趟行車都開著的儀表，不套用 300 秒 session 逾時（同 body）
         await self.run_body_session()
       else:
         await self.run_normal_session()
@@ -408,12 +541,19 @@ def _text_response(text: str, status: int = 200) -> tuple[int, bytes, str]:
   return (status, text.encode(), "text/plain; charset=utf-8")
 
 
-async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: str) -> tuple[int, bytes, str]:
+async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: str,
+                            remote_is_local: bool = True) -> tuple[int, bytes, str]:
   if content_type != "application/json":
     return _json_response({"error": "unsupported media type"}, status=415)
 
   stream_dict = state.streams
-  body = StreamRequestBody(**json.loads(raw_body))
+  try:
+    body, is_opview = parse_stream_request(json.loads(raw_body), remote_is_local)
+  except json.JSONDecodeError:
+    return _json_response({"error": "bad request"}, status=400)
+  except StreamRequestError as e:
+    logging.getLogger("webrtcd").warning("rejected stream request: %s", e.message)
+    return _json_response({"error": e.error, "message": e.message}, status=e.status)
 
   async with state.stream_lock:
     # don't remove existing connection on prewarm request
@@ -425,13 +565,15 @@ async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: s
       if s.run_task and not s.run_task.done():
         try:
           ch = s.stream.get_messaging_channel()
-          ch.send(json.dumps({"type": "disconnect", "data": "Another device has connected, closing this session."}))
+          # opview 認的是 connectionReplaced（收到後停止自動重連，避免兩台裝置互搶）；其他 client 維持 upstream 的 disconnect
+          msg_type = "connectionReplaced" if s.is_opview else "disconnect"
+          ch.send(json.dumps({"type": msg_type, "data": "Another device has connected, closing this session."}))
         except Exception:
           pass
       await s.stop()
       stream_dict.pop(sid, None)
 
-    session = StreamSession(body)
+    session = StreamSession(body, is_opview)
     stream_dict[session.identifier] = session
     try:
       answer = await asyncio.wait_for(session.get_answer(), timeout=30)
@@ -521,12 +663,22 @@ class WebrtcdHandler(BaseHTTPRequestHandler):
   def _run(self, coro) -> tuple[int, bytes, str]:
     return asyncio.run_coroutine_threadsafe(coro, self.server.loop).result()
 
+  def _remote_is_local(self) -> bool:
+    try:
+      return ipaddress.ip_address(self.client_address[0]).is_loopback
+    except ValueError:
+      return False
+
   def _dispatch_request(self) -> None:
     parsed = urlparse(self.path)
     allowed = self._routes.get(parsed.path)
+    remote_is_local = self._remote_is_local()
 
     try:
-      if allowed is None:
+      if not remote_is_local and not self.server.params.get_bool(OPVIEW_PARAM):
+        # 只有開啟 opview 時才接受區網連線；未開啟時與 upstream 一樣只服務 localhost（sunnylink / athena）
+        result = _json_response({"error": "forbidden", "message": "LAN access requires opview to be enabled"}, status=403)
+      elif allowed is None:
         result = _json_response({"error": "not found"}, status=404)
       elif self.command not in allowed:
         result = _json_response({"error": "method not allowed"}, status=405)
@@ -534,7 +686,7 @@ class WebrtcdHandler(BaseHTTPRequestHandler):
         services = parse_qs(parsed.query).get("services", [""])[0]
         result = self._run(handle_get_schema(self.server.state, services))
       elif parsed.path == "/stream":
-        result = self._run(handle_get_stream(self.server.state, self._read_body(), self.headers.get_content_type()))
+        result = self._run(handle_get_stream(self.server.state, self._read_body(), self.headers.get_content_type(), remote_is_local))
       else:  # /notify
         try:
           payload = json.loads(self._read_body())
@@ -579,6 +731,7 @@ class WebrtcdHTTPServer(ThreadingHTTPServer):
   allow_reuse_address = True
   state: ServerState
   loop: asyncio.AbstractEventLoop
+  params: Params
 
 
 async def _shutdown(server: WebrtcdHTTPServer, state: ServerState, loop: asyncio.AbstractEventLoop) -> None:
@@ -610,6 +763,7 @@ def webrtcd_thread(host: str, port: int):
   server = WebrtcdHTTPServer((host, port), WebrtcdHandler)
   server.state = state
   server.loop = loop
+  server.params = Params()
 
   # serve HTTP on a daemon thread so the asyncio loop can own the main thread
   http_thread = threading.Thread(target=server.serve_forever, name="webrtcd-http", daemon=True)
@@ -637,7 +791,8 @@ def webrtcd_thread(host: str, port: int):
 
 def main():
   parser = argparse.ArgumentParser(description="WebRTC daemon")
-  parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to listen on")
+  # opview：手機在區網直接連 :5001，所以聽所有介面；非 localhost 的請求在 _dispatch_request 依 OpviewEnabled 擋下
+  parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to listen on")
   parser.add_argument("--port", type=int, default=5001, help="Port to listen on")
   args = parser.parse_args()
 

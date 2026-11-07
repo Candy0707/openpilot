@@ -1868,6 +1868,12 @@
               ]
             },
             {
+              "key": "OpviewEnabled",
+              "widget": "toggle",
+              "title": "Enable opview",
+              "description": "Streams the road camera and driving data to the opview App (Android) on the same network (e.g. your phone hotspot). Also lets opview read and set the vehicle while offroad."
+            },
+            {
               "key": "QuickBootToggle",
               "widget": "toggle",
               "title": "Quickboot Mode",
