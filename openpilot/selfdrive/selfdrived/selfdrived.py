@@ -99,6 +99,8 @@ class SelfdriveD(CruiseHelper):
     self.car_state_sock = messaging.sub_sock('carState', timeout=20)
 
     ignore = self.sensor_packets + self.gps_packets + ['alertDebug', 'lateralManeuverPlan'] + ['modelDataV2SP', 'longitudinalPlanSP']
+    ignore += ['webrtcd']
+    
     if SIMULATION:
       ignore += ['cabinCameraState', 'managerState']
     if REPLAY:
