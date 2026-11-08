@@ -7,7 +7,21 @@ from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 
 class LeadDepartureSmoother(TargetsBase):
   """
-  LeadDepartureSmoother - 前車駛離與跟車確定性幾何拋物線軌跡生成器 (V1.7.1 動態起步優化版)
+  LeadDepartureSmoother - 前車駛離與跟車確定性幾何拋物線軌跡生成器 (V1.8.0 減速上限修正版)
+
+  V1.8.0（2026-11-09，依 rlog 032/033/045/046 閉迴路重播修正）
+  -------------------------------------------------------------------
+  問題：LDS 只輸出目標車速，下游 longitudinal_planner.get_cruise_accel() 以 (v_target − v_ego)
+  直接當加速度（增益 1/s，下限 A_CRUISE_MIN −1.2）。v_target 以 COMFORT_DECEL_DOWN 1.0 m/s² 下降，
+  實際要求的減速達 −0.9～−1.2 m/s²，遠超過設計的 SCA_DECEL 0.38，且比 MPC 本身的要求大：
+    - 046 0–7 s：前車 100 m 外（23 vs 28.6 m/s），−1.2 m/s² 約 3 秒後放開；關 LDS 為 −0.4。
+    - 032 48.5 s：55 m 外稍慢車，−0.66 m/s² 2.2 秒後放開（點煞形狀）；關 LDS 無煞車脈衝。
+  修正：
+    1. LDS_MAX_DECEL：v_target 不低於 v_ego − LDS_MAX_DECEL × 1 s，使 LDS 經 cruise 候選
+       造成的減速要求不超過約 LDS_MAX_DECEL（預設 = SCA_DECEL）。更強的減速一律交給 MPC。
+    2. COMFORT_DECEL_DOWN 1.0 → SCA_DECEL：目標車速下降斜率與幾何減速度一致。
+    3. _print_log 的 lead_one.status → lead_one.present（sunnypilot LeadData 欄位名）。
+  未改：幾何拋物線、SCA_SAFE_DIST、加速牆、介入／釋放狀態機。
   Copyright (c) 2026 DragonPilot Contributors.
 
   ====================================================================================
@@ -41,7 +55,9 @@ class LeadDepartureSmoother(TargetsBase):
   SCA_DECEL = 0.38          # 恆定舒適幾何加速度/減速度 (m/s²)。數值越小，接近前車的滑行過程越長越溫柔平滑
   SCA_SAFE_DIST = 11.5      # 幾何對齊安全車距邊界 (meter)。當在此車距時，自車目標速與前車速完美完成光滑重合
   V_TARGET_FLOOR = 1.39     # 巡航目標速度保底下限 (m/s)，等於 5.0 km/h。防止指令沉入 0 死區導致起步反應滯後
-  COMFORT_DECEL_DOWN = 1.0  # 巡航速度穩定下降斜率牆 (m/s²)。慢車突然切入插隊時，限制單幀指令暴跌，實現優雅收油滑行
+  COMFORT_DECEL_DOWN = SCA_DECEL  # V1.8.0：1.0 → SCA_DECEL。巡航速度穩定下降斜率牆 (m/s²)
+  LDS_MAX_DECEL = SCA_DECEL       # V1.8.0：LDS 經 cruise 候選要求的最大減速 (m/s²)；get_cruise_accel 增益為 1/s，
+                                  # 故 v_target 下限 = v_ego − LDS_MAX_DECEL。更強的減速交給 MPC。
 
   # ------------------------------------------------------------------------------
   # 方案二：自適應動態起步加速查表參數 (分段對齊時速 0km/h, 20km/h, 60km/h)
@@ -119,6 +135,10 @@ class LeadDepartureSmoother(TargetsBase):
       # 貫徹最高指令與職責解耦：我們完全不控制、不修改加速度。全時回傳當前實車加速度 a_ego 歸還給 MPC 全權解算安全車距
       self.a_target = a_ego
 
+      # V1.8.0：減速上限。get_cruise_accel() 以 (v_target − v_ego) 當加速度，
+      # v_target 不低於 v_ego − LDS_MAX_DECEL，LDS 造成的減速要求即不超過 LDS_MAX_DECEL。
+      self.v_target = max(self.v_target, v_ego - self.LDS_MAX_DECEL)
+
       # 雙重防線：限制在合理的實車安全物理區間內
       self.v_target = max(0.0, min(self.v_target, v_cruise))
     else:
@@ -131,7 +151,7 @@ class LeadDepartureSmoother(TargetsBase):
     # 步驟 4: 狀態更新與 Log 記錄
     # ===========================================================
     if self.debug_log:
-      self._print_log(lead_one.status, raw_v_target, lead_one.vLead, lead_one.dRel, v_ego)
+      self._print_log(lead_one.present, raw_v_target, lead_one.vLead, lead_one.dRel, v_ego)
 
     return super().update_target(sm, v_ego, a_ego, v_cruise)
 
