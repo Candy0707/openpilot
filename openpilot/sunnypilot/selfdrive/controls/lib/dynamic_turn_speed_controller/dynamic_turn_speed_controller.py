@@ -151,7 +151,7 @@ class DynamicTurnSpeedController(TargetsBase):
     k_pred_max = curvatures[max_idx]
     d_pred_max = max(0.0, float(x_pts[max_idx]))
 
-    # 計算該最大曲率在 0.2G 下允許之過彎速度
+    # 計算該最大曲率在 0.15G 下允許之過彎速度
     v_curve_pred = self.calc_v_by_curvature(k_pred_max)
 
     # 4. 20 幀防誤判判定邏輯 (以曲率絕對值為基準，完全不區分正負左右彎，通吃 S 彎)
@@ -211,9 +211,7 @@ class DynamicTurnSpeedController(TargetsBase):
     # 步驟 4: 方向盤扭力一階低通濾波與線性插值安全縮放
     # -------------------------------------------------------------
     # 取得 carOutput 當前輸出扭力絕對值
-    torque_raw = 0.0
-    if 'carOutput' in sm and hasattr(sm['carOutput'], 'actuatorsOutput'):
-      torque_raw = abs(sm['carOutput'].actuatorsOutput.torque)
+    torque_raw = abs(sm['carOutput'].actuatorsOutput.torque)
 
     # 送入一階低通濾波器
     self.torque_filtered = self._torque_filter.update(min(1.0, torque_raw))
@@ -227,15 +225,10 @@ class DynamicTurnSpeedController(TargetsBase):
     # -------------------------------------------------------------
     # 直接乘上扭力安全係數
     self.v_target = v_geom_target * torque_factor
+    self.a_target = a_ego
 
-    # 加速度設定：若預測彎道正在執行減速且該減速度小於當前加速度，採用動態減速度作為起點
-    if is_curve_confirmed and kinematic_a_req < 0.0:
-      self.a_target = kinematic_a_req
-    else:
-      self.a_target = a_ego
-
-    # 判定介入狀態 (action)：當目標車速顯著低於巡航設定速、扭力開始抑制、或彎道生效時即標記介入
-    self.action = bool((self.v_target < (v_cruise - 0.2)) or (torque_factor < 1.0) or is_curve_confirmed)
+    # 判定介入狀態 (action)：當目標車速顯著低於巡航設定速
+    self.action = bool(self.v_target < v_cruise)
 
     # 呼叫父類別 TargetsBase 的仲裁邏輯與系統日誌輸出
     return super().update_target(sm, v_ego, a_ego, v_cruise)
