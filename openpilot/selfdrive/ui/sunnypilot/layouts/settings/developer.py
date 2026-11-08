@@ -53,12 +53,20 @@ class DeveloperLayoutSP(DeveloperLayout):
                                            "(e.g. your phone hotspot). Also lets opview read and set the vehicle while offroad."),
                                         param="OpviewEnabled")
 
+    self.privacy_toggle = toggle_item_sp(tr("Privacy Mode"),
+                                         tr("Blocks all comma.ai cloud connections (remote access, uploads, registration, statistics) " +
+                                            "and sunnylink's remote file, video and location access. " +
+                                            "No video is recorded and the driver camera is not analyzed; " +
+                                            "driver monitoring uses steering wheel touch instead. " +
+                                            "sunnylink settings still work. Reboot to apply."),
+                                         param="PrivacyMode")
+
     self.prebuilt_toggle = toggle_item_sp(tr("Quickboot Mode"), "", param="QuickBootToggle", callback=self._on_prebuilt_toggled)
 
     self.error_log_btn = button_item(tr("Error Log"), tr("VIEW"), tr("View the error log for sunnypilot crashes."), callback=self._on_error_log_clicked)
 
     self.items: list = [self.show_advanced_controls, self.enable_github_runner_toggle, self.enable_copyparty_toggle, self.opview_toggle,
-                        self.prebuilt_toggle, self.error_log_btn,]
+                        self.privacy_toggle, self.prebuilt_toggle, self.error_log_btn,]
 
   @staticmethod
   def _on_prebuilt_toggled(state):

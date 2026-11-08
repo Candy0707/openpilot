@@ -5029,6 +5029,15 @@ msgstr "啟用 opview"
 msgid "enable opview"
 msgstr "啟用 opview"
 
+msgid "Privacy Mode"
+msgstr "隱私模式"
+
+msgid "privacy mode"
+msgstr "隱私模式"
+
+msgid "Blocks all comma.ai cloud connections (remote access, uploads, registration, statistics) and sunnylink's remote file, video and location access. No video is recorded and the driver camera is not analyzed; driver monitoring uses steering wheel touch instead. sunnylink settings still work. Reboot to apply."
+msgstr "切斷所有 comma.ai 雲端連線（遠端存取、上傳、註冊、統計），並禁止 sunnylink 遠端取檔、即時影像與讀取位置。不錄製任何影片，也不分析車內鏡頭；駕駛監控改為偵測是否手握方向盤。sunnylink 設定網頁照常可用。重新開機後生效。"
+
 msgid "Streams the road camera and driving data to the opview App (Android) on the same network (e.g. your phone hotspot). Also lets opview read and set the vehicle while offroad."
 msgstr "將道路影像與行車資料串流到同一網路（例如手機熱點）上的 opview App（Android）。熄火（offroad）時也可讓 opview 讀取與設定車型。"
 

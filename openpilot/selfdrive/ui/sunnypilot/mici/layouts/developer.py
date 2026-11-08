@@ -8,6 +8,11 @@ from openpilot.selfdrive.ui.mici.layouts.settings.developer import DeveloperLayo
 from openpilot.selfdrive.ui.mici.widgets.button import BigParamControl
 from openpilot.system.ui.lib.multilang import tr
 
+PRIVACY_DESCRIPTION = ("Blocks all comma.ai cloud connections (remote access, uploads, registration, statistics) " +
+                       "and sunnylink's remote file, video and location access. " +
+                       "No video is recorded and the driver camera is not analyzed; " +
+                       "driver monitoring uses steering wheel touch instead. " +
+                       "sunnylink settings still work. Reboot to apply.")
 OPVIEW_DESCRIPTION = ("Streams the road camera and driving data to the opview App (Android) on the same network " +
                       "(e.g. your phone hotspot). Also lets opview read and set the vehicle while offroad.")
 
@@ -21,5 +26,9 @@ class DeveloperLayoutMiciSP(DeveloperLayoutMici):
     self._opview_toggle = BigParamControl("enable opview", "OpviewEnabled", description=tr(OPVIEW_DESCRIPTION))
     self._scroller.add_widget(self._opview_toggle)
 
+    # 隱私模式（PrivacyMode）：切斷 comma.ai 雲端、限制 sunnylink 遠端取檔 / 影像 / 位置；重開機後生效
+    self._privacy_toggle = BigParamControl("privacy mode", "PrivacyMode", description=tr(PRIVACY_DESCRIPTION))
+    self._scroller.add_widget(self._privacy_toggle)
+
     # sunnylink / SSH 從外部改參數時，回到此頁會同步開關狀態
-    self._refresh_toggles = (*self._refresh_toggles, ("OpviewEnabled", self._opview_toggle))
+    self._refresh_toggles = (*self._refresh_toggles, ("OpviewEnabled", self._opview_toggle), ("PrivacyMode", self._privacy_toggle))

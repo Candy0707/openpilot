@@ -3,6 +3,7 @@ import operator
 import platform
 
 from opendbc.car.structs import car
+from openpilot.sunnypilot.privacy import privacy_mode_onroad
 from openpilot.cereal import custom
 from openpilot.common.params import Params
 from openpilot.common.hardware import PC, COMMA_HARDWARE
@@ -71,6 +72,14 @@ def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
 def use_copyparty(started, params, CP: car.CarParams) -> bool:
   return bool(params.get_bool("EnableCopyparty"))
 
+def recording(started: bool, params: Params, CP: car.CarParams) -> bool:
+  # 隱私模式：不錄任何影片（encoderd 不啟動）
+  return started and not privacy_mode_onroad(started, params)
+
+def dm_vision(started: bool, params: Params, CP: car.CarParams) -> bool:
+  # 隱私模式：不分析車內鏡頭（dmonitoringd 改用方向盤觸碰監控）
+  return driverview(started, params, CP) and not privacy_mode_onroad(started, params)
+
 def opview(started: bool, params: Params, CP: car.CarParams) -> bool:
   # opview（手機 App）：行車中提供影像 + cereal 資料（stream_encoderd + webrtcd :5001）
   return started and params.get_bool("OpviewEnabled")
@@ -118,7 +127,7 @@ procs = [
   DaemonProcess("manage_athenad", "openpilot.system.athena.manage_athenad", "AthenadPid"),
 
   NativeProcess("loggerd", "openpilot/system/loggerd", ["./loggerd"], logging),
-  NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], only_onroad),
+  NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], recording),
   NativeProcess("stream_encoderd", "openpilot/system/loggerd", ["./encoderd", "--stream"], or_(livestream, or_(notcar, opview))),
   PythonProcess("logmessaged", "openpilot.system.logmessaged", always_run),
 
@@ -130,7 +139,7 @@ procs = [
   PythonProcess("timed", "openpilot.system.timed", always_run, enabled=not PC),
 
   PythonProcess("modeld", "openpilot.selfdrive.modeld.modeld", and_(only_onroad, is_stock_model)),
-  PythonProcess("dmonitoringmodeld", "openpilot.selfdrive.modeld.dmonitoringmodeld", driverview, enabled=(WEBCAM or not PC)),
+  PythonProcess("dmonitoringmodeld", "openpilot.selfdrive.modeld.dmonitoringmodeld", dm_vision, enabled=(WEBCAM or not PC)),
 
   PythonProcess("sensord", "openpilot.system.sensord.sensord", only_onroad, enabled=not PC),
   PythonProcess("ui", "openpilot.selfdrive.ui.ui", always_run),
