@@ -25,6 +25,7 @@ from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.cereal import messaging, log
 from openpilot.cereal.services import SERVICE_LIST
+from openpilot.sunnypilot.privacy import privacy_mode
 
 SESSION_TIMEOUT_SECONDS = 300
 
@@ -36,6 +37,31 @@ SESSION_TIMEOUT_SECONDS = 300
 # sunnylink / athena 的 livestream（從 127.0.0.1 來）行為與 upstream 相同。
 OPVIEW_PARAM = "OpviewEnabled"
 OPVIEW_CAMERAS = ("road", "wideRoad", "driver")
+# opview 使用的舊 service 名稱 → 這版 sunnypilot（upstream）改名後的名稱。
+# capnp ordinal 與欄位都相同（log.capnp：extrinsicsCalibration @19 :ExtrinsicsCalibration、narrowRoadCameraState @2 :FrameData、
+# cabinCameraState @70 :FrameData），只是名字不同，所以請求時換成新名稱、送出時 type 換回舊名稱，opview 不需修改。
+# 只在舊名稱不存在、新名稱存在時才轉換（其他分支仍用舊名稱時不受影響）。
+OPVIEW_SERVICE_ALIASES = {
+  "liveCalibration": "extrinsicsCalibration",
+  "roadCameraState": "narrowRoadCameraState",
+  "driverCameraState": "cabinCameraState",
+}
+
+
+def resolve_opview_services(services: list[str]) -> list[str]:
+  out: list[str] = []
+  for s in services:
+    if s not in SERVICE_LIST and OPVIEW_SERVICE_ALIASES.get(s) in SERVICE_LIST:
+      s = OPVIEW_SERVICE_ALIASES[s]
+    if s not in out:
+      out.append(s)
+  return out
+
+
+def opview_outgoing_names(services: list[str]) -> dict[str, str]:
+  """送給 opview 時的 type：新名稱 → opview 認得的舊名稱"""
+  reverse = {new: old for old, new in OPVIEW_SERVICE_ALIASES.items() if old not in SERVICE_LIST}
+  return {s: reverse[s] for s in services if s in reverse}
 
 
 def _r3(values) -> list[float]:
@@ -68,7 +94,7 @@ class StreamRequestError(Exception):
     self.status, self.error, self.message = status, error, message
 
 
-def parse_stream_request(raw: Any, remote_is_local: bool = True) -> tuple[StreamRequestBody, bool]:
+def parse_stream_request(raw: Any, remote_is_local: bool = True, allow_driver_camera: bool = True) -> tuple[StreamRequestBody, bool]:
   """回傳 (body, is_opview)。
   - upstream 格式（sunnylink / athena：cameras + enabled）原樣交給 StreamRequestBody，行為不變。
   - opview 格式（initCamera，或明確帶 "client": "opview"）：
@@ -88,6 +114,8 @@ def parse_stream_request(raw: Any, remote_is_local: bool = True) -> tuple[Stream
     raw.setdefault("enabled", True)
     known = StreamRequestBody.__dataclass_fields__.keys()
     raw = {k: v for k, v in raw.items() if k in known}
+    if isinstance(raw.get("bridge_services_out"), list):
+      raw["bridge_services_out"] = resolve_opview_services(raw["bridge_services_out"])
 
   try:
     body = StreamRequestBody(**raw)
@@ -101,6 +129,10 @@ def parse_stream_request(raw: Any, remote_is_local: bool = True) -> tuple[Stream
     if unknown:
       # 500：與 dp0111pre / stock webrtcd（SubMaster KeyError）一致，opview 靠這個退回不帶選用 service 的請求
       raise StreamRequestError(500, "unknown_service", f"unknown services {unknown}")
+
+  if not allow_driver_camera and "driver" in body.cameras:
+    # 隱私模式：不串流車內鏡頭（opview / sunnylink 皆同）
+    raise StreamRequestError(403, "forbidden", "driver camera is disabled in privacy mode")
 
   if not remote_is_local and body.bridge_services_in:
     raise StreamRequestError(403, "forbidden", "bridge_services_in is only allowed from localhost")
@@ -166,6 +198,7 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
     self.channels = []
     self._enabled = enabled
     self.opview = opview
+    self.out_names = opview_outgoing_names(self.services) if opview else {}
     self.skipped = 0
     self.congested_since: float | None = None
     self.last_sent: dict[str, float] = {}
@@ -232,7 +265,7 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
       self.last_sent[service] = now
       msg_dict = compact_model_v2(self.sm[service]) if service == "modelV2" else self.to_json(self.sm[service])
       mono_time, valid = self.sm.logMonoTime[service], self.sm.valid[service]
-      outgoing_msg = {"type": service, "logMonoTime": mono_time, "valid": valid, "data": msg_dict}
+      outgoing_msg = {"type": self.out_names.get(service, service), "logMonoTime": mono_time, "valid": valid, "data": msg_dict}
       encoded_msg = json.dumps(outgoing_msg).encode()
       for channel in ready:
         channel.send(encoded_msg)
@@ -548,7 +581,7 @@ async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: s
 
   stream_dict = state.streams
   try:
-    body, is_opview = parse_stream_request(json.loads(raw_body), remote_is_local)
+    body, is_opview = parse_stream_request(json.loads(raw_body), remote_is_local, allow_driver_camera=not privacy_mode())
   except json.JSONDecodeError:
     return _json_response({"error": "bad request"}, status=400)
   except StreamRequestError as e:

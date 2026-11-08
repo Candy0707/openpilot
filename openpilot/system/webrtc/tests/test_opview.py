@@ -44,6 +44,14 @@ class TestOpviewStreamRequest(OpenpilotTestCase):
       parse_stream_request({"sdp": "x", "initCamera": "road", "bridge_services_out": ["carState", "noSuchService"]})
     assert e.value.status == 500
 
+  def test_renamed_services(self):
+    # opview 用舊名稱；這版改名為 extrinsicsCalibration / narrowRoadCameraState
+    body, _ = parse_stream_request({"sdp": "x", "initCamera": "road",
+                                    "bridge_services_out": ["carState", "liveCalibration", "roadCameraState", "modelV2"]})
+    assert body.bridge_services_out == ["carState", "extrinsicsCalibration", "narrowRoadCameraState", "modelV2"]
+    proxy = CerealOutgoingMessageProxy(body.bridge_services_out, opview=True)
+    assert proxy.out_names == {"extrinsicsCalibration": "liveCalibration", "narrowRoadCameraState": "roadCameraState"}
+
   def test_invalid_camera(self):
     with pytest.raises(StreamRequestError) as e:
       parse_stream_request({"sdp": "x", "initCamera": "rear", "bridge_services_out": []})
@@ -56,6 +64,16 @@ class TestOpviewStreamRequest(OpenpilotTestCase):
     # localhost（sunnylink / athena / body）照舊可以
     body, _ = parse_stream_request({"sdp": "x", "cameras": ["road"], "enabled": True, "bridge_services_in": ["testJoystick"]})
     assert body.bridge_services_in == ["testJoystick"]
+
+
+  def test_privacy_blocks_driver_camera(self):
+    with pytest.raises(StreamRequestError) as e:
+      parse_stream_request({"sdp": "x", "initCamera": "driver"}, allow_driver_camera=False)
+    assert e.value.status == 403
+    with pytest.raises(StreamRequestError):
+      parse_stream_request({"sdp": "x", "cameras": ["driver"], "enabled": True}, allow_driver_camera=False)
+    body, _ = parse_stream_request({"sdp": "x", "initCamera": "road"}, allow_driver_camera=False)
+    assert body.cameras == ["road"]
 
 
 class TestOpviewOutgoingProxy(OpenpilotTestCase):
