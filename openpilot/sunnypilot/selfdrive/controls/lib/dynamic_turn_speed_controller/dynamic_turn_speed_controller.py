@@ -29,10 +29,9 @@ TARGET_LAT_G = 0.15        # 目標舒適橫向向心 G 值 (0.15G)
 GRAVITY = 9.81            # 重力加速度常數 (m/s^2)
 MIN_CURVATURE = 1e-4      # 最小有效曲率門檻 (半徑大於 10,000m 視為純直線，避免除以零)
 
-# 200 格時空網格參數 (時間跨度 10 秒，解析度 0.05 秒)
+# 200 格時空網格參數 (時間跨度 10 秒)
 NUM_SLOTS = 200
-DT_STEP = DT_MDL          # 0.05s
-LINEAR_T = np.arange(0.0, 10.0, DT_STEP)
+LINEAR_T = np.arange(0.0, 10.0, DT_MDL)
 MODEL_T = np.array(ModelConstants.T_IDXS)
 CONF_THRESHOLD = 0.60     # 信心度確認門檻 (60%)
 
@@ -113,7 +112,7 @@ class DynamicTurnSpeedController(TargetsBase):
     curv_source_2 = 0.0
     if sm.valid.get('lateralManeuverPlan', False):
       curv_source_2 = sm['lateralManeuverPlan'].desiredCurvature
-    elif 'modelV2' in sm and sm.valid.get('modelV2', False):
+    else:
       curv_source_2 = sm['modelV2'].action.desiredCurvature
 
     return max(abs(curv_source_1), abs(curv_source_2))
