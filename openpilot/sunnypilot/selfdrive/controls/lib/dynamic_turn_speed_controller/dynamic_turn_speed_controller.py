@@ -195,7 +195,7 @@ class DynamicTurnSpeedController(TargetsBase):
     # 步驟 2: 檢查 Model 存在並計算「前方預測彎道」動態減速
     # -------------------------------------------------------------
     # 【update_target 檢查 model 存在保護】若不存在或無效則略過預測計算，不 return
-    has_model = ('modelV2' in sm and sm.valid.get('modelV2', False))
+    has_model = (sm.valid.get('modelV2', False))
     if has_model:
       v_curve_pred, d_pred, is_curve_confirmed = self._eval_predictive_curve(sm, v_cruise)
     else:
