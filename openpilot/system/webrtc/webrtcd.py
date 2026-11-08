@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import ipaddress
 import json
+import re
 import uuid
 import logging
 import signal
@@ -46,6 +47,45 @@ OPVIEW_SERVICE_ALIASES = {
   "roadCameraState": "narrowRoadCameraState",
   "driverCameraState": "cabinCameraState",
 }
+
+
+# opview 的 applyTdx() 讀 dp0111pre 的 tdx 格式（頂層 nextSpeed / congestion / events[]）。
+# sunnypilot 的 tdx 是另一個結構（trafficStatus{…} + roadEvent{…}），直接轉送 opview 會什麼都不顯示。
+# 送給 opview 前轉成 dp 格式（opview 不需修改）；dp 格式（沒有 trafficStatus）原樣送出。
+#   壅塞分級：兩邊門檻相同（>=80 / 40~79 / <40 km/h），只有名稱不同
+_TDX_STATUS_TO_DP = {"freeFlow": "smooth", "heavyTraffic": "slow", "severeCongestion": "congested", "unknown": "unknown"}
+_TDX_EVENT_RE = re.compile(r'(?:^|/)(\d+)\|')
+
+
+def opview_tdx_compat(data):
+  if not isinstance(data, dict):
+    return data
+  ts = data.get("trafficStatus")
+  if not isinstance(ts, dict):
+    return data
+  out = {
+    "sectionId": ts.get("sectionId", ""),
+    "speed": ts.get("speed", -1),
+    "nextSectionId": ts.get("nextSectionId", ""),
+    "nextSpeed": ts.get("nextSpeed", -1),
+    "congestion": _TDX_STATUS_TO_DP.get(str(ts.get("status", "unknown")), "unknown"),
+    "events": [],
+  }
+  ev = data.get("roadEvent")
+  if isinstance(ev, dict) and ev.get("isActive") and ev.get("description"):
+    # sp tdx.py：description =「目前:<type>|<說明>/<type>|<說明>…」或「前方:…」
+    loc, sep, rest = str(ev["description"]).partition(":")
+    is_current = loc == "目前"
+    if not sep:
+      rest = str(ev["description"])
+    starts = list(_TDX_EVENT_RE.finditer(rest))
+    if not starts:
+      out["events"].append({"eventType": 0, "description": rest, "isCurrentSection": is_current})
+    for i, m in enumerate(starts):
+      end = starts[i + 1].start() if i + 1 < len(starts) else len(rest)
+      desc = rest[m.end():end]
+      out["events"].append({"eventType": int(m.group(1)), "description": desc, "isCurrentSection": is_current})
+  return out
 
 
 def resolve_opview_services(services: list[str]) -> list[str]:
@@ -184,9 +224,12 @@ class AsyncTaskRunner:
 
 class CerealOutgoingMessageProxy(AsyncTaskRunner):
   # opview：data channel 是可靠、有序的，送出佇列沒有上限。網路（例如 iPhone 熱點）或 comma CPU 跟不上時，
-  # 舊訊息會在佇列裡越積越多、照順序晚到，手機上就會看到「車停了還顯示 98 km/h」這種落後好幾秒的畫面。
-  # 佇列超過上限時這一輪不送（SubMaster 只留最新值，下一輪送的就是最新資料），讓延遲維持在上限以內。
-  OPVIEW_MAX_BUFFERED_BYTES = 256 * 1024
+  # 舊訊息會在佇列裡越積越多、照順序晚到。
+  # 壅塞判斷只用 send() 的回傳值（libdatachannel：True = 立即送出，False = 進了緩衝佇列）。
+  # 刻意「不」呼叫 buffered_amount()：實車 rlog 顯示呼叫它之後 webrtcd 事件迴圈卡死（連線後 CPU 不再增加、
+  # 資料 0 筆、影像只有 1 張），約 12 秒後 SIGSEGV（exitCode -11）。上游 webrtcd / teleoprtc 也只用 is_open() 與 send()。
+  # send() 回 False 後暫停 OPVIEW_BACKOFF_S（SubMaster 只留最新值，恢復後送的就是最新資料）。
+  OPVIEW_BACKOFF_S = 0.2
   # opview 只在 modelV2（20 Hz）到達時重畫：carState、controlsState 這類 100 Hz 的 service 多送也看不到，
   # 每個 service 最多約 33 Hz（間隔 30 ms）。20 Hz 以下的 service（含 modelV2）不受影響。
   OPVIEW_MIN_SEND_INTERVAL = 0.03
@@ -201,6 +244,7 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
     self.out_names = opview_outgoing_names(self.services) if opview else {}
     self.skipped = 0
     self.congested_since: float | None = None
+    self.backoff_until = 0.0
     self.last_sent: dict[str, float] = {}
 
   def add_channel(self, channel):
@@ -241,34 +285,44 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
 
   def _update_opview(self):
     open_channels = [ch for ch in self.channels if ch.is_open()]
-    ready = [ch for ch in open_channels if ch.buffered_amount() <= self.OPVIEW_MAX_BUFFERED_BYTES]
-    n_updated = sum(1 for updated in self.sm.updated.values() if updated)
-    if len(ready) < len(open_channels):
-      if self.congested_since is None:
-        self.congested_since = time.monotonic()
-        buffered = max(ch.buffered_amount() for ch in open_channels)
-        self.logger.warning("opview data channel congested (%d bytes queued), dropping stale messages", buffered)
-      self.skipped += n_updated
-    elif self.congested_since is not None:
-      self.logger.warning("opview data channel recovered after %.1fs, dropped %d messages",
-                          time.monotonic() - self.congested_since, self.skipped)
-      self.congested_since = None
-      self.skipped = 0
-    if not ready:
+    if not open_channels:
       return
     now = time.monotonic()
+    n_updated = sum(1 for updated in self.sm.updated.values() if updated)
+    if now < self.backoff_until:
+      self.skipped += n_updated
+      return
+    if self.congested_since is not None:
+      self.logger.warning("opview data channel recovered after %.1fs, dropped %d messages", now - self.congested_since, self.skipped)
+      self.congested_since = None
+      self.skipped = 0
+
     for service, updated in self.sm.updated.items():
       if not updated:
         continue
       if now - self.last_sent.get(service, 0.0) < self.OPVIEW_MIN_SEND_INTERVAL:
         continue
       self.last_sent[service] = now
-      msg_dict = compact_model_v2(self.sm[service]) if service == "modelV2" else self.to_json(self.sm[service])
+      if service == "modelV2":
+        msg_dict = compact_model_v2(self.sm[service])
+      elif service == "tdx":
+        msg_dict = opview_tdx_compat(self.to_json(self.sm[service]))
+      else:
+        msg_dict = self.to_json(self.sm[service])
       mono_time, valid = self.sm.logMonoTime[service], self.sm.valid[service]
       outgoing_msg = {"type": self.out_names.get(service, service), "logMonoTime": mono_time, "valid": valid, "data": msg_dict}
       encoded_msg = json.dumps(outgoing_msg).encode()
-      for channel in ready:
-        channel.send(encoded_msg)
+      sent_now = True
+      for channel in open_channels:
+        if channel.send(encoded_msg) is False:
+          sent_now = False
+      if not sent_now:
+        # 已進入緩衝佇列：這一筆仍會送達，之後暫停一下讓佇列消化
+        self.backoff_until = now + self.OPVIEW_BACKOFF_S
+        if self.congested_since is None:
+          self.congested_since = now
+          self.logger.warning("opview data channel congested, backing off %.1fs", self.OPVIEW_BACKOFF_S)
+        return
 
   async def run(self):
     while True:

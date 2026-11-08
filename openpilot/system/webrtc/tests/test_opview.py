@@ -5,7 +5,7 @@ import pytest
 
 from openpilot.common.test import OpenpilotTestCase
 from openpilot.system.webrtc.webrtcd import (
-  CerealOutgoingMessageProxy, StreamRequestError, compact_model_v2, parse_stream_request,
+  CerealOutgoingMessageProxy, StreamRequestError, compact_model_v2, opview_tdx_compat, parse_stream_request,
 )
 
 
@@ -76,6 +76,29 @@ class TestOpviewStreamRequest(OpenpilotTestCase):
     assert body.cameras == ["road"]
 
 
+class TestOpviewTdxCompat(OpenpilotTestCase):
+  def test_sp_to_dp(self):
+    # sunnypilot tdx（trafficStatus + roadEvent）→ opview 認得的 dp 格式（nextSpeed / congestion / events[]）
+    sp = {"trafficStatus": {"sectionId": "1", "speed": 92, "nextSectionId": "2", "nextSpeed": 35, "status": "severeCongestion"},
+          "roadEvent": {"sectionId": "2", "description": "前方:1|事故 佔用外側/車道/2|施工", "distance": 1200.0, "isActive": True}}
+    d = opview_tdx_compat(sp)
+    assert d["nextSpeed"] == 35 and d["congestion"] == "congested"
+    assert d["events"] == [
+      {"eventType": 1, "description": "事故 佔用外側/車道", "isCurrentSection": False},
+      {"eventType": 2, "description": "施工", "isCurrentSection": False},
+    ]
+    assert opview_tdx_compat({**sp, "roadEvent": {"isActive": True, "description": "目前:3|壅塞"}})["events"][0]["isCurrentSection"]
+
+  def test_status_mapping_and_inactive(self):
+    for sp_status, dp_congestion in (("freeFlow", "smooth"), ("heavyTraffic", "slow"), ("severeCongestion", "congested"), ("unknown", "unknown")):
+      d = opview_tdx_compat({"trafficStatus": {"nextSpeed": -1, "status": sp_status}, "roadEvent": {"isActive": False, "description": ""}})
+      assert d["congestion"] == dp_congestion and d["events"] == []
+
+  def test_dp_format_passthrough(self):
+    dp = {"nextSpeed": 50, "congestion": "slow", "events": []}
+    assert opview_tdx_compat(dp) is dp
+
+
 class TestOpviewOutgoingProxy(OpenpilotTestCase):
   def test_compact_model(self):
     d = compact_model_v2(_fake_model())
@@ -83,27 +106,34 @@ class TestOpviewOutgoingProxy(OpenpilotTestCase):
     assert d["laneLineProbs"][0] == 0.912 and d["acceleration"]["x"][0] == 0.333
     json.dumps(d)
 
-  def _proxy(self, mocker, buffered):
+  def _proxy(self, mocker, send_result=True):
     proxy = CerealOutgoingMessageProxy(["carState"], opview=True)
     proxy.sm = mocker.MagicMock()
     proxy.sm.updated = {"carState": True}
     proxy.sm.__getitem__.return_value = 1.5
     proxy.sm.logMonoTime = {"carState": 1}
     proxy.sm.valid = {"carState": True}
-    ch = mocker.Mock()
+    ch = mocker.Mock(spec=["is_open", "send"])  # 不提供 buffered_amount：opview 路徑不得呼叫它
     ch.is_open.return_value = True
-    ch.buffered_amount.return_value = buffered
+    ch.send.return_value = send_result
     proxy.add_channel(ch)
     return proxy, ch
 
-  def test_congested_channel_skips(self, mocker):
-    proxy, ch = self._proxy(mocker, CerealOutgoingMessageProxy.OPVIEW_MAX_BUFFERED_BYTES + 1)
+  def test_congested_channel_backs_off(self, mocker):
+    # send() 回 False（進了緩衝佇列）→ 暫停 OPVIEW_BACKOFF_S，期間不再送
+    proxy, ch = self._proxy(mocker, send_result=False)
     proxy.update()
-    ch.send.assert_not_called()
-    assert proxy.congested_since is not None and proxy.skipped == 1
+    assert ch.send.call_count == 1 and proxy.congested_since is not None
+    proxy.last_sent.clear()
+    proxy.update()
+    assert ch.send.call_count == 1 and proxy.skipped == 1
+    proxy.backoff_until = 0.0
+    ch.send.return_value = True
+    proxy.update()
+    assert ch.send.call_count == 2 and proxy.congested_since is None
 
   def test_rate_limit(self, mocker):
-    proxy, ch = self._proxy(mocker, 0)
+    proxy, ch = self._proxy(mocker)
     proxy.update()
     proxy.update()  # 30 ms 內第二次不送
     assert ch.send.call_count == 1
