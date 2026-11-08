@@ -21,7 +21,10 @@ def wheeltouch_step(DM: DriverMonitoring, sm) -> None:
 
 def dmonitoringd_wheeltouch_thread(params: Params, pm: messaging.PubMaster) -> None:
   cloudlog.warning("dmonitoringd: privacy mode, driver camera and wheel-touch monitoring disabled")
-  sm = messaging.SubMaster(['carState', 'selfdriveState', 'carControl'])
+  # 沒有 poll 時 SubMaster 會假設以最快 service 的頻率（carState 100 Hz）更新，
+  # 但這個迴圈是 20 Hz → 頻率檢查失敗 → all_checks() 為 False → driverMonitoringState.valid=False
+  # → selfdrived「driverMonitoringState 流程間的溝通問題」。明確指定迴圈頻率 20 Hz。
+  sm = messaging.SubMaster(['carState', 'selfdriveState', 'carControl'], frequency=1. / DT_DMON)
   DM = DriverMonitoring(rhd_saved=params.get_bool("IsRhdDetected"), always_on=params.get_bool("AlwaysOnDM"))
   DM._set_policy(MonitoringPolicy.wheeltouch)
   rk = Ratekeeper(1 / DT_DMON, print_delay_threshold=None)
