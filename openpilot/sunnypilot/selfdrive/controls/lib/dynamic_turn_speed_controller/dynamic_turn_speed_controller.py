@@ -2,7 +2,7 @@
 動態過彎速度控制器 (Dynamic Turn Speed Controller - DTSC)
 
 本模組繼承自 TargetsBase，負責在車輛行駛與即將過彎時提供動態降速目標：
-1. 依據固定向心 G 值 (0.2G) 物理公式，將路徑曲率換算為舒適過彎極限速度。
+1. 依據固定向心 G 值 (0.15G) 物理公式，將路徑曲率換算為舒適過彎極限速度。
 2. 結合當前控制曲率與前方視覺模型 (modelV2) 預測之 33 個點完整路徑曲率。
 3. 採用全路徑「最大曲率 (最低速)」為最保守安全約束，並透過「連續 20 幀確認」機制徹底排除單格視覺雜訊誤判。
 4. 採用到達目標距離時剛好達標的「動態運動學即時減速度」，無固定舒適減速度限制。
@@ -24,12 +24,9 @@ from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 # ==========================================
 # 全域物理常數與演算法參數定義
 # ==========================================
-TARGET_LAT_G = 0.2        # 目標舒適橫向向心 G 值 (0.2G)
+TARGET_LAT_G = 0.15        # 目標舒適橫向向心 G 值 (0.15G)
 GRAVITY = 9.81            # 重力加速度常數 (m/s^2)
 MIN_CURVATURE = 1e-4      # 最小有效曲率門檻 (半徑大於 10,000m 視為純直線，避免除以零)
-
-# 驅動/模型頻率 (20Hz)，對應時間間隔 1 / DL_ML = 0.05s
-DL_ML = 1.0 / DT_MDL
 
 # 防誤判連續確認幀數門檻 (modelV2 頻率為 20Hz，20 幀約等於連續觀測 1.0 秒)
 PERSISTENT_FRAME_THRESHOLD = 20
@@ -75,7 +72,7 @@ class DynamicTurnSpeedController(TargetsBase):
     # --- 方向盤橫向扭力濾波器 ---
     # 依使用者規格：FirstOrderFilter(0, 0.1, 1 / DL_ML)
     # x0=0 (初值), rc=0.1 (時間常數), dt=1/DL_ML (步長 0.05s)
-    self._torque_filter = FirstOrderFilter(0.0, 0.1, 1.0 / DL_ML)
+    self._torque_filter = FirstOrderFilter(0.0, 0.1, DT_MDL)
 
     # 內部過濾後之扭矩數值 (0.0 ~ 1.0)
     self.torque_filtered = 0.0
@@ -108,25 +105,13 @@ class DynamicTurnSpeedController(TargetsBase):
     來源 2: lateralManeuverPlan.desiredCurvature (若無或未啟用則取 model action 或車輛當前曲率)
     """
     # 來源 1: 控制器當下目標曲率
-    curv_source_1 = sm['controlsState'].desiredCurvature if 'controlsState' in sm else 0.0
-
-    # 判斷橫向控制是否正在作動
-    lat_active = False
-    if 'carControl' in sm:
-      lat_active = sm['carControl'].latActive
-    elif 'controlsState' in sm:
-      lat_active = sm['controlsState'].active
-
-    # 當前車輛實際物理曲率 fallback
-    curvature_fallback = sm['carState'].curvature if 'carState' in sm else 0.0
+    curv_source_1 = sm['controlsState'].desiredCurvature
 
     # 來源 2: 規劃器或模型 Action 曲率
     if sm.valid.get('lateralManeuverPlan', False):
-      curv_source_2 = sm['lateralManeuverPlan'].desiredCurvature if lat_active else curvature_fallback
-    elif 'modelV2' in sm and hasattr(sm['modelV2'], 'action'):
-      curv_source_2 = sm['modelV2'].action.desiredCurvature if lat_active else curvature_fallback
+      curv_source_2 = sm['lateralManeuverPlan'].desiredCurvature
     else:
-      curv_source_2 = curvature_fallback
+      curv_source_2 = sm['modelV2'].action.desiredCurvature
 
     # 取絕對值最大者代表當前最大轉向需求
     return max(abs(curv_source_1), abs(curv_source_2))
@@ -139,10 +124,6 @@ class DynamicTurnSpeedController(TargetsBase):
     回傳:
       tuple[float, float, bool]: (最大曲率點對應之目標車速 v_curve, 縱向距離 d, 是否通過20幀確認)
     """
-    if 'modelV2' not in sm or len(sm['modelV2'].position.x) < 33:
-      self.curve_frame_counter = 0
-      return V_CRUISE_MAX, 0.0, False
-
     x_pts = list(sm['modelV2'].position.x)
     y_pts = list(sm['modelV2'].position.y)
     num_pts = len(x_pts)
