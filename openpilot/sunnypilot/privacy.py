@@ -1,5 +1,9 @@
 """
-隱私模式（PrivacyMode，預設開啟）
+隱私模式（PrivacyMode，預設關閉）
+
+預設關閉的原因：隱私模式不向 comma 註冊。新安裝的裝置沒有 DongleId 時會變成 UNREGISTERED，
+而 sunnylink 註冊需要 comma 的 DongleId（sunnylink/api.py register_device：comma_dongle_id 為 None 就不註冊），
+所以要先在關閉狀態下開機、完成 comma 與 sunnylink 註冊，再開啟隱私模式。
 
 開啟時：
   comma.ai
@@ -84,8 +88,8 @@ def privacy_mode(params: Params | None = None) -> bool:
   try:
     return (params or Params()).get_bool(PRIVACY_PARAM)
   except Exception:
-    # 參數讀不到時以隱私優先
-    return True
+    # 參數讀不到時（例如 params_keys.h 尚未重新編譯）與預設值一致：關閉
+    return False
 
 
 def stop_athenad_daemon(params: Params) -> None:

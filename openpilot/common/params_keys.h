@@ -190,7 +190,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"OnroadScreenOffTimerMigrated", {PERSISTENT | BACKUP, STRING, "0.0"}},
     {"OnroadUploads", {PERSISTENT | BACKUP, BOOL, "1"}},
     {"OpviewEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},  // opview: phone viewer over LAN (webrtcd :5001, opviewd :5088)
-    {"PrivacyMode", {PERSISTENT, BOOL, "1"}},  // block comma.ai cloud + sunnylink remote file/video/location access
+    {"PrivacyMode", {PERSISTENT, BOOL, "0"}},  // block comma.ai cloud + sunnylink remote file/video/location access
     {"QuickBootToggle", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"QuietMode", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"RadarUIInfo", {PERSISTENT | BACKUP, INT, "0"}},

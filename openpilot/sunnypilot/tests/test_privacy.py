@@ -14,8 +14,9 @@ class FakeParams:
     return bool(self.value)
 
 
-def test_privacy_mode_defaults_to_private_on_error():
-  assert privacy.privacy_mode(FakeParams(raise_=True)) is True
+def test_privacy_mode_defaults_off_on_error():
+  # 與 params_keys.h 預設值一致：讀不到時視為關閉（避免未註冊裝置無法註冊 sunnylink）
+  assert privacy.privacy_mode(FakeParams(raise_=True)) is False
   assert privacy.privacy_mode(FakeParams(True)) is True
   assert privacy.privacy_mode(FakeParams(False)) is False
 
