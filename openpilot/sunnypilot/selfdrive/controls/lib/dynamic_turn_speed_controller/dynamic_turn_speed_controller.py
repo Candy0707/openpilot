@@ -186,12 +186,6 @@ class DynamicTurnSpeedController(TargetsBase):
     """
     核心目標車速與加速度運算迴圈。
     """
-    # 【第一行：核心 sm 與必備 msg 存在保護】
-    # 只要缺少 controlsState 或 carOutput 即無法進行動態控制，直接由基底類別接管
-    REQUIRED_MSGS = ('controlsState', 'carOutput')
-    if sm is None or not all(k in sm for k in REQUIRED_MSGS):
-      return super().update_target(sm, v_ego, a_ego, v_cruise)
-
     # -------------------------------------------------------------
     # 步驟 1: 計算「當前狀態」即時目標車速 (不受 modelV2 影響)
     # -------------------------------------------------------------
@@ -237,7 +231,7 @@ class DynamicTurnSpeedController(TargetsBase):
     # 僅在 controlsState 為 torqueState 時才讀取扭矩與插值，非扭力狀態絕不強制停車
     torque_factor = 1.0
     if sm['controlsState'].lateralControlState.which() == 'torqueState':
-      torque_raw = abs(sm['carOutput'].actuatorsOutput.torque)
+      torque_raw = abs(sm['controlsState'].lateralControlState.torqueState.output)
       self.torque_filtered = self._torque_filter.update(min(1.0, torque_raw))
       # 0.6 ~ 0.9 對應係數 1.0 ~ 0.0 (>= 0.9 強制歸零以保護車輛不推頭)
       torque_factor = float(np.interp(self.torque_filtered, [0.6, 0.9], [1.0, 0.0]))
