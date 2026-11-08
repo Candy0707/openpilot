@@ -4,6 +4,7 @@ from openpilot.cereal import messaging, custom
 from openpilot.common.params import Params
 
 from opendbc.car import structs
+from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
 from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX
@@ -118,7 +119,7 @@ class TargetsBase(ABC):
     # 只有在功能支援 (available)、已開啟 (enable)，且確定要介入 (action) 時，才輸出子類別的計算目標
     if self.available and self.enable and self.action:
       self.output_v_target = max(0.0, min(self.v_target, V_CRUISE_MAX))
-      self.output_a_target = self.a_target
+      self.output_a_target = max(ACCEL_MIN, min(self.a_target, ACCEL_MAX))
     else:
       # 否則 (未開啟、不支援、或未達到介入條件)，一律交還控制權
       # 速度給予最大寬容值，加速度則帶入 a_ego 作為下游 MPC 的曲率規劃起點
