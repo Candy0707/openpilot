@@ -17,7 +17,8 @@
   車內與錄影（每次發動時鎖定，行駛中切換於下次發動生效）
     - 不執行 encoderd：不錄任何影片（道路 / 廣角 / 車內 / qcamera、縮圖、錄音）。loggerd 照常寫 rlog/qlog（沒有影像）
     - 不執行 dmonitoringmodeld：車內鏡頭畫面不做任何分析
-    - dmonitoringd 改用 upstream 既有的「方向盤觸碰」監控（wheeltouch policy），不讀車內鏡頭
+    - dmonitoringd 不讀車內鏡頭，並停用駕駛監控（wheeltouch_step 的 driver_engaged 固定為 True，
+      awareness 永遠 1.0、不發任何警示；仍持續送出 driverMonitoringState，selfdrived 不會報通訊錯誤）
     - webrtcd 拒絕車內鏡頭串流（opview / sunnylink 都一樣）
   opview 用的 stream_encoderd 只編碼要求的道路鏡頭、不寫檔，不受影響。
 

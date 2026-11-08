@@ -56,8 +56,8 @@ def test_onroad_latch(mocker):
   assert privacy.privacy_mode_onroad(True, None) is False
 
 
-def test_dm_wheeltouch_only():
-  # 隱私模式：不讀 driverStateV2，awareness 依 wheeltouch 遞減，碰方向盤即重置
+def test_dm_disabled_in_privacy_mode():
+  # 隱私模式：不讀 driverStateV2，駕駛監控停用，長時間不碰方向盤也不發警示
   from types import SimpleNamespace
   from openpilot.common.realtime import DT_DMON
   from openpilot.selfdrive.monitoring.dmonitoringd import wheeltouch_step
@@ -68,11 +68,9 @@ def test_dm_wheeltouch_only():
   DM._set_policy(MonitoringPolicy.wheeltouch)
   cs = SimpleNamespace(vEgo=25., gearShifter=car.CarState.GearShifter.drive, steeringPressed=False, gasPressed=False)
   sm = {"carState": cs, "selfdriveState": SimpleNamespace(enabled=True), "carControl": SimpleNamespace(latActive=True)}
-  for _ in range(int(DM.settings._WHEELTOUCH_POLICY_ALERT_3_TIMEOUT / DT_DMON) + 5):
+  for _ in range(int(120 / DT_DMON)):  # 120 秒不碰方向盤
     wheeltouch_step(DM, sm)
-  assert DM.alert_level == AlertLevel.three
-  assert DM.get_state_packet().driverMonitoringState.activePolicy == MonitoringPolicy.wheeltouch
-  cs.steeringPressed = True
-  DM.awareness = 0.5  # 尚未到紅色時碰方向盤即重置
-  wheeltouch_step(DM, sm)
+    assert DM.alert_level == AlertLevel.none
   assert DM.awareness == 1.
+  dat = DM.get_state_packet()
+  assert dat.valid and dat.driverMonitoringState.activePolicy == MonitoringPolicy.wheeltouch

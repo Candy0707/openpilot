@@ -10,8 +10,8 @@ from openpilot.system.ui.lib.multilang import tr
 
 PRIVACY_DESCRIPTION = ("Blocks all comma.ai cloud connections (remote access, uploads, registration, statistics) " +
                        "and sunnylink's remote file, video and location access. " +
-                       "No video is recorded and the driver camera is not analyzed; " +
-                       "driver monitoring uses steering wheel touch instead. " +
+                       "No video is recorded, the driver camera is not analyzed " +
+                       "and driver monitoring is disabled. " +
                        "sunnylink settings still work. Reboot to apply.")
 OPVIEW_DESCRIPTION = ("Streams the road camera and driving data to the opview App (Android) on the same network " +
                       "(e.g. your phone hotspot). Also lets opview read and set the vehicle while offroad.")

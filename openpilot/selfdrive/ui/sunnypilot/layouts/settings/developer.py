@@ -56,8 +56,8 @@ class DeveloperLayoutSP(DeveloperLayout):
     self.privacy_toggle = toggle_item_sp(tr("Privacy Mode"),
                                          tr("Blocks all comma.ai cloud connections (remote access, uploads, registration, statistics) " +
                                             "and sunnylink's remote file, video and location access. " +
-                                            "No video is recorded and the driver camera is not analyzed; " +
-                                            "driver monitoring uses steering wheel touch instead. " +
+                                            "No video is recorded, the driver camera is not analyzed " +
+                                            "and driver monitoring is disabled. " +
                                             "sunnylink settings still work. Reboot to apply."),
                                          param="PrivacyMode")
 

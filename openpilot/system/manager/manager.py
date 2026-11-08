@@ -21,6 +21,7 @@ from openpilot.common.version import get_build_metadata
 from openpilot.common.hardware.hw import Paths
 
 from openpilot.sunnypilot.system.params_migration import run_migration
+from openpilot.sunnypilot.privacy import privacy_mode, stop_athenad_daemon, PRIVACY_BLOCKED_PROCS
 
 
 def manager_init() -> None:
@@ -80,7 +81,11 @@ def manager_init() -> None:
   params.put("HardwareSerial", serial, block=True)
 
   # set dongle id
-  reg_res = register(show_spinner=True)
+  if privacy_mode(params):
+    # 隱私模式：不向 comma 註冊（沿用已有的 DongleId，沒有就用 UNREGISTERED，不會送出序號 / IMEI）
+    reg_res = params.get("DongleId") or UNREGISTERED_DONGLE_ID
+  else:
+    reg_res = register(show_spinner=True)
   if reg_res:
     dongle_id = reg_res
   else:
@@ -124,6 +129,10 @@ def manager_thread() -> None:
   ignore: list[str] = []
   if params.get("DongleId") in (None, UNREGISTERED_DONGLE_ID):
     ignore += ["manage_athenad", "uploader"]
+  if privacy_mode(params):
+    ignore += list(PRIVACY_BLOCKED_PROCS)
+    stop_athenad_daemon(params)
+    cloudlog.warning(f"privacy mode: not running {PRIVACY_BLOCKED_PROCS}")
   if os.getenv("NOBOARD") is not None:
     ignore.append("pandad")
   ignore += [x for x in os.getenv("BLOCK", "").split(",") if len(x) > 0]
