@@ -72,10 +72,6 @@ def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
 def use_copyparty(started, params, CP: car.CarParams) -> bool:
   return bool(params.get_bool("EnableCopyparty"))
 
-def recording(started: bool, params: Params, CP: car.CarParams) -> bool:
-  # 隱私模式：不錄任何影片（encoderd 不啟動）
-  return started and not privacy_mode_onroad(started, params)
-
 def dm_vision(started: bool, params: Params, CP: car.CarParams) -> bool:
   # 隱私模式：不分析車內鏡頭（dmonitoringd 改用方向盤觸碰監控）
   return driverview(started, params, CP) and not privacy_mode_onroad(started, params)
@@ -127,7 +123,8 @@ procs = [
   DaemonProcess("manage_athenad", "openpilot.system.athena.manage_athenad", "AthenadPid"),
 
   NativeProcess("loggerd", "openpilot/system/loggerd", ["./loggerd"], logging),
-  NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], recording),
+  # 隱私模式仍錄道路 / 廣角 / qcamera；車內影片與錄音由 loggerd.h / loggerd.cc 依 PrivacyMode 關閉
+  NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], only_onroad),
   NativeProcess("stream_encoderd", "openpilot/system/loggerd", ["./encoderd", "--stream"], or_(livestream, or_(notcar, opview))),
   PythonProcess("logmessaged", "openpilot.system.logmessaged", always_run),
 

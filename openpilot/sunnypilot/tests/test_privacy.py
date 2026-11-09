@@ -38,8 +38,13 @@ def test_comma_api_blocked(mocker):
   mocker.patch.object(comma_connect, "privacy_mode", return_value=True)
   base = mocker.patch("openpilot.common.api.base.BaseApi.api_get")
   with pytest.raises(ConnectionError):
-    comma_connect.CommaConnectApi(None).api_get("v2/pilotauth/", method="POST")
+    comma_connect.CommaConnectApi(None).api_get("v1/me")
   base.assert_not_called()
+
+  # 裝置註冊放行：sunnylink 需要 DongleId（只在本機沒有任何裝置 ID 時才會呼叫）
+  comma_connect.CommaConnectApi(None).api_get("v2/pilotauth/", method="POST")
+  assert base.call_count == 1
+  base.reset_mock()
 
   mocker.patch.object(comma_connect, "privacy_mode", return_value=False)
   comma_connect.CommaConnectApi(None).api_get("v1/me")
@@ -75,3 +80,13 @@ def test_dm_disabled_in_privacy_mode():
   assert DM.awareness == 1.
   dat = DM.get_state_packet()
   assert dat.valid and dat.driverMonitoringState.activePolicy == MonitoringPolicy.wheeltouch
+
+
+
+def test_device_id_not_blocked():
+  # sunnylink 需要裝置 ID：manager 不因隱私模式跳過 register()，公鑰也不擋
+  from pathlib import Path
+  src = (Path(__file__).parents[2] / "system" / "manager" / "manager.py").read_text()
+  assert "reg_res = register(show_spinner=True)" in src
+  assert "UNREGISTERED_DONGLE_ID\n  else:\n    reg_res = register" not in src
+  assert "getPublicKey" not in SUNNYLINK_BLOCKED_METHODS

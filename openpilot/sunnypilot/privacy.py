@@ -1,13 +1,13 @@
 """
 隱私模式（PrivacyMode，預設關閉）
 
-預設關閉的原因：隱私模式不向 comma 註冊。新安裝的裝置沒有 DongleId 時會變成 UNREGISTERED，
-而 sunnylink 註冊需要 comma 的 DongleId（sunnylink/api.py register_device：comma_dongle_id 為 None 就不註冊），
-所以要先在關閉狀態下開機、完成 comma 與 sunnylink 註冊，再開啟隱私模式。
+裝置 ID：隱私模式不阻擋 sunnylink 取得裝置 ID。sunnylink 註冊需要 comma 的 DongleId
+（sunnylink/api.py register_device：comma_dongle_id 為 None 就不註冊），所以 manager 照常呼叫 register()：
+本機有 ID（DongleId 參數或 /persist/comma/dongle_id）時只讀本機；完全沒有時才連 comma 註冊一次（v2/pilotauth）。
 
 開啟時：
   comma.ai
-    - 不向 comma 註冊（manager 不呼叫 register()；已有 DongleId 照用，沒有就用 UNREGISTERED）
+    - 裝置註冊照常（見上）：本機已有 ID 時不連 comma
     - 不執行 athenad（comma 遠端連線：遠端取檔、即時影像、讀取 GPS、SSH 代理…），已在跑的 daemon 會被終止
     - 不執行 uploader（行車紀錄 / 影片上傳到 comma）
     - 不執行 statsd（comma 統計資料）
@@ -15,11 +15,14 @@
   sunnylink（保留設定網頁與備份）
     - 不執行 statsd_sp（車輛參數 / 設定統計）、sunnylink_uploader
     - sunnylinkd 不上傳檔案、不轉送 log、不上傳統計
-    - sunnylinkd 拒絕遠端呼叫：取檔 / 上傳、即時影像、讀 cereal 訊息（GPS 等）、列目錄、SSH 代理、SIM / 金鑰資訊
+    - sunnylinkd 拒絕遠端呼叫：取檔 / 上傳、即時影像、讀 cereal 訊息（GPS 等）、列目錄、SSH 代理、SIM 資訊
+      （裝置公鑰 getPublicKey 不擋：是裝置身分的一部分，註冊時本來就送給 sunnylink）
     - getParams 不回傳位置相關參數；PrivacyMode 本身不能從 sunnylink 遠端關閉
 
   車內與錄影（每次發動時鎖定，行駛中切換於下次發動生效）
-    - 不執行 encoderd：不錄任何影片（道路 / 廣角 / 車內 / qcamera、縮圖、錄音）。loggerd 照常寫 rlog/qlog（沒有影像）
+    - 照常錄道路 / 廣角 / qcamera 影片（只存在本機，不上傳）；不寫車內鏡頭影片（dcamera.hevc，
+      即使 RecordFront 開啟）、不錄車內聲音（RecordAudio：qcamera 混音與 rawAudioData）
+      → loggerd.h（cabin .record、qcam .include_audio）、loggerd.cc（record_audio）讀 PrivacyMode
     - 不執行 dmonitoringmodeld：車內鏡頭畫面不做任何分析
     - dmonitoringd 不讀車內鏡頭，並停用駕駛監控（wheeltouch_step 的 driver_engaged 固定為 True，
       awareness 永遠 1.0、不發任何警示；仍持續送出 driverMonitoringState，selfdrived 不會報通訊錯誤）
@@ -35,6 +38,9 @@ from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 
 PRIVACY_PARAM = "PrivacyMode"
+
+# 隱私模式仍放行的 comma.ai API：裝置註冊（只在本機沒有任何裝置 ID 時才呼叫；sunnylink 需要 DongleId）
+PRIVACY_ALLOWED_ENDPOINTS = frozenset({"v2/pilotauth/"})
 
 # manager 不啟動的程序
 COMMA_CLOUD_PROCS = ("manage_athenad", "uploader", "statsd")
@@ -54,7 +60,6 @@ SUNNYLINK_BLOCKED_METHODS = frozenset({
   "startLocalProxy",     # 遠端 SSH 代理
   "setNavDestination",
   "getSimInfo",          # IMEI / ICCID
-  "getPublicKey",
   "getSshAuthorizedKeys",
   "getGithubUsername",
   "takeSnapshot",        # 舊版 athenad 才有；保險起見一併列入

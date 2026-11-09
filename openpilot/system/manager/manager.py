@@ -81,11 +81,10 @@ def manager_init() -> None:
   params.put("HardwareSerial", serial, block=True)
 
   # set dongle id
-  if privacy_mode(params):
-    # 隱私模式：不向 comma 註冊（沿用已有的 DongleId，沒有就用 UNREGISTERED，不會送出序號 / IMEI）
-    reg_res = params.get("DongleId") or UNREGISTERED_DONGLE_ID
-  else:
-    reg_res = register(show_spinner=True)
+  # 隱私模式也照常取得裝置 ID：sunnylink 註冊需要 DongleId（sunnylink/api.py register_device）。
+  # register() 只在本機完全沒有 ID（DongleId 參數與 /persist/comma/dongle_id 都沒有）時才連 comma（v2/pilotauth），
+  # 其餘情況只讀本機、不連網路。comma_connect 在隱私模式只放行這個端點。
+  reg_res = register(show_spinner=True)
   if reg_res:
     dongle_id = reg_res
   else:

@@ -7,7 +7,27 @@ from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 
 class LeadDepartureSmoother(TargetsBase):
   """
-  LeadDepartureSmoother - 前車駛離與跟車確定性幾何拋物線軌跡生成器 (V1.7.1 動態起步優化版)
+  LeadDepartureSmoother - 前車駛離與跟車確定性幾何拋物線軌跡生成器 (V1.9.0 三段模式版)
+
+  V1.9.0（2026-11-09）
+  -------------------------------------------------------------------
+  參數 LeadDepartureSmoother 由 BOOL 改為 INT 三段模式（舊的 "0"/"1" 直接對應關閉／開啟，相容）：
+    0 關閉、1 開啟（全速域）、2 低速用：車速 < 50 km/h 啟用，> 60 km/h 解除，中間維持前一狀態（遲滯）。
+  低速用解除時同步清除介入狀態，下次啟用從當下 v_ego 重新起算，不會沿用舊的 v_target。
+
+  V1.8.0（2026-11-09，依 rlog 032/033/045/046 閉迴路重播修正）
+  -------------------------------------------------------------------
+  問題：LDS 只輸出目標車速，下游 longitudinal_planner.get_cruise_accel() 以 (v_target − v_ego)
+  直接當加速度（增益 1/s，下限 A_CRUISE_MIN −1.2）。v_target 以 COMFORT_DECEL_DOWN 1.0 m/s² 下降，
+  實際要求的減速達 −0.9～−1.2 m/s²，遠超過設計的 SCA_DECEL 0.38，且比 MPC 本身的要求大：
+    - 046 0–7 s：前車 100 m 外（23 vs 28.6 m/s），−1.2 m/s² 約 3 秒後放開；關 LDS 為 −0.4。
+    - 032 48.5 s：55 m 外稍慢車，−0.66 m/s² 2.2 秒後放開（點煞形狀）；關 LDS 無煞車脈衝。
+  修正：
+    1. LDS_MAX_DECEL：v_target 不低於 v_ego − LDS_MAX_DECEL × 1 s，使 LDS 經 cruise 候選
+       造成的減速要求不超過約 LDS_MAX_DECEL（預設 = SCA_DECEL）。更強的減速一律交給 MPC。
+    2. COMFORT_DECEL_DOWN 1.0 → SCA_DECEL：目標車速下降斜率與幾何減速度一致。
+    3. _print_log 的 lead_one.status → lead_one.present（sunnypilot LeadData 欄位名）。
+  未改：幾何拋物線、SCA_SAFE_DIST、加速牆、介入／釋放狀態機。
   Copyright (c) 2026 DragonPilot Contributors.
 
   ====================================================================================
@@ -41,7 +61,9 @@ class LeadDepartureSmoother(TargetsBase):
   SCA_DECEL = 0.38          # 恆定舒適幾何加速度/減速度 (m/s²)。數值越小，接近前車的滑行過程越長越溫柔平滑
   SCA_SAFE_DIST = 11.5      # 幾何對齊安全車距邊界 (meter)。當在此車距時，自車目標速與前車速完美完成光滑重合
   V_TARGET_FLOOR = 1.39     # 巡航目標速度保底下限 (m/s)，等於 5.0 km/h。防止指令沉入 0 死區導致起步反應滯後
-  COMFORT_DECEL_DOWN = 1.0  # 巡航速度穩定下降斜率牆 (m/s²)。慢車突然切入插隊時，限制單幀指令暴跌，實現優雅收油滑行
+  COMFORT_DECEL_DOWN = SCA_DECEL  # V1.8.0：1.0 → SCA_DECEL。巡航速度穩定下降斜率牆 (m/s²)
+  LDS_MAX_DECEL = SCA_DECEL       # V1.8.0：LDS 經 cruise 候選要求的最大減速 (m/s²)；get_cruise_accel 增益為 1/s，
+                                  # 故 v_target 下限 = v_ego − LDS_MAX_DECEL。更強的減速交給 MPC。
 
   # ------------------------------------------------------------------------------
   # 方案二：自適應動態起步加速查表參數 (分段對齊時速 0km/h, 20km/h, 60km/h)
@@ -49,17 +71,46 @@ class LeadDepartureSmoother(TargetsBase):
   V_ACCEL_BP = [0.0, 10, 16]  # 自車時速中斷點廊道 (單位: m/s，對應 0, 36, 55 km/h)
   V_ACCEL_V = [1.2, 0.8, 0.5]      # 對應允許的動態舒適加速斜率牆 (單位: m/s²)。低速大推力，高速極絲滑
 
+  # ------------------------------------------------------------------------------
+  # V1.9.0：三段模式（參數 LeadDepartureSmoother，INT）
+  # ------------------------------------------------------------------------------
+  MODE_OFF = 0
+  MODE_ON = 1
+  MODE_LOW_SPEED = 2
+  LOW_SPEED_ON = 50.0 * CV.KPH_TO_MS   # 低速用：低於此車速啟用
+  LOW_SPEED_OFF = 60.0 * CV.KPH_TO_MS  # 低速用：高於此車速解除
+
   def __init__(self, CP, mpc):
     super().__init__(CP, mpc)
+    self.mode = self.MODE_OFF
+    self.low_speed_active = False
 
     # 智慧型日誌控制
     self.debug_log = False
     self.log_counter = 0
 
+  def update_params(self):
+    # V1.9.0：TargetsBase 預設用 get_bool；改讀 INT 模式（每秒一次，由 TargetsBase.update 控制頻率）
+    self.mode = int(self.params.get(self.classname, return_default=True) or 0)
+
+  def _update_enable(self, v_ego):
+    # 每幀依模式與車速決定是否啟用；低速用以 50/60 km/h 遲滯
+    if self.mode == self.MODE_LOW_SPEED:
+      if v_ego < self.LOW_SPEED_ON:
+        self.low_speed_active = True
+      elif v_ego > self.LOW_SPEED_OFF:
+        self.low_speed_active = False
+      self.enable = self.low_speed_active
+    else:
+      self.low_speed_active = False
+      self.enable = self.mode == self.MODE_ON
+
   def update_target(self, sm, v_ego, a_ego, v_cruise):
     """
     核心確定性幾何與單點動態速率限制控制迴圈
     """
+    self._update_enable(v_ego)
+
     # 提取雷達狀態與第一順位主前車 (leadOne)
     radar_state = sm['radarState']
     lead_one = radar_state.leadOne
@@ -119,6 +170,10 @@ class LeadDepartureSmoother(TargetsBase):
       # 貫徹最高指令與職責解耦：我們完全不控制、不修改加速度。全時回傳當前實車加速度 a_ego 歸還給 MPC 全權解算安全車距
       self.a_target = a_ego
 
+      # V1.8.0：減速上限。get_cruise_accel() 以 (v_target − v_ego) 當加速度，
+      # v_target 不低於 v_ego − LDS_MAX_DECEL，LDS 造成的減速要求即不超過 LDS_MAX_DECEL。
+      self.v_target = max(self.v_target, v_ego - self.LDS_MAX_DECEL)
+
       # 雙重防線：限制在合理的實車安全物理區間內
       self.v_target = max(0.0, min(self.v_target, v_cruise))
     else:
@@ -127,11 +182,17 @@ class LeadDepartureSmoother(TargetsBase):
       self.v_target = v_cruise
       self.a_target = a_ego
 
+    # V1.9.0：未啟用（關閉或低速用已解除）時不保留介入狀態，下次啟用從 v_ego 重新起算
+    if not self.enable:
+      self.action = False
+      self.v_target = v_cruise
+      self.a_target = a_ego
+
     # ===========================================================
     # 步驟 4: 狀態更新與 Log 記錄
     # ===========================================================
     if self.debug_log:
-      self._print_log(lead_one.status, raw_v_target, lead_one.vLead, lead_one.dRel, v_ego)
+      self._print_log(lead_one.present, raw_v_target, lead_one.vLead, lead_one.dRel, v_ego)
 
     return super().update_target(sm, v_ego, a_ego, v_cruise)
 

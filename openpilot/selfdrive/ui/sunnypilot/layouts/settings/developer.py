@@ -54,10 +54,10 @@ class DeveloperLayoutSP(DeveloperLayout):
                                         param="OpviewEnabled")
 
     self.privacy_toggle = toggle_item_sp(tr("Privacy Mode"),
-                                         tr("Blocks all comma.ai cloud connections (remote access, uploads, registration, statistics) " +
+                                         tr("Blocks comma.ai cloud connections (remote access, uploads, statistics) " +
                                             "and sunnylink's remote file, video and location access. " +
-                                            "No video is recorded, the driver camera is not analyzed " +
-                                            "and driver monitoring is disabled. " +
+                                            "Road video is still recorded on the device, but driver camera video and audio are not, " +
+                                            "the driver camera is not analyzed and driver monitoring is disabled. " +
                                             "sunnylink settings still work. Reboot to apply."),
                                          param="PrivacyMode")
 

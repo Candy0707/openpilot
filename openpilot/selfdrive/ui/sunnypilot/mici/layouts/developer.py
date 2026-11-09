@@ -8,10 +8,10 @@ from openpilot.selfdrive.ui.mici.layouts.settings.developer import DeveloperLayo
 from openpilot.selfdrive.ui.mici.widgets.button import BigParamControl
 from openpilot.system.ui.lib.multilang import tr
 
-PRIVACY_DESCRIPTION = ("Blocks all comma.ai cloud connections (remote access, uploads, registration, statistics) " +
+PRIVACY_DESCRIPTION = ("Blocks comma.ai cloud connections (remote access, uploads, statistics) " +
                        "and sunnylink's remote file, video and location access. " +
-                       "No video is recorded, the driver camera is not analyzed " +
-                       "and driver monitoring is disabled. " +
+                       "Road video is still recorded on the device, but driver camera video and audio are not, " +
+                       "the driver camera is not analyzed and driver monitoring is disabled. " +
                        "sunnylink settings still work. Reboot to apply.")
 OPVIEW_DESCRIPTION = ("Streams the road camera and driving data to the opview App (Android) on the same network " +
                       "(e.g. your phone hotspot). Also lets opview read and set the vehicle while offroad.")
