@@ -107,7 +107,7 @@ class DynamicTurnSpeedController(TargetsBase):
     來源 1: controlsState.desiredCurvature
     來源 2: lateralManeuverPlan.desiredCurvature / modelV2.action.desiredCurvature
     """
-    curv_source_1 = sm['controlsState'].desiredCurvature
+    curv_source_1 = sm['controlsState'].curvature
 
     curv_source_2 = 0.0
     if sm.valid.get('lateralManeuverPlan', False):
@@ -127,8 +127,6 @@ class DynamicTurnSpeedController(TargetsBase):
     """
     # 【檢查是否有 33 點】若長度不足則略過預測計算，平緩衰減信心表
     if len(sm['modelV2'].position.x) < 33 or len(sm['modelV2'].position.y) < 33:
-      self.confidence_table[:-1] = self.confidence_table[1:]
-      self.confidence_table[-1] = 0.0
       return V_CRUISE_MAX, 0.0, False
 
     x_raw = np.array(sm['modelV2'].position.x)
@@ -198,7 +196,10 @@ class DynamicTurnSpeedController(TargetsBase):
     has_model = (sm.valid.get('modelV2', False))
     if has_model:
       v_curve_pred, d_pred, is_curve_confirmed = self._eval_predictive_curve(sm, v_cruise)
-
+    else:
+      v_curve_pred, d_pred, is_curve_confirmed = V_CRUISE_MAX, 0.0, False
+      
+    
     v_predictive = V_CRUISE_MAX
 
     if is_curve_confirmed:
