@@ -151,10 +151,6 @@ class DynamicTurnSpeedController(TargetsBase):
     x_200 = np.interp(LINEAR_T, MODEL_T, x_raw)
     k_200 = np.interp(LINEAR_T, MODEL_T, curvatures_33)
 
-    # 3. 200 格信心表時空物理平移 (向左平移 1 格，新的一格補 0.0)
-    self.confidence_table[:-1] = self.confidence_table[1:]
-    self.confidence_table[-1] = 0.0
-
     # 計算各網格槽位在 0.15G 下的速限
     v_200_limit = np.sqrt((TARGET_LAT_G * GRAVITY) / np.maximum(k_200, MIN_CURVATURE))
 
@@ -185,6 +181,10 @@ class DynamicTurnSpeedController(TargetsBase):
     """
     核心目標車速與加速度運算迴圈。
     """
+    # 200 格信心表時空物理平移 (向左平移 1 格，新的一格補 0.0)
+    self.confidence_table[:-1] = self.confidence_table[1:]
+    self.confidence_table[-1] = 0.0
+    
     # -------------------------------------------------------------
     # 步驟 1: 計算「當前狀態」即時目標車速 (不受 modelV2 影響)
     # -------------------------------------------------------------
@@ -198,10 +198,6 @@ class DynamicTurnSpeedController(TargetsBase):
     has_model = (sm.valid.get('modelV2', False))
     if has_model:
       v_curve_pred, d_pred, is_curve_confirmed = self._eval_predictive_curve(sm, v_cruise)
-    else:
-      self.confidence_table[:-1] = self.confidence_table[1:]
-      self.confidence_table[-1] = 0.0
-      v_curve_pred, d_pred, is_curve_confirmed = V_CRUISE_MAX, 0.0, False
 
     v_predictive = V_CRUISE_MAX
 
@@ -229,7 +225,7 @@ class DynamicTurnSpeedController(TargetsBase):
     # torque_factor 預設為 1.0 (100% 車速無抑制)
     # 僅在 controlsState 為 torqueState 時才讀取扭矩與插值，非扭力狀態絕不強制停車
     torque_factor = 1.0
-    if sm['controlsState'].lateralControlState.which() == 'torqueState':
+    if sm['controlsState'].lateralControlState.which() == 'torqueState' and False:
       torque_raw = abs(sm['controlsState'].lateralControlState.torqueState.output)
       self.torque_filtered = self._torque_filter.update(min(1.0, torque_raw))
       # 0.6 ~ 0.9 對應係數 1.0 ~ 0.0 (>= 0.9 強制歸零以保護車輛不推頭)
