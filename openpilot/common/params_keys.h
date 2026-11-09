@@ -145,7 +145,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"AccelPersonality", {PERSISTENT | BACKUP, INT, std::to_string(static_cast<int>(cereal::LongitudinalPlanSP::AccelerationPersonality::NORMAL))}},
     {"AccelPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"DynamicTurnSpeedController", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"LeadDepartureSmoother", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"LeadDepartureSmoother", {PERSISTENT | BACKUP, INT, "0"}},  // 0 關閉 / 1 開啟 / 2 低速用（<50 km/h 開、>60 km/h 關）
     {"PathDeviationMonitor", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"htd_enabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"htd_turn_angle_threshold", {PERSISTENT | BACKUP, INT, "90"}},

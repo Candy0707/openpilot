@@ -701,9 +701,23 @@
             },
             {
               "key": "LeadDepartureSmoother",
-              "widget": "toggle",
-              "title": "Enable LeadDepartureSmoother Control",
-              "description": "Rate-limits the cruise target speed with a constant-acceleration profile when the lead car pulls away or you close in, so speed rises and falls smoothly."
+              "widget": "multiple_button",
+              "title": "LeadDepartureSmoother Control",
+              "description": "Rate-limits the cruise target speed with a constant-acceleration profile when the lead car pulls away or you close in, so speed rises and falls smoothly. Off disables it, On keeps it active at all speeds, Low Speed activates it below 50 km/h and releases it above 60 km/h.",
+              "options": [
+                {
+                  "value": 0,
+                  "label": "Off"
+                },
+                {
+                  "value": 1,
+                  "label": "On"
+                },
+                {
+                  "value": 2,
+                  "label": "Low Speed"
+                }
+              ]
             },
             {
               "key": "DynamicTurnSpeedController",
