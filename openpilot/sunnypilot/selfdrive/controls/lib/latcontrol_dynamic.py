@@ -1,14 +1,22 @@
 from opendbc.car import structs
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle
+from openpilot.common.params import Params
 from openpilot.selfdrive.controls.lib.latcontrol_torque import LatControlTorque
+from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_v0 import LatControlTorque as LatControlTorqueV0
 
 class LatControlDynamic(LatControl):
   def __init__(self, CP, CP_SP, CI, dt):
     super().__init__(CP, CP_SP, CI, dt)
     # 同時初始化兩個控制器
     self.angle_ctrl = LatControlAngle(CP, CP_SP, CI, dt)
-    self.torque_ctrl = LatControlTorque(CP, CP_SP, CI, dt)
+    # 扭矩控制器依 sunnypilot 的規則選擇（同 controlsd_ext.initialize_lateral_control）：
+    # 未開 EnforceTorqueControl 或 TorqueControlTune == 0.0 → V0（sunnypilot 預設），否則 v1
+    params = Params()
+    if params.get_bool("EnforceTorqueControl") and params.get("TorqueControlTune") != 0.0:
+      self.torque_ctrl = LatControlTorque(CP, CP_SP, CI, dt)
+    else:
+      self.torque_ctrl = LatControlTorqueV0(CP, CP_SP, CI, dt)
 
     # 預設使用 CP 讀出來的設定值
     self.use_angle = (CP.steerControlType == structs.CarParams.SteerControlType.angle)
@@ -38,8 +46,7 @@ class LatControlDynamic(LatControl):
     elif CS.vEgo < 16.0 and self.use_angle and is_safe_to_switch:
       self.use_angle = False
       self.torque_ctrl.reset() # 確保扭矩控制器狀態乾淨
-      if hasattr(self.torque_ctrl, 'pid'):
-        self.torque_ctrl.pid.reset() # 徹底清除積分
+      self.torque_ctrl.pid.reset() # 徹底清除積分
 
     # 2. Angle 控制器永遠運算 (幾何計算，無風險)
     _, a_steer, a_log = self.angle_ctrl.update(active, CS, VM, params, steer_limited_by_safety, desired_curvature, calibrated_pose, curvature_limited, lat_delay)
@@ -58,5 +65,4 @@ class LatControlDynamic(LatControl):
     super().reset()
     self.angle_ctrl.reset()
     self.torque_ctrl.reset()
-    if hasattr(self.torque_ctrl, 'pid'):
-      self.torque_ctrl.pid.reset()
+    self.torque_ctrl.pid.reset()

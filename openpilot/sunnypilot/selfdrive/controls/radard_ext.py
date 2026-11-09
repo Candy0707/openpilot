@@ -53,6 +53,12 @@ dragonpilot radard 擴充（radard_ext），sunnypilot dev 版：在原廠 radar
   v9.6.12 正前方靜止車救援的進入車速上限 80 → 130 km/h（距離上限不變，70 km/h 以上 120m）。80 km/h 以上
          120m 不足以停住，目的是降低撞擊速度。新增「視覺前車是移動車」排除：雷達在視覺前車距離附近、
          本車路徑上有移動目標時，視覺描述的是那台移動車，靜止點（門架／天橋）不得借用它當佐證。
+  v9.6.13 續命例外加確認條件（rlog 049 線下重播：4.3–7.0 s 雷達 54 m ↔ 視覺 41 m 翻轉 7 次，7/7 由續命例外造成；
+         視覺測距誤差逐幀跨越 dist_sane 25% 門檻，配對單幀失敗即當幀改用視覺前車）：
+         續命例外條件需連續 HOLD_BYPASS_CONFIRM_FRAMES 幀成立（預設 2，0.1 秒）；配對成功的幀歸零。
+         單幀配對失敗不再觸發，多幀失敗時只比 v9.6.12 晚 1 幀（仍比 SELECT_HOLDOVER_FRAMES=3 早）。
+         重播結果：049 翻轉 15 → 7 次（單幀觸發 4 次消失）；032 藍車切入改用視覺前車的時間 57.95 → 58.00 s。
+         曾試「視覺 xStd < 0.2 × 距離」：049 結果相同，但 032 藍車延到 58.10 s（xStd 8.9～10.2 m），故不採用。
 
 與原廠（cp）的刻意分歧：
   - 低速覆寫：現有雷達前車與最近目標為同一物體時不替換（原廠只要更近就替換，重複點會每幀互換）。
@@ -136,6 +142,7 @@ STICKY_HOLD_FRAMES = 10             # 0.5 秒
 # 雷達配對不到時，續命會讓前車停留在遠方車）。原廠沒有續命，此情況等同回到原廠行為。
 HOLD_BYPASS_DD = 10.0               # m
 HOLD_BYPASS_MIN_PROB = 0.7
+HOLD_BYPASS_CONFIRM_FRAMES = 2     # v9.6.13：續命例外需連續成立的幀數（配對成功即歸零）
 SWITCH_FARTHER_CONFIRM_FRAMES = 5   # 0.25 秒
 # Toyota TSS2 雷達常把同一台車回報成兩個 trackId（log 92462：60 秒內互換 279 次）。
 # 三項差距都在下列範圍內視為同一物體（log 中重複點最大差距：1.13m / 0.60m / 0.90 m/s）。
@@ -295,7 +302,7 @@ _LOW_SPEED_LAST = {'track': None}         # 上一幀低速覆寫選到的雷達
 #   switch_id/switch_cnt：換成更遠目標的連續確認。
 _LEAD_STATE_CACHE = {
   i: {'track': None, 'absent': 0, 'last_aLeadK': None, 'last_aLeadK_track': None, 'rescue': False,
-      'cutin': False, 'cutin_track': None, 'switch_id': None, 'switch_cnt': 0}
+      'cutin': False, 'cutin_track': None, 'switch_id': None, 'switch_cnt': 0, 'bypass_cnt': 0}
   for i in (0, 1)
 }
 
@@ -1043,8 +1050,11 @@ def get_lead_ext(
   if locked_in_path and (vision_cand is None or vision_cand['dRel'] >= locked.dRel):
     hold_limit = STICKY_HOLD_FRAMES
   # 續命例外（v9.6.7）：視覺前車明顯較近且機率高時不續命
-  if (matched_track is None and vision_cand is not None and cache['track'] is not None and
-      lead_prob >= HOLD_BYPASS_MIN_PROB and vision_cand['dRel'] < cache['track'].dRel - HOLD_BYPASS_DD):
+  # v9.6.13：需連續 HOLD_BYPASS_CONFIRM_FRAMES 幀成立（配對成功的幀歸零）
+  bypass_cond = (matched_track is None and vision_cand is not None and cache['track'] is not None and
+                 lead_prob >= HOLD_BYPASS_MIN_PROB and vision_cand['dRel'] < cache['track'].dRel - HOLD_BYPASS_DD)
+  cache['bypass_cnt'] = cache['bypass_cnt'] + 1 if bypass_cond else 0
+  if bypass_cond and cache['bypass_cnt'] >= HOLD_BYPASS_CONFIRM_FRAMES:
     hold_limit = 0
     cloudlog.debug(
       f"[RadarD_HoldBypass_DP] 目標 {lead_idx} | 雷達前車 {cache['track'].identifier} d={cache['track'].dRel:.1f} → " +
