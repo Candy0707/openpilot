@@ -25,6 +25,9 @@ class FakeParams:
   def put(self, key, value):
     self.store[key] = value
 
+  def put_bool(self, key, value):
+    self.store[key] = bool(value)
+
   def remove(self, key):
     self.store.pop(key, None)
 
@@ -80,3 +83,30 @@ class TestOpviewd(OpenpilotTestCase):
 
   def test_not_found(self):
     assert self._req("/api/settings")[0] == 404
+
+  def test_experimental_mode_requires_long_and_confirmation(self):
+    self.server.long_available = lambda p: None  # 從未發動
+    status, j = self._req("/api/experimental_mode", {"enabled": True})
+    assert status == 409 and "發動" in j["error"]
+    self.server.long_available = lambda p: False
+    status, j = self._req("/api/experimental_mode", {"enabled": True})
+    assert status == 409 and "縱向" in j["error"]
+    self.server.long_available = lambda p: True
+    status, j = self._req("/api/experimental_mode", {"enabled": True})
+    assert status == 409 and "確認" in j["error"]
+    assert self.params.get("ExperimentalMode") is None
+    assert self.params.get("ExperimentalModeConfirmed") is None  # 不代替使用者確認
+
+  def test_experimental_mode_toggle(self):
+    self.server.long_available = lambda p: True
+    self.params.put("ExperimentalModeConfirmed", True)
+    assert self._req("/api/experimental_mode", {"enabled": True}) == (200, {"experimental_mode": True})
+    assert self._req("/api/experimental_mode") == (200, {"experimental_mode": True, "available": True, "confirmed": True})
+    # 關閉一律允許
+    self.server.long_available = lambda p: False
+    assert self._req("/api/experimental_mode", {"enabled": False}) == (200, {"experimental_mode": False})
+
+  def test_experimental_mode_bad_body(self):
+    self.server.long_available = lambda p: True
+    status, _ = self._req("/api/experimental_mode", {"enabled": "on"})
+    assert status == 400

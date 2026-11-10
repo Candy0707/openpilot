@@ -11,6 +11,9 @@ dragonpilot 系（dp0111pre）由 dashy serverd（:5088）提供車型讀寫；s
   GET  /api/models          → {"model_list": {品牌: [車型名稱, …]}, "selected_model": "<車型名稱>" | "",
                                "apply_hint": "<設定後何時生效>"}
   POST /api/models/select   body {"selected_model": "<車型名稱>" | "[AUTO]" | ""}
+  GET  /api/experimental_mode → {"experimental_mode": bool, "available": bool, "confirmed": bool}
+  POST /api/experimental_mode   body {"enabled": bool} → 200 {"experimental_mode": bool} | 400 / 409 {"error": "<原因>"}
+                              （opview 側欄第一顆按鈕；與 dp serverd 相同介面）
 
 車型寫入 sunnypilot 的 CarPlatformBundle（與 設定 → 車輛 → 車型選擇 相同：{**car_list[name], "name": name}），
 card.py 在每次 onroad 開始時讀取 → 不需重新開機，下次發動生效。
@@ -23,6 +26,7 @@ import logging
 import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import urlparse
 
@@ -107,6 +111,51 @@ def handle_select(params: Params, cars: CarList, payload: Any) -> tuple[int, dic
   return 200, {"status": "success", "apply_hint": HINT_OFFROAD if is_offroad(params) else HINT_ONROAD}
 
 
+# --- 實驗模式開關 ---
+# 條件比照 openpilot 設定頁（selfdrive/ui/layouts/settings/toggles.py）：
+#   - 需要 openpilot 縱向控制（ui_state.has_longitudinal_control 同邏輯：
+#     alphaLongitudinalAvailable → AlphaLongitudinalEnabled，否則 CarParams.openpilotLongitudinalControl）
+#   - 需要 ExperimentalModeConfirmed（設定頁的實驗模式說明確認；這裡不代替使用者確認）
+#   - 關閉一律允許
+# selfdrived 的 params_thread 每 0.1 秒重讀 ExperimentalMode，寫入後即生效（與原廠設定頁 / onroad 按鈕相同）。
+def experimental_long_available(params: Params) -> bool | None:
+  """openpilot 縱向控制是否可用；還沒有 CarParamsPersistent（從未發動）時回傳 None。"""
+  cp_bytes = params.get("CarParamsPersistent")
+  if not cp_bytes:
+    return None
+  from openpilot.cereal import messaging
+  from opendbc.car.structs import car
+  cp = messaging.log_from_bytes(cp_bytes, car.CarParams)
+  if cp.alphaLongitudinalAvailable:
+    return params.get_bool("AlphaLongitudinalEnabled")
+  return bool(cp.openpilotLongitudinalControl)
+
+
+def handle_experimental_status(params: Params, long_available: bool | None) -> tuple[int, dict]:
+  return 200, {
+    "experimental_mode": params.get_bool("ExperimentalMode"),
+    "available": bool(long_available),
+    "confirmed": params.get_bool("ExperimentalModeConfirmed"),
+  }
+
+
+def handle_experimental_mode(params: Params, payload: Any, long_available: bool | None) -> tuple[int, dict]:
+  if not isinstance(payload, dict) or not isinstance(payload.get("enabled"), bool):
+    return 400, {"error": 'body 需為 {"enabled": true | false}'}
+  enabled = payload["enabled"]
+  if enabled:
+    if long_available is None:
+      return 409, {"error": "尚未取得車輛資訊，請先發動一次再開啟實驗模式"}
+    if not long_available:
+      return 409, {"error": "此車未使用 openpilot 縱向控制，無法開啟實驗模式"}
+    if not params.get_bool("ExperimentalModeConfirmed"):
+      return 409, {"error": "請先在 comma 設定頁開啟一次實驗模式並確認說明"}
+  params.put_bool("ExperimentalMode", enabled)
+  now = params.get_bool("ExperimentalMode")
+  logger.warning("opviewd: ExperimentalMode=%s", now)
+  return 200, {"experimental_mode": now}
+
+
 class OpviewdHandler(BaseHTTPRequestHandler):
   protocol_version = "HTTP/1.1"
   server: "OpviewdHTTPServer"
@@ -140,7 +189,15 @@ class OpviewdHandler(BaseHTTPRequestHandler):
           result = (400, {"error": "bad request"})
         else:
           result = handle_select(params, cars, payload)
-      elif path in ("/api/init", "/api/models", "/api/models/select"):
+      elif self.command in ("GET", "HEAD") and path == "/api/experimental_mode":
+        result = handle_experimental_status(params, self.server.long_available(params))
+      elif self.command == "POST" and path == "/api/experimental_mode":
+        try:
+          payload = self._read_json()
+        except ValueError:
+          payload = None
+        result = handle_experimental_mode(params, payload, self.server.long_available(params))
+      elif path in ("/api/init", "/api/models", "/api/models/select", "/api/experimental_mode"):
         result = (405, {"error": "method not allowed"})
       else:
         result = (404, {"error": "not found"})
@@ -167,12 +224,14 @@ class OpviewdHTTPServer(ThreadingHTTPServer):
   allow_reuse_address = True
   params: Params
   cars: CarList
+  long_available: Callable[[Params], bool | None]
 
 
 def make_server(host: str, port: int, params: Params | None = None, cars: CarList | None = None) -> OpviewdHTTPServer:
   server = OpviewdHTTPServer((host, port), OpviewdHandler)
   server.params = params or Params()
   server.cars = cars or CarList(server.params)
+  server.long_available = experimental_long_available
   return server
 
 
