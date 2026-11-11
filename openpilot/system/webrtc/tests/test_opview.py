@@ -5,7 +5,8 @@ import pytest
 
 from openpilot.common.test import OpenpilotTestCase
 from openpilot.system.webrtc.webrtcd import (
-  CerealOutgoingMessageProxy, StreamRequestError, compact_model_v2, opview_tdx_compat, parse_stream_request,
+  OPVIEW_COMPACT_FIELDS, CerealOutgoingMessageProxy, StreamRequestError, compact_fields, compact_model_v2,
+  opview_tdx_compat, parse_stream_request,
 )
 
 
@@ -140,3 +141,76 @@ class TestOpviewOutgoingProxy(OpenpilotTestCase):
     proxy.update()  # 30 ms 內第二次不送
     assert ch.send.call_count == 1
     assert json.loads(ch.send.call_args.args[0]) == {"type": "carState", "logMonoTime": 1, "valid": True, "data": 1.5}
+
+
+
+class TestWebrtcdMemory(OpenpilotTestCase):
+  # mallopt(M_ARENA_MAX, 2) / malloc_trim(0)：用假的 libc 確認呼叫參數；非 glibc 時不丟例外、回傳 False
+  class _FakeLibc:
+    def __init__(self):
+      self.calls = []
+
+    def mallopt(self, param, value):
+      self.calls.append(("mallopt", param, value))
+      return 1
+
+    def malloc_trim(self, pad):
+      self.calls.append(("malloc_trim", pad))
+      return 1
+
+  def test_limit_and_trim_call_glibc(self):
+    from unittest import mock
+    from openpilot.system.webrtc import webrtcd
+    fake = self._FakeLibc()
+    with mock.patch.object(webrtcd, "_libc", fake):
+      assert webrtcd.limit_malloc_arenas() is True
+      assert webrtcd.release_memory()[0] is True
+    assert fake.calls == [("mallopt", -8, 2), ("malloc_trim", 0)]
+
+  def test_without_glibc_is_noop(self):
+    from unittest import mock
+    from openpilot.system.webrtc import webrtcd
+    with mock.patch.object(webrtcd, "_libc", False):
+      assert webrtcd.limit_malloc_arenas() is False
+      assert webrtcd.release_memory()[0] is False
+
+  def test_real_libc_does_not_raise(self):
+    from unittest import mock
+    from openpilot.system.webrtc import webrtcd
+    with mock.patch.object(webrtcd, "_libc", None):  # 重新載入真正的 libc（非 glibc 上得到 False）
+      webrtcd.release_memory()
+
+
+
+class TestOpviewCompactFields(OpenpilotTestCase):
+  # 只送 opview 讀的欄位；不存在的欄位略過；子結構（radarState.leadOne）只取指定欄位
+  def test_car_state_subset(self):
+    cs = SimpleNamespace(vEgo=12.5, aEgo=0.1, steeringAngleDeg=-3.0, leftBlinker=False, rightBlinker=True,
+                         leftBlindspot=False, rightBlindspot=False, gearShifter="drive", standstill=False,
+                         gasPressed=False, vEgoCluster=12.4, vCruiseCluster=60.0,
+                         cruiseState=SimpleNamespace(speed=16.6), buttonEvents=[1, 2, 3], wheelSpeeds=None)
+    d = compact_fields(cs, OPVIEW_COMPACT_FIELDS["carState"])
+    assert set(d) == set(OPVIEW_COMPACT_FIELDS["carState"])
+    assert d["gearShifter"] == "drive" and d["vEgo"] == 12.5 and d["rightBlinker"] is True
+    assert "cruiseState" not in d and "buttonEvents" not in d
+
+  def test_missing_field_is_skipped(self):
+    # controlsState 在新版 schema 已沒有 vCruiseDEPRECATED：送出空 dict（與 to_dict() 沒有該欄位相同）
+    assert compact_fields(SimpleNamespace(curvature=0.01), OPVIEW_COMPACT_FIELDS["controlsState"]) == {}
+
+  def test_radar_state_leads(self):
+    lead = SimpleNamespace(status=True, dRel=21.0, yRel=0.3, vRel=-1.0, vLead=12.0, aLeadK=0.0, modelProb=0.9,
+                           radar=True, radarTrackId=5, fcw=False, aLeadTau=1.5)
+    rs = SimpleNamespace(leadOne=lead, leadTwo=lead, mdMonoTime=1, cumLagMs=0.0)
+    d = compact_fields(rs, OPVIEW_COMPACT_FIELDS["radarState"])
+    assert set(d) == {"leadOne", "leadTwo"}
+    assert d["leadOne"] == {"status": True, "dRel": 21.0, "yRel": 0.3, "vRel": -1.0, "vLead": 12.0,
+                            "aLeadK": 0.0, "modelProb": 0.9, "radar": True}
+
+  def test_lists_become_lists(self):
+    cal = SimpleNamespace(calStatus="calibrated", rpyCalib=(0.0, 0.01, 0.02), wideFromDeviceEuler=[0.0] * 3,
+                          height=[1.22], validBlocks=20)
+    d = compact_fields(cal, OPVIEW_COMPACT_FIELDS["liveCalibration"])
+    assert d == {"calStatus": "calibrated", "rpyCalib": [0.0, 0.01, 0.02], "wideFromDeviceEuler": [0.0] * 3,
+                 "height": [1.22]}
+    json.dumps(d)

@@ -6,6 +6,8 @@ import os
 import socket
 import time
 import capnp
+import ctypes
+import gc
 import argparse
 import asyncio
 import contextlib
@@ -131,6 +133,50 @@ def compact_model_v2(model) -> dict:
   }
 
 
+# opview 只讀這些欄位（opview lib/selfdrive/ui/ui_state.dart 的 apply* 函式）。其他欄位不送，
+# 省下 to_dict() 產生整個巢狀 dict 與 json.dumps 的 CPU / 記憶體（實測 rlog 每筆 JSON：longitudinalPlan 2.0 KB、
+# carState 1.6 KB、controlsState 1.6 KB、radarState 1.0 KB、roadCameraState 0.6 KB → 各約 0.05–0.3 KB）。
+# key 是 opview 端的 service 名稱（改名前的舊名稱）；欄位不存在的分支就略過該欄位（與 to_dict() 沒有該欄位相同）。
+# 表上沒有的 service（例如 tdx）照舊整筆 to_dict()。modelV2 另由 compact_model_v2 處理。
+OPVIEW_LEAD_FIELDS = ("status", "dRel", "yRel", "vRel", "vLead", "aLeadK", "modelProb", "radar")
+OPVIEW_COMPACT_FIELDS: dict[str, dict[str, Any]] = {
+  "carState": dict.fromkeys(("vEgo", "aEgo", "steeringAngleDeg", "leftBlinker", "rightBlinker", "leftBlindspot",
+                             "rightBlindspot", "gearShifter", "standstill", "gasPressed", "vEgoCluster", "vCruiseCluster")),
+  "selfdriveState": dict.fromkeys(("enabled", "experimentalMode", "alertText1", "alertText2", "alertSize",
+                                   "alertStatus", "state")),
+  "controlsState": dict.fromkeys(("vCruiseDEPRECATED",)),
+  "radarState": {"leadOne": OPVIEW_LEAD_FIELDS, "leadTwo": OPVIEW_LEAD_FIELDS},
+  "longitudinalPlan": dict.fromkeys(("allowThrottle",)),
+  "deviceState": dict.fromkeys(("deviceType", "started")),
+  "liveCalibration": dict.fromkeys(("calStatus", "rpyCalib", "wideFromDeviceEuler", "height")),
+  "roadCameraState": dict.fromkeys(("sensor",)),
+}
+
+
+def _plain(value: Any) -> Any:
+  """capnp 值 → JSON 可序列化的值（與 to_dict() 相同：enum 用名稱字串、list 轉 list）"""
+  if value is None or isinstance(value, (bool, int, float, str)):
+    return value
+  if isinstance(value, (capnp._DynamicListReader, list, tuple)):
+    return [_plain(v) for v in value]
+  if isinstance(value, capnp._DynamicStructReader):
+    return value.to_dict()
+  return str(value)  # _DynamicEnum → 'drive'、'calibrated'…
+
+
+def compact_fields(reader: Any, fields: dict[str, Any] | tuple[str, ...]) -> dict:
+  """只取指定欄位；fields 的值是 tuple 時代表子結構只取那些欄位。不存在的欄位略過。"""
+  out: dict[str, Any] = {}
+  items = fields.items() if isinstance(fields, dict) else ((f, None) for f in fields)
+  for name, sub in items:
+    try:
+      value = getattr(reader, name)
+    except (AttributeError, capnp.KjException):
+      continue
+    out[name] = compact_fields(value, sub) if sub is not None else _plain(value)
+  return out
+
+
 class StreamRequestError(Exception):
   def __init__(self, status: int, error: str, message: str):
     super().__init__(message)
@@ -185,6 +231,72 @@ def parse_stream_request(raw: Any, remote_is_local: bool = True, allow_driver_ca
 
 
 # ice candidate parser for logging
+# --- 記憶體（openpilot-test：按巡航 commIssue 調查，mici 空閒記憶體常態約 20 MB） ---
+# webrtcd 有多條執行緒（HTTP、asyncio、libdatachannel），glibc 預設最多開「CPU 核心數 × 8」個 malloc arena，
+# 每個 arena 各自保留釋放後的空間，RSS 只增不減。
+#   1. 啟動時 mallopt(M_ARENA_MAX, 2)：最多 2 個 arena。
+#   2. 連線結束（沒有任何 session）後 gc.collect() + malloc_trim(0)：把 arena 裡空出來的頁還給系統。
+# 與上游不同（刻意）：上游 webrtcd 沒有這兩項。非 glibc（macOS、musl）時兩者都不做事，回傳 False。
+M_ARENA_MAX = -8  # glibc <malloc.h>
+WEBRTCD_MALLOC_ARENAS = 2
+MEMORY_RELEASE_DELAY_S = 1.0  # session 結束後等 libdatachannel / asyncio 收尾再 trim
+
+_libc: ctypes.CDLL | None | bool = None
+
+
+def _glibc() -> ctypes.CDLL | None:
+  global _libc
+  if _libc is None:
+    try:
+      lib = ctypes.CDLL("libc.so.6")
+      lib.mallopt.argtypes = [ctypes.c_int, ctypes.c_int]
+      lib.mallopt.restype = ctypes.c_int
+      lib.malloc_trim.argtypes = [ctypes.c_size_t]
+      lib.malloc_trim.restype = ctypes.c_int
+      _libc = lib
+    except (OSError, AttributeError):
+      _libc = False
+  return _libc or None
+
+
+def limit_malloc_arenas(n: int = WEBRTCD_MALLOC_ARENAS) -> bool:
+  """限制 malloc arena 數量；要在建立其他執行緒之前呼叫。成功回傳 True。"""
+  lib = _glibc()
+  return lib is not None and lib.mallopt(M_ARENA_MAX, n) == 1
+
+
+def _rss_mb() -> float | None:
+  try:
+    with open("/proc/self/statm") as f:
+      return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 1e6
+  except (OSError, ValueError, IndexError):
+    return None
+
+
+def release_memory() -> tuple[bool, float | None, float | None]:
+  """gc.collect() 後 malloc_trim(0)。回傳 (是否真的還了記憶體, trim 前 RSS MB, trim 後 RSS MB)。"""
+  before = _rss_mb()
+  gc.collect()
+  lib = _glibc()
+  released = bool(lib.malloc_trim(0)) if lib is not None else False
+  return released, before, _rss_mb()
+
+
+def schedule_memory_release(state: "ServerState") -> None:
+  """連線結束後延遲一下再還記憶體；屆時若已有新連線就不做（避免和新 session 搶時間）。"""
+  def release():
+    if state.streams:
+      return
+    t0 = time.monotonic()
+    released, before, after = release_memory()
+    logging.getLogger("webrtcd").info(
+      "session ended: malloc_trim released=%s, RSS %s -> %s MB (%.0f ms)", released,
+      f"{before:.0f}" if before is not None else "?", f"{after:.0f}" if after is not None else "?",
+      (time.monotonic() - t0) * 1000)
+
+  asyncio.get_running_loop().call_later(MEMORY_RELEASE_DELAY_S, release)
+
+
 def _ice_candidates(sdp: str) -> list[str]:
   return [line.removeprefix("a=") for line in sdp.splitlines() if line.startswith("a=candidate:")]
 
@@ -306,14 +418,17 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
       if now - self.last_sent.get(service, 0.0) < self.OPVIEW_MIN_SEND_INTERVAL:
         continue
       self.last_sent[service] = now
+      out_name = self.out_names.get(service, service)
       if service == "modelV2":
         msg_dict = compact_model_v2(self.sm[service])
       elif service == "tdx":
         msg_dict = opview_tdx_compat(self.to_json(self.sm[service]))
+      elif out_name in OPVIEW_COMPACT_FIELDS:
+        msg_dict = compact_fields(self.sm[service], OPVIEW_COMPACT_FIELDS[out_name])
       else:
         msg_dict = self.to_json(self.sm[service])
       mono_time, valid = self.sm.logMonoTime[service], self.sm.valid[service]
-      outgoing_msg = {"type": self.out_names.get(service, service), "logMonoTime": mono_time, "valid": valid, "data": msg_dict}
+      outgoing_msg = {"type": out_name, "logMonoTime": mono_time, "valid": valid, "data": msg_dict}
       encoded_msg = json.dumps(outgoing_msg).encode()
       sent_now = True
       for channel in open_channels:
@@ -692,6 +807,7 @@ async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: s
     def remove_finished_session(_: asyncio.Task) -> None:
       stream_dict.pop(session.identifier, None)
       schedule_teardown(state)
+      schedule_memory_release(state)
 
     session.run_task.add_done_callback(remove_finished_session)
 
@@ -839,8 +955,11 @@ def prewarm_stream_session_imports() -> None:
   assert WebRTCAnswerBuilder
 
 
-def webrtcd_thread(host: str, port: int):
+def webrtcd_thread(host: str, port: int, arenas_limited: bool | None = None):
   logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
+  if arenas_limited is not None:
+    logging.getLogger("webrtcd").info("malloc arena limit %d: %s", WEBRTCD_MALLOC_ARENAS,
+                                      "on" if arenas_limited else "unavailable (not glibc)")
   prewarm_start = time.monotonic()
   prewarm_stream_session_imports()
   prewarm_end = time.monotonic()
@@ -880,13 +999,15 @@ def webrtcd_thread(host: str, port: int):
 
 
 def main():
+  # 必須在 webrtcd_thread 建立 HTTP / asyncio / libdatachannel 執行緒之前
+  arenas_limited = limit_malloc_arenas()
   parser = argparse.ArgumentParser(description="WebRTC daemon")
   # opview：手機在區網直接連 :5001，所以聽所有介面；非 localhost 的請求在 _dispatch_request 依 OpviewEnabled 擋下
   parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to listen on")
   parser.add_argument("--port", type=int, default=5001, help="Port to listen on")
   args = parser.parse_args()
 
-  webrtcd_thread(args.host, args.port)
+  webrtcd_thread(args.host, args.port, arenas_limited)
 
 
 if __name__=="__main__":
