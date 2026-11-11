@@ -13,7 +13,6 @@ import asyncio
 import contextlib
 import ipaddress
 import json
-import re
 import uuid
 import logging
 import signal
@@ -51,43 +50,10 @@ OPVIEW_SERVICE_ALIASES = {
 }
 
 
-# opview 的 applyTdx() 讀 dp0111pre 的 tdx 格式（頂層 nextSpeed / congestion / events[]）。
-# sunnypilot 的 tdx 是另一個結構（trafficStatus{…} + roadEvent{…}），直接轉送 opview 會什麼都不顯示。
-# 送給 opview 前轉成 dp 格式（opview 不需修改）；dp 格式（沒有 trafficStatus）原樣送出。
-#   壅塞分級：兩邊門檻相同（>=80 / 40~79 / <40 km/h），只有名稱不同
-_TDX_STATUS_TO_DP = {"freeFlow": "smooth", "heavyTraffic": "slow", "severeCongestion": "congested", "unknown": "unknown"}
-_TDX_EVENT_RE = re.compile(r'(?:^|/)(\d+)\|')
-
-
-def opview_tdx_compat(data):
-  if not isinstance(data, dict):
-    return data
-  ts = data.get("trafficStatus")
-  if not isinstance(ts, dict):
-    return data
-  out = {
-    "sectionId": ts.get("sectionId", ""),
-    "speed": ts.get("speed", -1),
-    "nextSectionId": ts.get("nextSectionId", ""),
-    "nextSpeed": ts.get("nextSpeed", -1),
-    "congestion": _TDX_STATUS_TO_DP.get(str(ts.get("status", "unknown")), "unknown"),
-    "events": [],
-  }
-  ev = data.get("roadEvent")
-  if isinstance(ev, dict) and ev.get("isActive") and ev.get("description"):
-    # sp tdx.py：description =「目前:<type>|<說明>/<type>|<說明>…」或「前方:…」
-    loc, sep, rest = str(ev["description"]).partition(":")
-    is_current = loc == "目前"
-    if not sep:
-      rest = str(ev["description"])
-    starts = list(_TDX_EVENT_RE.finditer(rest))
-    if not starts:
-      out["events"].append({"eventType": 0, "description": rest, "isCurrentSection": is_current})
-    for i, m in enumerate(starts):
-      end = starts[i + 1].start() if i + 1 < len(starts) else len(rest)
-      desc = rest[m.end():end]
-      out["events"].append({"eventType": int(m.group(1)), "description": desc, "isCurrentSection": is_current})
-  return out
+# opview 已內建 TDX（手機 GPS + TDX API），comma 的 tdx 不再傳給 opview：
+# opview 的請求若帶 tdx（舊版 App）就從 bridge_services_out 拿掉，不訂閱、不轉送，也不會因此回 500。
+# sunnylink / athena（upstream 格式）的請求不受影響。
+OPVIEW_DROPPED_SERVICES = frozenset({"tdx"})
 
 
 def resolve_opview_services(services: list[str]) -> list[str]:
@@ -137,7 +103,7 @@ def compact_model_v2(model) -> dict:
 # 省下 to_dict() 產生整個巢狀 dict 與 json.dumps 的 CPU / 記憶體（實測 rlog 每筆 JSON：longitudinalPlan 2.0 KB、
 # carState 1.6 KB、controlsState 1.6 KB、radarState 1.0 KB、roadCameraState 0.6 KB → 各約 0.05–0.3 KB）。
 # key 是 opview 端的 service 名稱（改名前的舊名稱）；欄位不存在的分支就略過該欄位（與 to_dict() 沒有該欄位相同）。
-# 表上沒有的 service（例如 tdx）照舊整筆 to_dict()。modelV2 另由 compact_model_v2 處理。
+# 表上沒有的 service 照舊整筆 to_dict()。modelV2 另由 compact_model_v2 處理。
 OPVIEW_LEAD_FIELDS = ("status", "dRel", "yRel", "vRel", "vLead", "aLeadK", "modelProb", "radar")
 OPVIEW_COMPACT_FIELDS: dict[str, dict[str, Any]] = {
   "carState": dict.fromkeys(("vEgo", "aEgo", "steeringAngleDeg", "leftBlinker", "rightBlinker", "leftBlindspot",
@@ -188,7 +154,8 @@ def parse_stream_request(raw: Any, remote_is_local: bool = True, allow_driver_ca
   - upstream 格式（sunnylink / athena：cameras + enabled）原樣交給 StreamRequestBody，行為不變。
   - opview 格式（initCamera，或明確帶 "client": "opview"）：
       initCamera → cameras=[initCamera]、enabled 預設 True、忽略不認得的欄位（同 dp0111pre）。
-  - 不認得的 cereal service → 500（opview 帶選用 service「tdx」被拒時，會改用不帶 tdx 的請求重試）。
+  - opview 請求帶的 tdx 一律拿掉（opview 已內建 TDX，見 OPVIEW_DROPPED_SERVICES）。
+  - 不認得的 cereal service → 500（與 dp0111pre / stock webrtcd 一致）。
   - 區網（非 127.0.0.1）來的請求不允許 bridge_services_in：webrtcd 原本只聽 localhost，
     開放給 opview 後不能讓區網任何人往 comma 發 cereal 訊息（testJoystick、can…）。"""
   if not isinstance(raw, dict):
@@ -204,7 +171,8 @@ def parse_stream_request(raw: Any, remote_is_local: bool = True, allow_driver_ca
     known = StreamRequestBody.__dataclass_fields__.keys()
     raw = {k: v for k, v in raw.items() if k in known}
     if isinstance(raw.get("bridge_services_out"), list):
-      raw["bridge_services_out"] = resolve_opview_services(raw["bridge_services_out"])
+      out = [svc for svc in raw["bridge_services_out"] if svc not in OPVIEW_DROPPED_SERVICES]
+      raw["bridge_services_out"] = resolve_opview_services(out)
 
   try:
     body = StreamRequestBody(**raw)
@@ -216,7 +184,7 @@ def parse_stream_request(raw: Any, remote_is_local: bool = True, allow_driver_ca
       raise StreamRequestError(400, "invalid_camera", f"unsupported camera {body.cameras}")
     unknown = [s for s in (*body.bridge_services_out, *body.bridge_services_in) if s not in SERVICE_LIST]
     if unknown:
-      # 500：與 dp0111pre / stock webrtcd（SubMaster KeyError）一致，opview 靠這個退回不帶選用 service 的請求
+      # 500：與 dp0111pre / stock webrtcd（SubMaster KeyError）一致
       raise StreamRequestError(500, "unknown_service", f"unknown services {unknown}")
 
   if not allow_driver_camera and "driver" in body.cameras:
@@ -421,8 +389,6 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
       out_name = self.out_names.get(service, service)
       if service == "modelV2":
         msg_dict = compact_model_v2(self.sm[service])
-      elif service == "tdx":
-        msg_dict = opview_tdx_compat(self.to_json(self.sm[service]))
       elif out_name in OPVIEW_COMPACT_FIELDS:
         msg_dict = compact_fields(self.sm[service], OPVIEW_COMPACT_FIELDS[out_name])
       else:

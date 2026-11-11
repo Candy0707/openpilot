@@ -6,7 +6,7 @@ import pytest
 from openpilot.common.test import OpenpilotTestCase
 from openpilot.system.webrtc.webrtcd import (
   OPVIEW_COMPACT_FIELDS, CerealOutgoingMessageProxy, StreamRequestError, compact_fields, compact_model_v2,
-  opview_tdx_compat, parse_stream_request,
+  parse_stream_request,
 )
 
 
@@ -41,7 +41,7 @@ class TestOpviewStreamRequest(OpenpilotTestCase):
     assert e.value.status == 400
 
   def test_unknown_service_is_500(self):
-    # opview 帶選用 service（tdx 等）被拒時靠 500 退回重試
+    # 不認得的 service 回 500（與 dp0111pre / stock webrtcd 一致）
     with pytest.raises(StreamRequestError) as e:
       parse_stream_request({"sdp": "x", "initCamera": "road", "bridge_services_out": ["carState", "noSuchService"]})
     assert e.value.status == 500
@@ -78,27 +78,20 @@ class TestOpviewStreamRequest(OpenpilotTestCase):
     assert body.cameras == ["road"]
 
 
-class TestOpviewTdxCompat(OpenpilotTestCase):
-  def test_sp_to_dp(self):
-    # sunnypilot tdx（trafficStatus + roadEvent）→ opview 認得的 dp 格式（nextSpeed / congestion / events[]）
-    sp = {"trafficStatus": {"sectionId": "1", "speed": 92, "nextSectionId": "2", "nextSpeed": 35, "status": "severeCongestion"},
-          "roadEvent": {"sectionId": "2", "description": "前方:1|事故 佔用外側/車道/2|施工", "distance": 1200.0, "isActive": True}}
-    d = opview_tdx_compat(sp)
-    assert d["nextSpeed"] == 35 and d["congestion"] == "congested"
-    assert d["events"] == [
-      {"eventType": 1, "description": "事故 佔用外側/車道", "isCurrentSection": False},
-      {"eventType": 2, "description": "施工", "isCurrentSection": False},
-    ]
-    assert opview_tdx_compat({**sp, "roadEvent": {"isActive": True, "description": "目前:3|壅塞"}})["events"][0]["isCurrentSection"]
+class TestOpviewTdxDropped(OpenpilotTestCase):
+  # opview 已內建 TDX：opview 請求帶 tdx（舊版 App）時拿掉，不訂閱、不回 500；upstream 格式不受影響
+  def test_opview_tdx_removed(self):
+    body, is_opview = parse_stream_request({"sdp": "x", "initCamera": "road",
+                                            "bridge_services_out": ["carState", "tdx", "modelV2"]})
+    assert is_opview
+    assert "tdx" not in body.bridge_services_out
+    assert body.bridge_services_out[0] == "carState" and "modelV2" in body.bridge_services_out
 
-  def test_status_mapping_and_inactive(self):
-    for sp_status, dp_congestion in (("freeFlow", "smooth"), ("heavyTraffic", "slow"), ("severeCongestion", "congested"), ("unknown", "unknown")):
-      d = opview_tdx_compat({"trafficStatus": {"nextSpeed": -1, "status": sp_status}, "roadEvent": {"isActive": False, "description": ""}})
-      assert d["congestion"] == dp_congestion and d["events"] == []
-
-  def test_dp_format_passthrough(self):
-    dp = {"nextSpeed": 50, "congestion": "slow", "events": []}
-    assert opview_tdx_compat(dp) is dp
+  def test_upstream_request_unchanged(self):
+    body, is_opview = parse_stream_request({"sdp": "x", "cameras": ["road"], "bridge_services_out": ["carState"],
+                                            "bridge_services_in": [], "enabled": True})
+    assert not is_opview
+    assert body.bridge_services_out == ["carState"]
 
 
 class TestOpviewOutgoingProxy(OpenpilotTestCase):
