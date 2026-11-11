@@ -15,8 +15,7 @@ def _xyz(n):
 
 def _fake_model():
   return SimpleNamespace(frameId=7, position=_xyz(3), laneLines=[_xyz(3)] * 4, laneLineProbs=[0.91234] * 4,
-                         roadEdges=[_xyz(3)] * 2, roadEdgeStds=[0.5] * 2, acceleration=SimpleNamespace(x=[0.33333] * 3),
-                         leadsV3=[SimpleNamespace(prob=0.23456, x=[4.0004] * 6, y=[0.1] * 6)] * 3)
+                         roadEdges=[_xyz(3)] * 2, roadEdgeStds=[0.5] * 2, acceleration=SimpleNamespace(x=[0.33333] * 3))
 
 
 class TestOpviewStreamRequest(OpenpilotTestCase):
@@ -103,9 +102,8 @@ class TestOpviewTdxCompat(OpenpilotTestCase):
 class TestOpviewOutgoingProxy(OpenpilotTestCase):
   def test_compact_model(self):
     d = compact_model_v2(_fake_model())
-    assert set(d) == {"frameId", "position", "laneLines", "laneLineProbs", "roadEdges", "roadEdgeStds", "acceleration", "leadsV3"}
+    assert set(d) == {"frameId", "position", "laneLines", "laneLineProbs", "roadEdges", "roadEdgeStds", "acceleration"}
     assert d["laneLineProbs"][0] == 0.912 and d["acceleration"]["x"][0] == 0.333
-    assert len(d["leadsV3"]) == 3 and d["leadsV3"][0] == {"prob": 0.235, "x": [4.0] * 6, "y": [0.1] * 6}
     json.dumps(d)
 
   def _proxy(self, mocker, send_result=True):
@@ -140,3 +138,13 @@ class TestOpviewOutgoingProxy(OpenpilotTestCase):
     proxy.update()  # 30 ms 內第二次不送
     assert ch.send.call_count == 1
     assert json.loads(ch.send.call_args.args[0]) == {"type": "carState", "logMonoTime": 1, "valid": True, "data": 1.5}
+
+
+def test_malloc_arena_limit_and_trim():
+  import sys
+  from openpilot.system.webrtc import webrtcd
+  limited = webrtcd.limit_malloc_arenas()
+  released = webrtcd.release_memory()
+  if sys.platform.startswith("linux"):
+    # comma（glibc）上兩個都要成功；開發電腦非 glibc 時只要求不丟例外
+    assert limited and released
