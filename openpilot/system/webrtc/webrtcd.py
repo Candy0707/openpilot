@@ -6,6 +6,9 @@ import os
 import socket
 import time
 import capnp
+import ctypes
+import ctypes.util
+import gc
 import argparse
 import asyncio
 import contextlib
@@ -115,8 +118,7 @@ def _xyz(xyzt) -> dict:
 def compact_model_v2(model) -> dict:
   """opview 用的 modelV2 精簡版（移植自 dp0111pre）：只送畫面用到的欄位，數值四捨五入到小數 3 位。
   完整 to_dict() 約 31 KB / 筆（20 Hz ≈ 5 Mbps），精簡後約 5.6 KB（≈ 0.9 Mbps）。
-  opview 讀的欄位：position.x/y/z、laneLines[].x/y/z、laneLineProbs、roadEdges[].x/y/z、roadEdgeStds、acceleration.x、
-  leadsV3[].prob/x/y（近距離警示）
+  opview 讀的欄位：position.x/y/z、laneLines[].x/y/z、laneLineProbs、roadEdges[].x/y/z、roadEdgeStds、acceleration.x
   （見 opview lib/selfdrive/ui/ui_state.dart applyModelV2）。opview 之後若要用其他欄位，需在這裡一併加上。"""
   return {
     "frameId": model.frameId,
@@ -126,8 +128,6 @@ def compact_model_v2(model) -> dict:
     "roadEdges": [_xyz(e) for e in model.roadEdges],
     "roadEdgeStds": _r3(model.roadEdgeStds),
     "acceleration": {"x": _r3(model.acceleration.x)},
-    # 純視覺前車（近距離警示用：opview 讀 leadsV3[0] 的 x[0] / y[0] / prob）
-    "leadsV3": [{"prob": round(lead.prob, 3), "x": _r3(lead.x), "y": _r3(lead.y)} for lead in model.leadsV3],
   }
 
 
@@ -623,6 +623,40 @@ def schedule_teardown(state: ServerState):
   state.teardown = asyncio.get_running_loop().call_later(5.0, clear)
 
 
+# 記憶體：webrtcd 有 HTTP、asyncio、libdatachannel 多條執行緒，glibc 預設每條執行緒可各開一個 malloc arena
+# （64 位元上限 8 × CPU 核心數），每秒約 200 筆 JSON 轉換的暫存記憶體散在各 arena，用完也不會還給系統，RSS 只升不降。
+# 開頭限制 arena 數量；連線結束後 malloc_trim(0) 把空閒記憶體還給系統。只影響 webrtcd 自己這個程式。
+M_ARENA_MAX = -8  # glibc malloc.h
+MALLOC_ARENA_MAX = 2
+MEMORY_RELEASE_DELAY_S = 1.0  # 連線結束後等 session 物件釋放再 trim
+
+
+def _libc():
+  try:
+    return ctypes.CDLL(ctypes.util.find_library("c") or "libc.so.6")
+  except OSError:
+    return None
+
+
+def limit_malloc_arenas(max_arenas: int = MALLOC_ARENA_MAX) -> bool:
+  # 要在建立任何執行緒之前呼叫（main() 開頭）；之後才建立的 arena 才受限制
+  libc = _libc()
+  try:
+    return libc is not None and libc.mallopt(M_ARENA_MAX, max_arenas) == 1
+  except AttributeError:  # 非 glibc（開發電腦）
+    return False
+
+
+def release_memory() -> bool:
+  # 先回收 Python 循環參照，再把 glibc 各 arena 的空閒分頁還給系統
+  gc.collect()
+  libc = _libc()
+  try:
+    return libc is not None and libc.malloc_trim(0) == 1
+  except AttributeError:
+    return False
+
+
 def _json_response(obj: Any, status: int = 200) -> tuple[int, bytes, str]:
   return (status, json.dumps(obj).encode(), "application/json; charset=utf-8")
 
@@ -692,6 +726,8 @@ async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: s
     def remove_finished_session(_: asyncio.Task) -> None:
       stream_dict.pop(session.identifier, None)
       schedule_teardown(state)
+      # 連線結束：等這個 session 的物件釋放後，把記憶體還給系統
+      asyncio.get_running_loop().call_later(MEMORY_RELEASE_DELAY_S, release_memory)
 
     session.run_task.add_done_callback(remove_finished_session)
 
@@ -886,6 +922,7 @@ def main():
   parser.add_argument("--port", type=int, default=5001, help="Port to listen on")
   args = parser.parse_args()
 
+  limit_malloc_arenas()  # 在建立 HTTP / asyncio / libdatachannel 執行緒之前
   webrtcd_thread(args.host, args.port)
 
 
