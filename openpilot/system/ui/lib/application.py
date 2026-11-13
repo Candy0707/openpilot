@@ -16,11 +16,10 @@ from collections import deque
 from enum import IntEnum, StrEnum
 from pathlib import Path
 from typing import NamedTuple
-from fontTools.ttLib import TTFont
 from importlib.resources import as_file, files
 from openpilot.common.swaglog import cloudlog
 from openpilot.common.hardware import HARDWARE, PC
-from openpilot.system.ui.lib.multilang import multilang
+from openpilot.system.ui.lib.multilang import FONT_FALLBACK_LANGUAGES, TRANSLATIONS_DIR, multilang
 from openpilot.common.realtime import Ratekeeper
 
 from openpilot.system.ui.sunnypilot.lib.application import GuiApplicationExt
@@ -103,6 +102,13 @@ FONT_SCALE = 1.35 if BIG_UI else 1.16
 ASSETS_DIR = files("openpilot.selfdrive").joinpath("assets")
 FONT_DIR = ASSETS_DIR.joinpath("fonts")
 
+EXTRA_FONT_CHARS = "–‑✓×°§•X⚙✕◀▶✔⌫⇧␣○●↳çêüñ–‑✓×°§•€£¥"
+# 同上游：非拉丁語系改用 Noto fallback 字型（48px，只烘焙該語言 .po 內的字元）。
+# 本分支只開放 zh-CHT，字型檔沿用分支內的 NotoSansTC-Regular（上游為 NotoSansCJKtc-Regular.otf）。
+NOTO_FONTS = {
+  "zh-CHT": "NotoSansTC-Regular.ttf",
+}
+
 class FontWeight(StrEnum):
   LIGHT = "NotoSansTC-Light.ttf"
   NORMAL = "NotoSansTC-Regular.ttf" if BIG_UI else "NotoSansTC-Medium.ttf"
@@ -131,6 +137,9 @@ class TextAlignmentVertical(IntEnum):
 
 
 def font_fallback(font: rl.Font) -> rl.Font:
+  """Use a Noto fallback for languages not covered by Inter."""
+  if multilang.requires_font_fallback():
+    return gui_app.fallback_font()
   return font
 
 
@@ -715,23 +724,41 @@ class GuiApplication(GuiApplicationExt):
   def height(self):
     return self._height
 
+  def fallback_font(self) -> rl.Font:
+    language = multilang.language
+    if language not in self._fallback_fonts:
+      chars = set(map(chr, range(32, 127))) | set(EXTRA_FONT_CHARS)
+      chars.update(TRANSLATIONS_DIR.joinpath(f"app_{language}.po").read_text(encoding="utf-8"))
+      codepoints = sorted(map(ord, chars))
+      codepoint_buffer = rl.ffi.new("int[]", codepoints)
+      with as_file(FONT_DIR) as fspath:
+        font = rl.load_font_ex((fspath / NOTO_FONTS[language]).as_posix(), 48,
+                               rl.ffi.cast("int *", codepoint_buffer), len(codepoints))
+      rl.gen_texture_mipmaps(font.texture)
+      rl.set_texture_filter(font.texture, rl.TextureFilter.TEXTURE_FILTER_TRILINEAR)
+      self._fallback_fonts[language] = font
+    return self._fallback_fonts[language]
+
   def _load_fonts(self):
+    base_chars = set(map(chr, range(32, 127))) | set(EXTRA_FONT_CHARS)
+    for language, code in multilang.languages.items():
+      # 本分支的 FontWeight.UNIFONT 與 Regular 是同一個字型檔（StrEnum alias），無法另外以 16px 載入，
+      # 所以語言名稱（上游放在 unifont 字集）直接併入 base 字集，英文模式下語言選單才顯示得出「中文（繁體）」
+      base_chars.update(language)
+      if code not in FONT_FALLBACK_LANGUAGES:
+        base_chars.update(TRANSLATIONS_DIR.joinpath(f"app_{code}.po").read_text(encoding="utf-8"))
+
+    codepoints = sorted(map(ord, base_chars))
+    codepoint_buffer = rl.ffi.new("int[]", codepoints)
     for font_weight_file in FontWeight:
       with as_file(FONT_DIR) as fspath:
-        font_path = (fspath / font_weight_file).as_posix()
-
-        print(f"字體：{font_weight_file}，載入中...")
-        with TTFont(font_path, lazy=True) as tt_font:
-          cmap = tt_font.getBestCmap()
-          codepoints = sorted(cmap.keys())
-          codepoint_buffer = rl.ffi.new("int[]", codepoints)
-          font = rl.load_font_ex(font_path, 32,
-            rl.ffi.cast("int *", codepoint_buffer), len(codepoints))
-        print(f"字體：{font_weight_file}，已載入 {len(codepoints)} 個字元")
-
+        font = rl.load_font_ex((fspath / font_weight_file).as_posix(), 200,
+                               rl.ffi.cast("int *", codepoint_buffer), len(codepoints))
         rl.gen_texture_mipmaps(font.texture)
         rl.set_texture_filter(font.texture, rl.TextureFilter.TEXTURE_FILTER_TRILINEAR)
         self._fonts[font_weight_file] = font
+    if multilang.requires_font_fallback():
+      self.fallback_font()
 
 
   def _patch_text_functions(self):

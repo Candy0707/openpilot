@@ -169,8 +169,8 @@ class PairBigButton(BigButton):
 
 class LanguageLayoutMici(NavScroller):
   """dp - mici language picker (mici upstream has none). Mirrors the comma 3/3X device panel flow
-  (multilang.change_language). sunnypilot loads the full NotoSansTC cmap at startup, so unlike dp
-  there is no font atlas to swap; labels re-translate on the next frame because BigButton text is lazy."""
+  (multilang.change_language). zh-CHT uses the upstream-style Noto fallback font,
+  loaded lazily by gui_app.fallback_font() on first use; labels re-translate on the next frame because BigButton text is lazy."""
   def __init__(self):
     super().__init__()
     self._buttons: dict[str, BigButton] = {}
