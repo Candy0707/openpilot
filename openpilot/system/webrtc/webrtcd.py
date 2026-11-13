@@ -104,7 +104,9 @@ def compact_model_v2(model) -> dict:
 # carState 1.6 KB、controlsState 1.6 KB、radarState 1.0 KB、roadCameraState 0.6 KB → 各約 0.05–0.3 KB）。
 # key 是 opview 端的 service 名稱（改名前的舊名稱）；欄位不存在的分支就略過該欄位（與 to_dict() 沒有該欄位相同）。
 # 表上沒有的 service 照舊整筆 to_dict()。modelV2 另由 compact_model_v2 處理。
-OPVIEW_LEAD_FIELDS = ("status", "dRel", "yRel", "vRel", "vLead", "aLeadK", "modelProb", "radar")
+# 有沒有前車：dragonpilot 舊 cereal 叫 status，openpilot / sunnypilot 新版改名 present（同 @11）。兩個都列，
+# 不存在的那個會略過。只列 status 時新版分支 leadOne 沒有這個欄位，opview 判定「沒有前車」（鎖定框、車距都不見，2026-11-13）。
+OPVIEW_LEAD_FIELDS = ("status", "present", "dRel", "yRel", "vRel", "vLead", "aLeadK", "modelProb", "radar")
 OPVIEW_COMPACT_FIELDS: dict[str, dict[str, Any]] = {
   "carState": dict.fromkeys(("vEgo", "aEgo", "steeringAngleDeg", "leftBlinker", "rightBlinker", "leftBlindspot",
                              "rightBlindspot", "gearShifter", "standstill", "gasPressed", "vEgoCluster", "vCruiseCluster")),

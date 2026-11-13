@@ -200,6 +200,12 @@ class TestOpviewCompactFields(OpenpilotTestCase):
     assert d["leadOne"] == {"status": True, "dRel": 21.0, "yRel": 0.3, "vRel": -1.0, "vLead": 12.0,
                             "aLeadK": 0.0, "modelProb": 0.9, "radar": True}
 
+  def test_radar_state_leads_present(self):
+    # openpilot / sunnypilot 新版 cereal：status 改名 present，也要送出（opview 依此判斷有沒有前車）
+    lead = SimpleNamespace(present=True, dRel=21.0, yRel=0.3, vRel=-1.0, vLead=12.0, aLeadK=0.0, modelProb=0.9, radar=True)
+    d = compact_fields(SimpleNamespace(leadOne=lead, leadTwo=lead), OPVIEW_COMPACT_FIELDS["radarState"])
+    assert d["leadOne"]["present"] is True and "status" not in d["leadOne"]
+
   def test_lists_become_lists(self):
     cal = SimpleNamespace(calStatus="calibrated", rpyCalib=(0.0, 0.01, 0.02), wideFromDeviceEuler=[0.0] * 3,
                           height=[1.22], validBlocks=20)
