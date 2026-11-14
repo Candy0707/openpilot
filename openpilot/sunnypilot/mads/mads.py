@@ -239,8 +239,7 @@ class ModularAssistiveDrivingSystem:
         CS.steeringAngleDeg,
         CS.steeringTorque,
         CS.vEgo,
-        CS.steeringPressed,
-        CS.steeringRateDeg
+        CS.steeringPressed
       )
     # -----------------------------------------------
 
