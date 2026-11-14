@@ -1,14 +1,35 @@
 from opendbc.car import structs
+from openpilot.common.params import Params
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
 from openpilot.selfdrive.controls.lib.latcontrol_angle import LatControlAngle
-from openpilot.selfdrive.controls.lib.latcontrol_torque import LatControlTorque
+from openpilot.selfdrive.controls.lib.latcontrol_torque import LatControlTorque as LatControlTorqueV1
+from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_v0 import LatControlTorque as LatControlTorqueV0
+
 
 class LatControlDynamic(LatControl):
   def __init__(self, CP, CP_SP, CI, dt):
     super().__init__(CP, CP_SP, CI, dt)
-    # 同時初始化兩個控制器
+    self.params = Params()
+
+    # 1. 初始化角度控制器
     self.angle_ctrl = LatControlAngle(CP, CP_SP, CI, dt)
-    self.torque_ctrl = LatControlTorque(CP, CP_SP, CI, dt)
+
+    # 2. 讀取 sunnypilot UI 的 Torque 版本設定 (與 controlsd_ext.py 邏輯同步)
+    enforce_torque_control = self.params.get_bool("EnforceTorqueControl")
+    torque_version = self.params.get("TorqueControlTune")
+
+    # 為了相容 bytes / str / float 型態，統一轉為 float 判斷
+    try:
+      is_v1 = (float(torque_version) == 1.0) if torque_version is not None else False
+    except (ValueError, TypeError):
+      is_v1 = False
+
+    # 只有在「開啟 EnforceTorqueControl」且「UI 明確選擇 v1 (1.0)」時才用 V1
+    # 其他所有情況（包含未設定、預設狀態、或選 v0）一律預設使用最穩定的 V0！
+    if enforce_torque_control and is_v1:
+      self.torque_ctrl = LatControlTorqueV1(CP, CP_SP, CI, dt)
+    else:
+      self.torque_ctrl = LatControlTorqueV0(CP, CP_SP, CI, dt)
 
     # 預設使用 CP 讀出來的設定值
     self.use_angle = (CP.steerControlType == structs.CarParams.SteerControlType.angle)
