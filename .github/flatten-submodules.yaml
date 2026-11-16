@@ -5,13 +5,13 @@ name: flatten submodules
 
 on:
   push:
-    branches: [test]
+    branches: [ master ]
   workflow_dispatch:
     inputs:
       source_branch:
         description: '來源分支'
         required: true
-        default: 'master'
+        default: 'test'
       target_branch:
         description: '輸出分支（留空 = <來源分支>-flat）'
         required: false
