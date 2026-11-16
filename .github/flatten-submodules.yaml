@@ -1,0 +1,96 @@
+name: flatten submodules
+
+# 把含子模組的分支（預設 master）攤平成一般資料夾，推到 <分支>-flat。
+# 不編譯，只在 GitHub 雲端機器上跑，不需要 comma 裝置。
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+    inputs:
+      source_branch:
+        description: '來源分支'
+        required: true
+        default: 'master'
+      target_branch:
+        description: '輸出分支（留空 = <來源分支>-flat）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flatten-${{ inputs.source_branch || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  flatten:
+    runs-on: ubuntu-24.04
+    env:
+      SRC_BRANCH: ${{ inputs.source_branch || github.ref_name }}
+      DST_BRANCH: ${{ inputs.target_branch || format('{0}-flat', inputs.source_branch || github.ref_name) }}
+      # LFS 檔案保持 pointer，內容仍由 .lfsconfig 指向的伺服器提供，和 master 相同
+      GIT_LFS_SKIP_SMUDGE: '1'
+      GIT_LFS_SKIP_PUSH: '1'
+    steps:
+      - name: Checkout source with submodules
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SRC_BRANCH }}
+          path: src
+          fetch-depth: 1
+          submodules: recursive
+          lfs: false
+
+      - name: Flatten and push
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SRC="$GITHUB_WORKSPACE/src"
+          OUT="$GITHUB_WORKSPACE/out"
+          SRC_SHA=$(git -C "$SRC" rev-parse HEAD)
+          SUBMODULES=$(git -C "$SRC" submodule status --recursive | awk '{print $2" @ "substr($1,1,12)}' | tr -d '+-')
+
+          git config --global user.name  "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 接在既有的輸出分支後面 commit，保留歷史，裝置更新時只需抓差異
+          mkdir -p "$OUT" && cd "$OUT"
+          git init -q -b "$DST_BRANCH"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git ls-remote --exit-code --heads origin "$DST_BRANCH" >/dev/null; then
+            git fetch -q --depth 1 origin "$DST_BRANCH"
+            git reset -q --soft FETCH_HEAD
+          fi
+          git read-tree --empty
+
+          # 主 repo 與所有子模組的追蹤檔案，排除 .gitmodules；
+          # .github/workflows 也排除，因為 GITHUB_TOKEN 不能推送 workflow 檔案
+          cd "$SRC"
+          git ls-files -z --recurse-submodules \
+            | grep -zv -E '^(\.gitmodules$|\.github/workflows/)' \
+            | xargs -0 cp -pP --parents -t "$OUT" --
+
+          cd "$OUT"
+          git add -A -f .
+
+          if git ls-files -s | awk '$1 == "160000" { found = 1; print } END { exit !found }'; then
+            echo "::error::輸出分支裡仍有子模組 gitlink"
+            exit 1
+          fi
+
+          if git rev-parse -q --verify HEAD >/dev/null && git diff --cached --quiet; then
+            echo "沒有變更，略過推送"
+            exit 0
+          fi
+
+          git commit -q -m "flatten ${SRC_BRANCH} @ ${SRC_SHA:0:12}
+
+          source: ${GITHUB_REPOSITORY}@${SRC_BRANCH} ${SRC_SHA}
+          submodules:
+          ${SUBMODULES}"
+
+          git push origin "HEAD:refs/heads/${DST_BRANCH}"
+          echo "已推送 ${DST_BRANCH}: $(git rev-parse --short HEAD)"
