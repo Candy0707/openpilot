@@ -5,7 +5,7 @@ name: flatten submodules
 
 on:
   push:
-    branches: [ master ]
+    branches: [test]
   workflow_dispatch:
     inputs:
       source_branch:
