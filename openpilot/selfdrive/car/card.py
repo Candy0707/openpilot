@@ -18,6 +18,8 @@ from opendbc.car.carlog import carlog
 from opendbc.car.fw_versions import ObdCallback
 from opendbc.car.car_helpers import get_car, interfaces
 from opendbc.car.interfaces import CarInterfaceBase, RadarInterfaceBase
+from opendbc.car.toyota.values import ToyotaFlags
+from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
 from openpilot.selfdrive.pandad import can_capnp_to_list, can_list_to_can_capnp
 from openpilot.selfdrive.car.cruise import VCruiseHelper
 from openpilot.selfdrive.car.helpers import convert_carControlSP, convert_to_capnp
@@ -28,6 +30,9 @@ from openpilot.sunnypilot.selfdrive.car import interfaces as sunnypilot_interfac
 REPLAY = "REPLAY" in os.environ
 
 EventName = log.OnroadEvent.EventName
+
+# opview Auto Hold 按鈕：暫停中車速超過 30 km/h 自動恢復
+OPVIEW_AUTO_HOLD_RESUME_SPEED = 30. / 3.6  # m/s
 
 # forward
 carlog.addHandler(ForwardingHandler(cloudlog))
@@ -186,6 +191,11 @@ class Car:
     # card is driven by can recv, expected at 100Hz
     self.rk = Ratekeeper(100, print_delay_threshold=None)
 
+    # opview Auto Hold 按鈕：上次寫入 OpviewAutoHoldState 的值（-1 = 尚未寫入）
+    self.opview_auto_hold_state = -1
+    # 暫停旗標：params_thread 寫入，card 主迴圈在 CI.apply 前讀取（不修改 opendbc）
+    self.opview_auto_hold_paused = False
+
   def state_update(self) -> tuple[car.CarState, custom.CarStateSP, structs.RadarDataT | None]:
     """carState update loop, driven by can"""
 
@@ -277,6 +287,7 @@ class Car:
     if self.sm.all_alive(['carControl']):
       # send car controls over can
       now_nanos = self.can_log_mono_time if REPLAY else int(time.monotonic() * 1e9)
+      self.opview_auto_hold_apply()
       self.last_actuators_output, can_sends = self.CI.apply(CC, convert_carControlSP(CC_SP), now_nanos)
       self.pm.send('sendcan', can_list_to_can_capnp(can_sends, msgtype='sendcan', valid=CS.canValid))
 
@@ -296,6 +307,43 @@ class Car:
     self.CS_prev = CS
     self.CS_SP_prev = CS_SP
 
+  def opview_auto_hold_available(self) -> bool:
+    """可用 = 豐田 TSS2 且已開啟 ToyotaEnableAutoHold（onroad 時讀一次轉成 SP_AUTO_BRAKE_HOLD flag）"""
+    return self.CP.brand == "toyota" and bool(self.CP.flags & ToyotaFlags.TSS2) and \
+           bool(self.CP_SP.flags & ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD)
+
+  def opview_auto_hold_apply(self):
+    """opview Auto Hold 暫停（card 主迴圈，每次 CI.apply 前呼叫，100 Hz；不修改 opendbc）
+    暫停中把 carcontroller 的 auto brake hold 狀態機歸零（IDLE、計數 0）。
+    carcontroller 每 2 frame（50 Hz）才跑一次狀態機，每次跑之前都已被歸零 → 計數永遠到不了門檻，不會進入保持；
+    原本保持中則下一次就變成未保持（PRE_COLLISION_2 改回原樣轉送）→ 立即放開。
+    恢復後由 IDLE 重新計時才保持，與 sp 原本「放開後重新計時」的行為相同。"""
+    if not self.opview_auto_hold_paused:
+      return
+    cc = getattr(self.CI, 'CC', None)
+    if cc is not None and hasattr(cc, '_brake_hold_state'):
+      cc._brake_hold_state = 0   # BRAKE_HOLD_IDLE（opendbc/car/toyota/carcontroller.py）
+      cc._brake_hold_counter = 0
+
+  def opview_auto_hold_update(self):
+    """opview Auto Hold 按鈕（10 Hz，在 params_thread 執行）
+    讀 OpviewAutoHoldPaused → self.opview_auto_hold_paused（由主迴圈套用）；
+    回報實際狀態到 OpviewAutoHoldState（只在變化時寫入）：bit0 可用、bit1 已暫停、bit2 保持中"""
+    cc = getattr(self.CI, 'CC', None)
+    available = self.opview_auto_hold_available()
+    paused = available and self.params.get_bool("OpviewAutoHoldPaused")
+    if paused and self.CS_prev.vEgo > OPVIEW_AUTO_HOLD_RESUME_SPEED:
+      # 暫停中車速超過 30 km/h → 自動恢復（清除暫停旗標，opview 按鈕回到紅色）
+      self.params.put_bool("OpviewAutoHoldPaused", False)
+      paused = False
+      cloudlog.info("opview auto hold: auto resumed above 30 km/h")
+    self.opview_auto_hold_paused = paused
+    holding = available and not paused and bool(getattr(cc, 'brake_hold_active', False))
+    state = int(available) | (int(paused) << 1) | (int(holding) << 2)
+    if state != self.opview_auto_hold_state:
+      self.params.put("OpviewAutoHoldState", state)
+      self.opview_auto_hold_state = state
+
   def params_thread(self, evt):
     while not evt.is_set():
       self.is_metric = self.params.get_bool("IsMetric")
@@ -304,6 +352,11 @@ class Car:
       # sunnypilot
       self.dynamic_experimental_control = self.params.get_bool("DynamicExperimentalControl")
       self.v_cruise_helper.read_custom_set_speed_params()
+
+      try:
+        self.opview_auto_hold_update()
+      except Exception:
+        cloudlog.exception("opview auto hold update failed")
 
       time.sleep(0.1)
 
