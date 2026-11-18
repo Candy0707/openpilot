@@ -112,11 +112,12 @@ OPVIEW_COMPACT_FIELDS: dict[str, dict[str, Any]] = {
                              "rightBlindspot", "gearShifter", "standstill", "gasPressed", "vEgoCluster", "vCruiseCluster")) |
               {"cruiseState": ("enabled",)},  # opview Auto Hold 按鈕：巡航中不顯示
   "selfdriveState": dict.fromkeys(("enabled", "experimentalMode", "alertText1", "alertText2", "alertSize",
-                                   "alertStatus", "state")),
+                                   "alertStatus", "state", "personality")),  # personality：opview 橫向 HUD（吉米）
   "controlsState": dict.fromkeys(("vCruiseDEPRECATED",)),
   "radarState": {"leadOne": OPVIEW_LEAD_FIELDS, "leadTwo": OPVIEW_LEAD_FIELDS},
   "longitudinalPlan": dict.fromkeys(("allowThrottle",)),
-  "deviceState": dict.fromkeys(("deviceType", "started")),
+  # memoryUsagePercent / cpuUsagePercent / maxTempC：opview 橫向 HUD（吉米）的 MEM / CPU / TEMP
+  "deviceState": dict.fromkeys(("deviceType", "started", "memoryUsagePercent", "cpuUsagePercent", "maxTempC")),
   "liveCalibration": dict.fromkeys(("calStatus", "rpyCalib", "wideFromDeviceEuler", "height")),
   "roadCameraState": dict.fromkeys(("sensor",)),
 }
@@ -331,6 +332,43 @@ class OpviewAutoHoldReader:
     return self.value
 
 
+# opview 橫向 HUD 的 eGPU 狀態：附在 deviceState 訊息的 "opviewEgpu" 欄位送給 opview。Params 每 1 秒最多讀一次。
+#   {"present": 偵測到 eGPU, "active": 模型正在 eGPU 上跑, "loading": 大模型載入中, "compiled": 大模型已編譯}
+# sunnypilot 系（chestnut）：present = USB 偵測到 eGPU（modeld helpers.chestnut_present），
+#   loading = ChestnutLoading（大模型載入中），active = ChestnutActive（大模型正在 eGPU 上跑）。
+# 參數不存在（其他分支）一律視為 False，不會丟例外。
+OPVIEW_EGPU_READ_INTERVAL = 1.0
+
+
+class OpviewEgpuReader:
+  def __init__(self):
+    self.params = Params()
+    self.last_read = -OPVIEW_EGPU_READ_INTERVAL
+    self.value: dict[str, bool] = {"present": False, "active": False, "loading": False, "compiled": False}
+
+  def _get_bool(self, key: str) -> bool:
+    try:
+      return bool(self.params.get_bool(key))
+    except Exception:
+      return False
+
+  def get(self) -> dict[str, bool]:
+    now = time.monotonic()
+    if now - self.last_read >= OPVIEW_EGPU_READ_INTERVAL:
+      self.last_read = now
+      present = False
+      try:
+        from openpilot.selfdrive.modeld.helpers import chestnut_present
+        present = bool(chestnut_present())
+      except Exception:
+        present = False
+      loading = self._get_bool("ChestnutLoading")
+      active = self._get_bool("ChestnutActive")
+      self.value = {"present": present or active or loading, "active": active, "loading": loading and not active,
+                    "compiled": True}
+    return self.value
+
+
 class CerealOutgoingMessageProxy(AsyncTaskRunner):
   # opview：data channel 是可靠、有序的，送出佇列沒有上限。網路（例如 iPhone 熱點）或 comma CPU 跟不上時，
   # 舊訊息會在佇列裡越積越多、照順序晚到。
@@ -356,6 +394,7 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
     self.backoff_until = 0.0
     self.last_sent: dict[str, float] = {}
     self.auto_hold = OpviewAutoHoldReader() if opview else None
+    self.egpu = OpviewEgpuReader() if opview else None
 
   def add_channel(self, channel):
     self.channels.append(channel)
@@ -420,6 +459,8 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
         msg_dict = compact_fields(self.sm[service], OPVIEW_COMPACT_FIELDS[out_name])
         if out_name == "carState" and self.auto_hold is not None:
           msg_dict["opviewAutoHold"] = self.auto_hold.get()
+        elif out_name == "deviceState" and self.egpu is not None:
+          msg_dict["opviewEgpu"] = self.egpu.get()
       else:
         msg_dict = self.to_json(self.sm[service])
       mono_time, valid = self.sm.logMonoTime[service], self.sm.valid[service]
