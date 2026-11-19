@@ -159,8 +159,7 @@ class DynamicTurnSpeedController(TargetsBase):
 
     return V_CRUISE_MAX, 0.0, False
 
-  def update_target(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float):
-    CO = sm['carOutput']
+  def update_target(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float)
     """
     核心目標車速與加速度運算迴圈。
     """
@@ -215,7 +214,6 @@ class DynamicTurnSpeedController(TargetsBase):
     torque_factor = 1.0
     if sm['controlsState'].lateralControlState.which() == 'torqueState' and False:
       torque_raw = abs(sm['controlsState'].lateralControlState.torqueState.output)
-      torque_raw = CO.actuatorsOutput.torque
       self.torque_filtered = self._torque_filter.update(min(1.0, torque_raw))
       # 0.6 ~ 0.9 對應係數 1.0 ~ 0.0 (>= 0.9 強制歸零以保護車輛不推頭)
       torque_factor = float(np.interp(self.torque_filtered, [0.6, 0.9], [1.0, 0.0]))
