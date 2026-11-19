@@ -101,22 +101,6 @@ class DynamicTurnSpeedController(TargetsBase):
     a_lat_limit = max_lat_g * GRAVITY
     return math.sqrt(a_lat_limit / curv_abs)
 
-  def _get_current_curvature(self, sm: messaging.SubMaster) -> float:
-    """
-    取得車輛當前瞬時控制曲率 (取兩大來源絕對值之最大值)。
-    來源 1: controlsState.desiredCurvature
-    來源 2: lateralManeuverPlan.desiredCurvature / modelV2.action.desiredCurvature
-    """
-    curv_source_1 = sm['controlsState'].curvature
-
-    curv_source_2 = 0.0
-    if sm.valid.get('lateralManeuverPlan', False):
-      curv_source_2 = sm['lateralManeuverPlan'].desiredCurvature
-    else:
-      curv_source_2 = sm['modelV2'].action.desiredCurvature
-
-    return max(abs(curv_source_1), abs(curv_source_2))
-
   def _eval_predictive_curve(self, sm: messaging.SubMaster, v_cruise: float) -> tuple[float, float, bool]:
     """
     遍歷視覺模型 (modelV2) 前方 33 個預測點，利用 200 格時空網格累積信心表驗證前方彎道，
@@ -176,6 +160,7 @@ class DynamicTurnSpeedController(TargetsBase):
     return V_CRUISE_MAX, 0.0, False
 
   def update_target(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float):
+    CO = self.sm['carOutput']
     """
     核心目標車速與加速度運算迴圈。
     """
@@ -186,8 +171,9 @@ class DynamicTurnSpeedController(TargetsBase):
     # -------------------------------------------------------------
     # 步驟 1: 計算「當前狀態」即時目標車速 (不受 modelV2 影響)
     # -------------------------------------------------------------
-    curr_curvature = self._get_current_curvature(sm)
-    v_current = self.calc_v_by_curvature(curr_curvature)
+    cs = sm['controlsState']
+    v_curvature = self.calc_v_by_curvature(cs.curvature)
+    v_desiredCurvature = self.calc_v_by_curvature(cs.desiredCurvature)
 
     # -------------------------------------------------------------
     # 步驟 2: 檢查 Model 存在並計算「前方預測彎道」動態減速
@@ -210,14 +196,15 @@ class DynamicTurnSpeedController(TargetsBase):
 
       # 單步推進目標車速，並將加速度設定為求解出的動態加速度 (由 TargetsBase 進行 ACCEL_MIN/MAX 夾取)
       v_predictive = max(0.0, v_ego + kinematic_a_req * DT_MDL)
-      self.a_target = kinematic_a_req
+      # self.a_target = kinematic_a_req
+      
     else:
       self.a_target = a_ego
 
     # -------------------------------------------------------------
     # 步驟 3: 綜合幾何曲率速限 (取當前與預測之最小值)
     # -------------------------------------------------------------
-    v_geom_target = min(v_current, v_predictive)
+    v_geom_target = min(v_curvature, v_desiredCurvature, v_predictive)
 
     # -------------------------------------------------------------
     # 步驟 4: 方向盤扭力一階低通濾波與線性插值安全縮放
@@ -228,6 +215,7 @@ class DynamicTurnSpeedController(TargetsBase):
     torque_factor = 1.0
     if sm['controlsState'].lateralControlState.which() == 'torqueState' and False:
       torque_raw = abs(sm['controlsState'].lateralControlState.torqueState.output)
+      torque_raw = CO.actuatorsOutput.torque
       self.torque_filtered = self._torque_filter.update(min(1.0, torque_raw))
       # 0.6 ~ 0.9 對應係數 1.0 ~ 0.0 (>= 0.9 強制歸零以保護車輛不推頭)
       torque_factor = float(np.interp(self.torque_filtered, [0.6, 0.9], [1.0, 0.0]))
@@ -239,6 +227,7 @@ class DynamicTurnSpeedController(TargetsBase):
     # 步驟 5: 結算最終目標車速與作動狀態
     # -------------------------------------------------------------
     self.v_target = v_geom_target * torque_factor
+    self.a_target = a_ego
 
     # 判定介入狀態 (action)：當目標車速低於巡航設定速、轉彎成立、或扭力受限時標記介入
     self.action = bool((self.v_target < v_cruise) or is_curve_confirmed or (torque_factor < 1.0))
