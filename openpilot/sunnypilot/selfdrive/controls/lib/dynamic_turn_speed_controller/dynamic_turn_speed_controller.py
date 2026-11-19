@@ -160,7 +160,7 @@ class DynamicTurnSpeedController(TargetsBase):
     return V_CRUISE_MAX, 0.0, False
 
   def update_target(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float):
-    CO = self.sm['carOutput']
+    CO = sm['carOutput']
     """
     核心目標車速與加速度運算迴圈。
     """
