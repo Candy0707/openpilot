@@ -112,12 +112,11 @@ OPVIEW_COMPACT_FIELDS: dict[str, dict[str, Any]] = {
                              "rightBlindspot", "gearShifter", "standstill", "gasPressed", "vEgoCluster", "vCruiseCluster")) |
               {"cruiseState": ("enabled",)},  # opview Auto Hold 按鈕：巡航中不顯示
   "selfdriveState": dict.fromkeys(("enabled", "experimentalMode", "alertText1", "alertText2", "alertSize",
-                                   "alertStatus", "state", "personality")),  # personality：opview 橫向 HUD（吉米）
+                                   "alertStatus", "state")),
   "controlsState": dict.fromkeys(("vCruiseDEPRECATED",)),
   "radarState": {"leadOne": OPVIEW_LEAD_FIELDS, "leadTwo": OPVIEW_LEAD_FIELDS},
   "longitudinalPlan": dict.fromkeys(("allowThrottle",)),
-  # memoryUsagePercent / cpuUsagePercent / maxTempC：opview 橫向 HUD（吉米）的 MEM / CPU / TEMP
-  "deviceState": dict.fromkeys(("deviceType", "started", "memoryUsagePercent", "cpuUsagePercent", "maxTempC")),
+  "deviceState": dict.fromkeys(("deviceType", "started")),
   "liveCalibration": dict.fromkeys(("calStatus", "rpyCalib", "wideFromDeviceEuler", "height")),
   "roadCameraState": dict.fromkeys(("sensor",)),
 }
@@ -332,43 +331,6 @@ class OpviewAutoHoldReader:
     return self.value
 
 
-# opview 橫向 HUD 的 eGPU 狀態：附在 deviceState 訊息的 "opviewEgpu" 欄位送給 opview。Params 每 1 秒最多讀一次。
-#   {"present": 偵測到 eGPU, "active": 模型正在 eGPU 上跑, "loading": 大模型載入中, "compiled": 大模型已編譯}
-# sunnypilot 系（chestnut）：present = USB 偵測到 eGPU（modeld helpers.chestnut_present），
-#   loading = ChestnutLoading（大模型載入中），active = ChestnutActive（大模型正在 eGPU 上跑）。
-# 參數不存在（其他分支）一律視為 False，不會丟例外。
-OPVIEW_EGPU_READ_INTERVAL = 1.0
-
-
-class OpviewEgpuReader:
-  def __init__(self):
-    self.params = Params()
-    self.last_read = -OPVIEW_EGPU_READ_INTERVAL
-    self.value: dict[str, bool] = {"present": False, "active": False, "loading": False, "compiled": False}
-
-  def _get_bool(self, key: str) -> bool:
-    try:
-      return bool(self.params.get_bool(key))
-    except Exception:
-      return False
-
-  def get(self) -> dict[str, bool]:
-    now = time.monotonic()
-    if now - self.last_read >= OPVIEW_EGPU_READ_INTERVAL:
-      self.last_read = now
-      present = False
-      try:
-        from openpilot.selfdrive.modeld.helpers import chestnut_present
-        present = bool(chestnut_present())
-      except Exception:
-        present = False
-      loading = self._get_bool("ChestnutLoading")
-      active = self._get_bool("ChestnutActive")
-      self.value = {"present": present or active or loading, "active": active, "loading": loading and not active,
-                    "compiled": True}
-    return self.value
-
-
 # opview 吉米三線道模型（v2.0.9）：雷達點雲精簡版，附在 radarState 訊息的 "opviewTracks" 欄位送給 opview。
 # 用途：讓手機的相機車種辨識目標對到雷達點，40 m 內的位置改用雷達量到的距離 / 橫向。
 # 只送 measured、前方 0–45 m 的點（opview 只要求 40 m 內準確，多 5 m 給配對容錯），每點 [trackId, dRel, yRel, vRel]
@@ -395,6 +357,25 @@ class OpviewTracksReader:
     self.last_attach = 0.0
     self.received_at = 0.0
     self.points: list[list[float]] = []
+    # 診斷（2026-11-20）：每秒附一次 opviewTracksSrc，opview log 可看出 comma 端有沒有收到雷達軌跡、過濾前後各幾點
+    self.last_info = 0.0
+    self.rx = 0     # 這一秒收到幾筆雷達軌跡訊息
+    self.raw = 0    # 最近一筆過濾前的點數
+    self.meas = 0   # 最近一筆 measured 的點數
+    self.err = ""
+
+  def info(self) -> dict | None:
+    """每秒一次的診斷資訊；其他時候 None"""
+    now = time.monotonic()
+    if now - self.last_info < 1.0:
+      return None
+    self.last_info = now
+    out = {"src": self.name or "", "rx": self.rx, "raw": self.raw, "meas": self.meas,
+           "age": round(now - self.received_at, 1) if self.received_at > 0 else -1}
+    if self.err:
+      out["err"] = self.err[:80]
+    self.rx = 0
+    return out
 
   def get(self) -> list[list[float]] | None:
     """None = 這次不附（10 Hz 節流或沒有雷達點資料來源）"""
@@ -407,11 +388,17 @@ class OpviewTracksReader:
     try:
       msg = messaging.recv_one_or_none(self.sock)
       if msg is not None:
+        pts = getattr(msg, self.name).points
+        self.rx += 1
+        self.raw = len(pts)
+        self.meas = sum(1 for p in pts if p.measured)
         self.points = [[int(p.trackId), round(p.dRel, 1), round(p.yRel, 1), round(p.vRel, 1)]
-                       for p in getattr(msg, self.name).points
+                       for p in pts
                        if p.measured and 0.0 < p.dRel <= OPVIEW_TRACKS_MAX_D]
         self.received_at = now
-    except Exception:
+        self.err = ""
+    except Exception as e:
+      self.err = repr(e)
       self.points = []
     if now - self.received_at > OPVIEW_TRACKS_STALE:
       self.points = []
@@ -443,7 +430,6 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
     self.backoff_until = 0.0
     self.last_sent: dict[str, float] = {}
     self.auto_hold = OpviewAutoHoldReader() if opview else None
-    self.egpu = OpviewEgpuReader() if opview else None
     self.tracks = OpviewTracksReader() if opview else None
 
   def add_channel(self, channel):
@@ -509,12 +495,13 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
         msg_dict = compact_fields(self.sm[service], OPVIEW_COMPACT_FIELDS[out_name])
         if out_name == "carState" and self.auto_hold is not None:
           msg_dict["opviewAutoHold"] = self.auto_hold.get()
-        elif out_name == "deviceState" and self.egpu is not None:
-          msg_dict["opviewEgpu"] = self.egpu.get()
         elif out_name == "radarState" and self.tracks is not None:
           tracks = self.tracks.get()
           if tracks is not None:
             msg_dict["opviewTracks"] = tracks
+          info = self.tracks.info()
+          if info is not None:
+            msg_dict["opviewTracksSrc"] = info
       else:
         msg_dict = self.to_json(self.sm[service])
       mono_time, valid = self.sm.logMonoTime[service], self.sm.valid[service]
