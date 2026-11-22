@@ -17,6 +17,7 @@ def _xyz(n):
 def _fake_model():
   return SimpleNamespace(frameId=7, position=_xyz(3), laneLines=[_xyz(3)] * 4, laneLineProbs=[0.91234] * 4,
                          roadEdges=[_xyz(3)] * 2, roadEdgeStds=[0.5] * 2, acceleration=SimpleNamespace(x=[0.33333] * 3),
+                         orientationRate=SimpleNamespace(z=[0.12345, 0.2, 0.3]),
                          leadsV3=[SimpleNamespace(prob=0.23456, x=[4.0004] * 6, y=[0.1] * 6)] * 3)
 
 
@@ -97,8 +98,10 @@ class TestOpviewTdxDropped(OpenpilotTestCase):
 class TestOpviewOutgoingProxy(OpenpilotTestCase):
   def test_compact_model(self):
     d = compact_model_v2(_fake_model())
-    assert set(d) == {"frameId", "position", "laneLines", "laneLineProbs", "roadEdges", "roadEdgeStds", "acceleration", "leadsV3"}
+    assert set(d) == {"frameId", "position", "laneLines", "laneLineProbs", "roadEdges", "roadEdgeStds", "acceleration", "leadsV3",
+                      "orientationRate"}
     assert d["laneLineProbs"][0] == 0.912 and d["acceleration"]["x"][0] == 0.333
+    assert d["orientationRate"] == {"z": [0.123]}  # opview v2.0.13：只送 t = 0
     assert len(d["leadsV3"]) == 3 and d["leadsV3"][0] == {"prob": 0.235, "x": [4.0] * 6, "y": [0.1] * 6}
     json.dumps(d)
 
