@@ -1,12 +1,5 @@
 """
 動態過彎速度控制器 (Dynamic Turn Speed Controller - DTSC)
-
-本模組繼承自 TargetsBase，負責在車輛行駛與即將過彎時提供動態降速目標：
-1. 依據固定向心 G 值 (0.15G) 物理公式，將路徑曲率換算為舒適過彎極限速度。
-2. 結合當前控制曲率與前方視覺模型 (modelV2) 預測之 33 個點完整路徑曲率。
-3. 採用 200 格時空網格平移累積信心表，於確認彎道中提取「全路徑最大曲率 (最低速)」為最保守安全約束。
-4. 只要轉彎判定成立即無條件套用「動態運動學即時減速度」，由 TargetsBase 進行硬體邊界鉗位。
-5. 監控 EPS 方向盤橫向轉向扭矩 (僅於 torqueState 時讀取)，經一階低通濾波後於 0.6 ~ 0.9 區間線性插值至 1.0 ~ 0.0。
 """
 
 import math
@@ -14,7 +7,6 @@ import numpy as np
 
 from openpilot.cereal import messaging
 from opendbc.car import structs
-from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.car.cruise import V_CRUISE_MAX
 from openpilot.common.filter_simple import FirstOrderFilter
@@ -25,139 +17,105 @@ from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 # ==========================================
 # 全域物理常數與演算法參數定義
 # ==========================================
-TARGET_LAT_G = 0.15        # 目標舒適橫向向心 G 值 (0.15G)
-GRAVITY = 9.81            # 重力加速度常數 (m/s^2)
-MIN_CURVATURE = 1e-4      # 最小有效曲率門檻 (半徑大於 10,000m 視為純直線，避免除以零)
+TARGET_LAT_G = 0.15            # 目標舒適橫向向心 G 值 (0.15G)
+MIN_LAT_G = 0.08               # 陡下坡時容許橫向向心 G 值(0.08G)
+DOWNHILL_G_FACTOR = 0.5        # 下坡重力分量折減權重 (k_g)
+GRAVITY = 9.81                 # 重力加速度常數 (m/s^2)
+MIN_CURVATURE = 0.0015         # 最小有效曲率門檻
+MIN_SPEED = 0.3                # 最小有效速度
+
+# 運動學減速參數
+CONVERGENCE_TAU = 1.5          # 動態距離下限之時間常數 (秒)
 
 # 200 格時空網格參數 (時間跨度 10 秒)
 NUM_SLOTS = 200
 LINEAR_T = np.arange(0.0, 10.0, DT_MDL)
 MODEL_T = np.array(ModelConstants.T_IDXS)
-CONF_THRESHOLD = 0.60     # 信心度確認門檻 (60%)
-
-
-def menger_curvature(ptA: tuple[float, float], ptB: tuple[float, float], ptC: tuple[float, float]) -> float:
-  """
-  利用三點外接圓 (Menger Curvature) 計算點 B 的離散幾何曲率。
-
-  幾何公式：
-    kappa = (2 * |(xB - xA)(yC - yA) - (yB - yA)(xC - xA)|) / (d_AB * d_BC * d_AC)
-  """
-  xA, yA = ptA
-  xB, yB = ptB
-  xC, yC = ptC
-
-  d_AB = math.hypot(xB - xA, yB - yA)
-  d_BC = math.hypot(xC - xB, yC - yB)
-  d_AC = math.hypot(xC - xA, yC - yA)
-
-  # 計算兩向量之二維叉積絕對值 (對應兩倍三角形面積)
-  cross = 2.0 * abs((xB - xA) * (yC - yA) - (yB - yA) * (xC - xA))
-  denom = d_AB * d_BC * d_AC
-
-  # 避免三點重合或距離過近導致除以零
-  if denom < 1e-5:
-    return 0.0
-
-  return cross / denom
+CONF_THRESHOLD = 0.60          # 信心度確認門檻 (60%)
 
 
 class DynamicTurnSpeedController(TargetsBase):
   """
-  動態過彎速度控制器子類別
+  動態過彎速度控制器
   """
 
   def __init__(self, CP: structs.CarParams, mpc):
     super().__init__(CP, mpc)
 
+    # --- 控制狀態記憶體配置 ---
+    self.latAction = False
+    self.curvature = 0.0
+    self.desiredCurvature = 0.0
+
+    self.active_target_source: str = '當前曲率'
+    self.targets: dict[str, list[float]] = {
+      '當前曲率': [float(V_CRUISE_MAX), 0.0],
+      '目標曲率': [float(V_CRUISE_MAX), 0.0],
+      '預測曲率': [float(V_CRUISE_MAX), 0.0],
+      '轉向限制': [float(V_CRUISE_MAX), 0.0],
+    }
+
     # --- 200 格時空信心表記憶體配置 ---
     self.confidence_table = np.zeros(NUM_SLOTS)
 
-    # --- 方向盤橫向扭力濾波器 ---
-    # x0=0 (初值), rc=0.1 (時間常數), dt=DT_MDL (步長 0.05s)
-    self._torque_filter = FirstOrderFilter(0.0, 0.1, DT_MDL)
-
-    # 內部過濾後之扭矩數值 (0.0 ~ 1.0)
-    self.torque_filtered = 0.0
+    # --- 轉向不足濾波器 ---
+    # x0=1.0 (初值基準), rc=1.0s (時間常數), dt=DT_MDL (步長 0.05s)
+    self.steer_filter = FirstOrderFilter(1.0, 1.0, DT_MDL)
+    # 內部過濾後之轉向不足比值
+    self.steer_filtered = 1.0
 
   @staticmethod
-  def calc_v_by_curvature(curvature: float, max_lat_g: float = TARGET_LAT_G) -> float:
+  def calc_v_by_curvature(curvature: float | np.ndarray, max_lat_g: float | np.ndarray = TARGET_LAT_G) -> float | np.ndarray:
     """
     依據向心加速度物理公式換算目標車速：
       a_lat = v^2 / R = kappa * v^2
       => v = sqrt(a_lat / kappa) = sqrt((max_lat_g * g) / kappa)
 
     參數:
-      curvature (float): 路徑曲率 (1/m)
-      max_lat_g (float): 容許橫向加速度 G 值，預設 0.15G
+      curvature (float | np.ndarray): 路徑曲率 (1/m)
+      max_lat_g (float | np.ndarray): 容許橫向加速度 G 值，預設為 TARGET_LAT_G (0.15G)
 
     回傳:
-      float: 物理速限 (m/s)
+      float | np.ndarray: 物理速限 (m/s)；小於 MIN_CURVATURE 時回傳 V_CRUISE_MAX
     """
-    curv_abs = abs(curvature)
-    if curv_abs < MIN_CURVATURE:
-      return V_CRUISE_MAX
+    if isinstance(curvature, np.ndarray) or isinstance(max_lat_g, np.ndarray):
+      curv_abs = np.abs(curvature)
+      a_lat_limit = np.asarray(max_lat_g, dtype=float) * GRAVITY
+      # 曲率小於最小曲率，表示無需減速，直接回傳最大巡航速度
+      return np.where(curv_abs < MIN_CURVATURE, float(V_CRUISE_MAX), np.sqrt(a_lat_limit / np.maximum(curv_abs, MIN_CURVATURE)))
 
-    a_lat_limit = max_lat_g * GRAVITY
+    curv_abs = abs(curvature)
+    # 曲率小於最小曲率，表示無需減速，直接回傳最大巡航速度
+    if curv_abs < MIN_CURVATURE:
+      return float(V_CRUISE_MAX)
+    a_lat_limit = float(max_lat_g) * GRAVITY
     return math.sqrt(a_lat_limit / curv_abs)
 
-  def _eval_predictive_curve(self, sm: messaging.SubMaster, v_cruise: float) -> tuple[float, float, bool]:
+  @staticmethod
+  def calc_kinematic_target(v_ego: float, v_end: float, d_end: float) -> list[float]:
     """
-    遍歷視覺模型 (modelV2) 前方 33 個預測點，利用 200 格時空網格累積信心表驗證前方彎道，
-    並在確認成立時提取全域最大曲率及其距離。
+    依據動態運動學公式計算單步目標車速與起始加速度。
+
+    核心公式：
+      a_req = (v_end^2 - v_ego^2) / (2 * d_end)
+
+    參數:
+      v_ego (float): 當前車速 (m/s)
+      v_end (float): 目標車速 (m/s)
+      d_end (float): 目標距離 (m)
 
     回傳:
-      tuple[float, float, bool]: (最大曲率點對應之目標車速 v_curve, 縱向距離 d, 是否確認轉彎成立)
+      list[float]: [目標車速 v_target, 目標加速度 a_target]
     """
-    # 【檢查是否有 33 點】若長度不足則略過預測計算，平緩衰減信心表
-    if len(sm['modelV2'].position.x) < 33 or len(sm['modelV2'].position.y) < 33:
-      return V_CRUISE_MAX, 0.0, False
-
-    x_raw = np.array(sm['modelV2'].position.x)
-    y_raw = np.array(sm['modelV2'].position.y)
-    num_pts = len(x_raw)
-
-    # 1. 將自車原點 (0, 0) 加入前端，構築 34 個座標點集計算 33 點 Menger 曲率
-    pts = [(0.0, 0.0)] + list(zip(x_raw, y_raw))
-    curvatures_33 = np.zeros(num_pts)
-    for i in range(num_pts):
-      if i == 0:
-        k = menger_curvature(pts[0], pts[1], pts[2])
-      elif i == num_pts - 1:
-        k = menger_curvature(pts[num_pts - 2], pts[num_pts - 1], pts[num_pts])
-      else:
-        k = menger_curvature(pts[i], pts[i + 1], pts[i + 2])
-      curvatures_33[i] = abs(k)
-
-    # 2. 插值映射至 200 格等距時空網格 (0 ~ 10 秒)
-    x_200 = np.interp(LINEAR_T, MODEL_T, x_raw)
-    k_200 = np.interp(LINEAR_T, MODEL_T, curvatures_33)
-
-    # 計算各網格槽位在 0.15G 下的速限
-    v_200_limit = np.sqrt((TARGET_LAT_G * GRAVITY) / np.maximum(k_200, MIN_CURVATURE))
-
-    # 判定各時空槽位是否存在降速需求 (曲率大於門檻且速限小於巡航速)
-    curve_mask = (k_200 > MIN_CURVATURE) & (v_200_limit < v_cruise)
-
-    # 滿足條件信心累積 (+0.05)，未滿足則衰減 (-0.01)
-    self.confidence_table[curve_mask] += 0.05
-    self.confidence_table[~curve_mask] -= 0.01
-    self.confidence_table = np.clip(self.confidence_table, 0.0, 1.0)
-
-    # 4. 判定轉彎是否成立 (信心度高於 60% 的有效槽位)
-    valid_indices = np.where(self.confidence_table > CONF_THRESHOLD)[0]
-    is_curve_confirmed = len(valid_indices) > 0
-
-    if is_curve_confirmed:
-      # 在所有通過信心驗證的網格中，尋找全域最大曲率 (最保守安全策略)
-      max_valid_idx = valid_indices[np.argmax(k_200[valid_indices])]
-      k_pred_max = float(k_200[max_valid_idx])
-      d_pred_max = max(0.0, float(x_200[max_valid_idx]))
-
-      v_curve_pred = self.calc_v_by_curvature(k_pred_max)
-      return v_curve_pred, d_pred_max, True
-
-    return V_CRUISE_MAX, 0.0, False
+    # 目標速度大於當前車速，無需減速
+    if v_end >= v_ego:
+      return [v_end, 0.0]
+    # 動態距離
+    d_calc = max(d_end, v_ego * CONVERGENCE_TAU, MIN_SPEED * CONVERGENCE_TAU)
+    # 動態運動學公式求解所需等減速度
+    a_target = (v_end**2 - v_ego**2) / (2.0 * d_calc)
+    v_target = v_ego + a_target * DT_MDL
+    return [v_target, a_target]
 
   def update_target(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float):
     """
@@ -166,69 +124,104 @@ class DynamicTurnSpeedController(TargetsBase):
     # 200 格信心表時空物理平移 (向左平移 1 格，新的一格補 0.0)
     self.confidence_table[:-1] = self.confidence_table[1:]
     self.confidence_table[-1] = 0.0
-    
-    # -------------------------------------------------------------
-    # 步驟 1: 計算「當前狀態」即時目標車速 (不受 modelV2 影響)
-    # -------------------------------------------------------------
-    cs = sm['controlsState']
-    v_curvature = self.calc_v_by_curvature(cs.curvature)
-    v_desiredCurvature = self.calc_v_by_curvature(cs.desiredCurvature)
 
-    # -------------------------------------------------------------
-    # 步驟 2: 檢查 Model 存在並計算「前方預測彎道」動態減速
-    # -------------------------------------------------------------
-    # 【update_target 檢查 model 存在保護】若不存在或無效則略過預測計算，不 return
-    has_model = (sm.valid.get('modelV2', False))
-    if has_model:
-      v_curve_pred, d_pred, is_curve_confirmed = self._eval_predictive_curve(sm, v_cruise)
-    else:
-      v_curve_pred, d_pred, is_curve_confirmed = V_CRUISE_MAX, 0.0, False
-      
-    
-    v_predictive = V_CRUISE_MAX
+    # 取得 controlsState 資料
+    if sm.valid['controlsState']:
+      cs = sm['controlsState']
+      lac = getattr(cs.lateralControlState, cs.lateralControlState.which())
+      self.latAction = lac.active
+      self.curvature = cs.curvature
+      self.desiredCurvature = cs.desiredCurvature
 
-    if is_curve_confirmed:
-      # 只要判斷轉彎成立，就套用減速公式，無須再判斷距離與速度
-      # 動態運動學公式：a_req = (v_end^2 - v_start^2) / (2 * d)
-      d_calc = max(d_pred, 1.0)  # 分母保護避免除以零
-      kinematic_a_req = (v_curve_pred**2 - v_ego**2) / (2.0 * d_calc)
-
-      # 單步推進目標車速，並將加速度設定為求解出的動態加速度 (由 TargetsBase 進行 ACCEL_MIN/MAX 夾取)
-      v_predictive = max(0.0, v_ego + kinematic_a_req * DT_MDL)
-      # self.a_target = kinematic_a_req
-      
-    else:
+    # 橫向控制未啟用時，重置內部目標與濾波器狀態，避免重新啟用瞬間殘留舊幀數值
+    if not self.latAction:
+      self.action = False
+      self.active_target_source = '當前曲率'
+      self.steer_filter.x = 1.0
+      self.steer_filtered = 1.0
+      for key in self.targets:
+        self.targets[key] = [float(V_CRUISE_MAX), a_ego]
+      self.v_target = float(V_CRUISE_MAX)
       self.a_target = a_ego
+      return super().update_target(sm, v_ego, a_ego, v_cruise)
 
-    # -------------------------------------------------------------
-    # 步驟 3: 綜合幾何曲率速限 (取當前與預測之最小值)
-    # -------------------------------------------------------------
-    v_geom_target = min(v_curvature, v_desiredCurvature, v_predictive)
+    # 算出當前曲率與目標曲率限制速度
+    v_curvature = float(self.calc_v_by_curvature(self.curvature))
+    self.targets['當前曲率'] = self.calc_kinematic_target(v_ego, v_curvature, 0.0)
+    v_desiredCurvature = float(self.calc_v_by_curvature(self.desiredCurvature))
+    self.targets['目標曲率'] = self.calc_kinematic_target(v_ego, v_desiredCurvature, 0.0)
 
-    # -------------------------------------------------------------
-    # 步驟 4: 方向盤扭力一階低通濾波與線性插值安全縮放
-    # -------------------------------------------------------------
-    # 【扭力讀取保護】
-    # torque_factor 預設為 1.0 (100% 車速無抑制)
-    # 僅在 controlsState 為 torqueState 時才讀取扭矩與插值，非扭力狀態絕不強制停車
-    torque_factor = 1.0
-    if sm['controlsState'].lateralControlState.which() == 'torqueState' and False:
-      torque_raw = abs(sm['controlsState'].lateralControlState.torqueState.output)
-      self.torque_filtered = self._torque_filter.update(min(1.0, torque_raw))
-      # 0.6 ~ 0.9 對應係數 1.0 ~ 0.0 (>= 0.9 強制歸零以保護車輛不推頭)
-      torque_factor = float(np.interp(self.torque_filtered, [0.6, 0.9], [1.0, 0.0]))
+    # 計算「前方預測彎道」動態減速 (僅使用 modelV2 相對俯仰角進行下坡坡度補償)
+    # 每幀預設重置為無限制，確保 modelV2 無效、點數不足或出彎後不會殘留舊的低速目標
+    self.targets['預測曲率'] = [float(V_CRUISE_MAX), a_ego]
+
+    if sm.valid['modelV2']:
+      model = sm['modelV2']
+      # 檢查 modelV2 四組陣列皆具完整 33 點，避免系統啟動初期或空幀造成 np.interp 崩潰
+      n_model_pts = len(MODEL_T)
+      if (
+        len(model.position.x) == n_model_pts
+        and len(model.velocity.x) == n_model_pts
+        and len(model.orientationRate.z) == n_model_pts
+        and len(model.orientation.y) == n_model_pts
+      ):
+        x_raw = np.array(model.position.x)
+        v_raw = np.maximum(np.array(model.velocity.x), MIN_SPEED)
+        y_rate_raw = np.abs(np.array(model.orientationRate.z))
+        pitch_raw = np.array(model.orientation.y)
+        curvatures_33 = y_rate_raw / v_raw
+        x_200 = np.interp(LINEAR_T, MODEL_T, x_raw)
+        v_200 = np.interp(LINEAR_T, MODEL_T, v_raw)
+        pitch_200 = np.interp(LINEAR_T, MODEL_T, pitch_raw)
+        k_200 = np.interp(LINEAR_T, MODEL_T, curvatures_33)
+
+        pitch_down_200 = np.maximum(0.0, -pitch_200)
+        lat_g_eff_200 = np.maximum(TARGET_LAT_G * np.cos(pitch_200) - DOWNHILL_G_FACTOR * np.sin(pitch_down_200),MIN_LAT_G)
+        v_200_limit = self.calc_v_by_curvature(k_200, lat_g_eff_200)
+        curve_mask = (v_ego > 3.0) & (v_200 > 3.0) & (k_200 > MIN_CURVATURE) & (v_200_limit < v_cruise)
+
+        # 滿足條件信心累積 (+0.05)，未滿足則衰減 (-0.01)
+        self.confidence_table[curve_mask] += 0.05
+        self.confidence_table[~curve_mask] -= 0.01
+        self.confidence_table = np.clip(self.confidence_table, 0.0, 1.0)
+
+        valid_indices = np.where(self.confidence_table > CONF_THRESHOLD)[0]
+        if len(valid_indices) > 0:
+          # 取「最低速限」點，
+          v_valid_limits = v_200_limit[valid_indices]
+          min_v_pos = int(np.argmin(v_valid_limits))
+          best_idx = valid_indices[min_v_pos]
+
+          v_curve_pred = float(v_valid_limits[min_v_pos])
+          d_pred_max = max(0.0, float(x_200[best_idx]))
+          self.targets['預測曲率'] = self.calc_kinematic_target(v_ego, v_curve_pred, d_pred_max)
+
+    # 判斷轉向需求
+    clipped_speed = max(v_ego, MIN_SPEED)
+    actual_lateral_accel = self.curvature * (clipped_speed ** 2)
+    desired_lateral_accel = self.desiredCurvature * (clipped_speed ** 2)
+    steer_raw = abs(desired_lateral_accel) / (abs(actual_lateral_accel) + 1e-3)
+    turning = abs(desired_lateral_accel) > MIN_LAT_G * GRAVITY
+    steer_input = float(np.clip(steer_raw, 0.8, 1.6)) if turning else 1.0
+    self.steer_filtered = self.steer_filter.update(steer_input)
+    steer_factor = float(np.interp(self.steer_filtered, [1.05, 1.20], [1.0, 0.0]))
+
+    # 轉向不足輸出降速目標；
+    if steer_factor < 1.0:
+      v_steer = v_ego * steer_factor
+      self.targets['轉向限制'] = self.calc_kinematic_target(v_ego, v_steer, 0.0)
     else:
-      # 非扭力狀態平緩重置濾波器
-      self.torque_filtered = self._torque_filter.update(0.0)
+      self.targets['轉向限制'] = [float(V_CRUISE_MAX), a_ego]
 
-    # -------------------------------------------------------------
-    # 步驟 5: 結算最終目標車速與作動狀態
-    # -------------------------------------------------------------
-    self.v_target = v_geom_target * torque_factor
-    self.a_target = a_ego
+    # 仲裁結果 (取最低目標車速；同速時取最保守加速度)
+    best_source, best_target = min(
+      self.targets.items(),
+      key=lambda item: (item[1][0], item[1][1]),
+    )
+    self.active_target_source = best_source
+    self.v_target = best_target[0]
+    self.a_target = best_target[1]
+    # 判定介入狀態 (action)：上鎖看 v_ego，解鎖看 v_cruise
+    self.action = bool((self.action or (self.v_target < v_ego)) and (self.v_target < v_cruise))
 
-    # 判定介入狀態 (action)：當目標車速低於巡航設定速、轉彎成立、或扭力受限時標記介入
-    self.action = bool((self.v_target < v_cruise) or is_curve_confirmed or (torque_factor < 1.0))
-
-    # 呼叫父類別 TargetsBase 的仲裁邏輯 (包含 ACCEL_MIN/MAX 極限保護) 與系統日誌輸出
     return super().update_target(sm, v_ego, a_ego, v_cruise)
