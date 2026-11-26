@@ -2,6 +2,12 @@
 import os
 import time
 
+from openpilot.selfdrive.ui.remote import REMOTE_UI, install_remote_hooks
+
+# 遠端模式：在匯入任何 UI 模組前統一掛載遠端 Params 與 messaging
+if REMOTE_UI:
+  install_remote_hooks()
+
 from openpilot.cereal import messaging
 from openpilot.common.hardware import COMMA_HARDWARE
 from openpilot.common.realtime import Priority, config_realtime_process, set_core_affinity
@@ -10,6 +16,7 @@ from openpilot.selfdrive.ui.layouts.main import MainLayout
 from openpilot.selfdrive.ui.mici.layouts.main import MiciMainLayout
 from openpilot.selfdrive.ui.ui_state import ui_state
 
+REMOTE_UI = os.getenv("REMOTE_UI") == "1"
 BIG_UI = gui_app.big_ui()
 
 
