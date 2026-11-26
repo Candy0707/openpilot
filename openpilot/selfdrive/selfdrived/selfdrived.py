@@ -154,9 +154,7 @@ class SelfdriveD(CruiseHelper):
     self.state_machine = StateMachine()
     self.rk = Ratekeeper(100, print_delay_threshold=None)
 
-    # TDX only supplies UI traffic information, never vehicle control.
-    # opview：webrtcd / stream_encoderd / opviewd 只提供手機畫面，當掉不應擋住啟用（processNotRunning）
-    self.ignored_processes = {'mapd', 'tdx', 'webrtcd', 'stream_encoderd', 'opviewd'}
+    self.ignored_processes = {'mapd', 'tdx', 'webrtcd', 'stream_encoderd'}
 
     # Determine startup event
     is_remote = build_metadata.openpilot.comma_remote or build_metadata.openpilot.sunnypilot_remote
