@@ -10,10 +10,8 @@ from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.egl import init_egl, create_egl_image, destroy_egl_image, bind_egl_image_to_texture, EGLImage
 from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.ui_state import ui_state
-from openpilot.selfdrive.ui.remote import REMOTE_UI
 
-if REMOTE_UI:
-  from openpilot.selfdrive.ui.remote.webrtc_client import RemoteWebRTCClient
+from openpilot.selfdrive.ui.remote import REMOTE_UI, get_remote_client
 
 CONNECTION_RETRY_INTERVAL = 0.2  # seconds between connection attempts
 
@@ -96,7 +94,7 @@ class CameraView(Widget):
     self._placeholder_color: rl.Color | None = None
 
     # 遠端 WebRTC 影像資源（僅在 REMOTE_UI=1 模式下啟用）
-    self._remote_client = RemoteWebRTCClient.get_instance() if REMOTE_UI else None
+    self._remote_client = get_remote_client() if REMOTE_UI else None
     self._remote_texture: rl.Texture | None = None
     self._remote_frame_id: int = -1
     self._remote_size: tuple[int, int] = (0, 0)
@@ -106,6 +104,10 @@ class CameraView(Widget):
       self.client: VisionIpcClient | None = None
       self.shader: rl.Shader | None = None
       self._texture1_loc: int = -1
+      # 註冊 Onroad / Offroad 切換回呼，並依目前實際狀態決定是否啟用道路視訊串流
+      ui_state.add_offroad_transition_callback(self._offroad_transition)
+      if self._remote_client is not None:
+        self._remote_client.set_video_enabled(ui_state.is_onroad())
       return
 
     # Primary stream
@@ -127,6 +129,13 @@ class CameraView(Widget):
 
   def _offroad_transition(self):
     if REMOTE_UI:
+      if self._remote_client is not None:
+        is_onroad = ui_state.is_onroad()
+        self._remote_client.set_video_enabled(is_onroad)
+        if not is_onroad:
+          # 離開 Onroad 時清掉舊畫面 Texture，避免下次進入閃現舊影格
+          self._clear_textures()
+          self._remote_frame_id = -1
       return
 
     # Reconnect if not first time going onroad
@@ -148,9 +157,18 @@ class CameraView(Widget):
     if self._stream_type == stream_type:
       return
 
-    # 遠端模式下不建立本機 VisionIpcClient，僅更新目前串流型別紀錄
+    # 遠端模式下不建立本機 VisionIpcClient，透過原生 livestreamCameraSwitch 同步切換 C4 鏡頭
     if REMOTE_UI:
       self._stream_type = stream_type
+      if self._remote_client is not None:
+        stream_to_camera = {
+          VisionStreamType.VISION_STREAM_ROAD: "road",
+          VisionStreamType.VISION_STREAM_WIDE_ROAD: "wideRoad",
+          VisionStreamType.VISION_STREAM_DRIVER: "driver",
+        }
+        cam_name = stream_to_camera.get(stream_type)
+        if cam_name is not None:
+          self._remote_client.switch_camera(cam_name)
       return
 
     if self._switching and self._target_stream_type == stream_type:
@@ -260,11 +278,16 @@ class CameraView(Widget):
   def _render_remote(self, rect: rl.Rectangle) -> None:
     """
     遠端模式專用渲染函式：
-    從 RemoteWebRTCClient 讀取最新解碼的 RGB24 影像幀，更新至 GPU Texture 並依原生寬高比置中繪製。
+    僅於 Onroad 狀態從 RemoteWebRTCClient 讀取最新解碼的 RGB24 影像幀，
+    更新至 GPU Texture 並依原生寬高比置中繪製。
     """
-    if self._remote_client is None:
+    if self._remote_client is None or not ui_state.is_onroad():
       self._draw_placeholder(rect)
       return
+
+    # 若剛進入 Onroad 而視訊開關尚未打開，自動補開串流
+    if not self._remote_client.video_enabled:
+      self._remote_client.set_video_enabled(True)
 
     frame, frame_id, _ = self._remote_client.get_latest_frame()
     if frame is None:

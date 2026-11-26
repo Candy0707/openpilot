@@ -3,21 +3,26 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import base64
+from datetime import datetime
+import io
 import json
 import logging
+import os
 import signal
+import tarfile
 import threading
 import time
 from typing import Any
-from datetime import datetime
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
-from openpilot.cereal import messaging
+from openpilot.cereal import log, messaging
+from openpilot.common.basedir import BASEDIR
 from openpilot.common.params import ParamKeyType
 from openpilot.common.swaglog import cloudlog
+from openpilot.common.version import get_build_metadata
 from openpilot.system.webrtc.helpers import StreamRequestBody
 from openpilot.system.webrtc.webrtcd import (
-  AsyncTaskRunner,
   CerealOutgoingMessageProxy,
   ServerState,
   StreamSession,
@@ -31,108 +36,228 @@ from openpilot.system.webrtc.webrtcd import (
 )
 
 
-class RawCapnpOutgoingProxy(CerealOutgoingMessageProxy):
+def _json_default(obj: Any) -> Any:
+  """處理 Capnp to_dict() 內可能殘留的 bytes 或非原生型別，避免 json.dumps 失敗。"""
+  if isinstance(obj, bytes):
+    return base64.b64encode(obj).decode("ascii")
+  if isinstance(obj, datetime):
+    return obj.isoformat()
+  return str(obj)
+
+
+class ThrottledCerealOutgoingProxy(CerealOutgoingMessageProxy):
   """
-  原始 Capnp 二進位推播代理（繼承自 CerealOutgoingMessageProxy）。
+  精簡節流版 JSON 推播代理（直接沿用上游 CerealOutgoingMessageProxy）。
 
   設計目的：
-  1. 取代上游的 SubMaster + to_json() 流程，直接透過 messaging.sub_sock 讀取
-     msgq 內的原始 Capnp 二進位封包（bytes）並送入 DataChannel，將 C4 的 CPU 負擔降至最低。
-  2. 內建逐服務降頻節流（預設 25 Hz），避免 100 Hz 的 carState / controlsState 塞爆區網 Wi-Fi。
+  1. 完全沿用原生 webrtcd 的 JSON 封包格式 {"type", "logMonoTime", "valid", "data"}，
+     讓遠端 Windows / macOS / Android / iOS 端徹底擺脫 pycapnp 依賴並方便雙向互傳訊息。
+  2. 內建逐服務降頻節流（預設 25 Hz），避免 100 Hz 高頻服務（carState、controlsState）塞爆 Wi-Fi。
+  3. 支援動態補訂服務 add_services()，解決啟動期間後續才建立的 SubMaster 漏訂問題。
   """
 
   def __init__(self, services: list[str], enabled: bool = True, max_hz: float = 25.0):
-    # 直接初始化最底層 AsyncTaskRunner，刻意跳過父類建立 SubMaster 以免重複反序列化
-    AsyncTaskRunner.__init__(self)
-    self.services = list(services)
-    self.channels: list[Any] = []
-    self._enabled = enabled
-
-    # 建立非阻塞且自動合併舊幀（conflate=True）的原始 msgq socket
-    self.socks = {s: messaging.sub_sock(s, conflate=True) for s in self.services}
-
-    # 節流控制：記錄每個 service 上次推播的單調時間
+    valid_services = self._filter_valid_services(services)
+    super().__init__(valid_services, enabled=enabled)
     self._min_interval = 1.0 / max(max_hz, 1.0)
     self._last_sent: dict[str, float] = dict.fromkeys(self.services, 0.0)
 
+  @staticmethod
+  def _filter_valid_services(services: list[str]) -> list[str]:
+    """僅保留合法且非廢棄的 cereal service，避免非法名稱導致 SubMaster 初始化失敗。"""
+    valid: list[str] = []
+    seen: set[str] = set()
+    for s in services:
+      if s in seen:
+        continue
+      if s in log.Event.schema.fields and not s.endswith("DEPRECATED"):
+        valid.append(s)
+        seen.add(s)
+    return valid
+
+  def add_services(self, new_services: list[str]) -> list[str]:
+    """動態追加訂閱服務清單，僅在出現尚未訂閱的合法服務時重建 SubMaster。"""
+    to_add = [s for s in self._filter_valid_services(new_services) if s not in self.services]
+    if not to_add:
+      return list(self.services)
+
+    self.services.extend(to_add)
+    self.sm = messaging.SubMaster(self.services)
+    for s in to_add:
+      self._last_sent[s] = 0.0
+    return list(self.services)
+
   def update(self) -> None:
-    """非阻塞輪詢所有已訂閱的 socket，達節流間隔時將最新原始 bytes 推播至所有開啟中的通道。"""
-    now = time.monotonic()
+    """沿用原生 SubMaster.update(0) 與 to_json()，並依每個 service 獨立節流送出 JSON。"""
+    if not self.services:
+      return
+
     open_channels = [ch for ch in self.channels if ch.is_open()]
     if not open_channels:
       return
 
-    for service, sock in self.socks.items():
-      if (now - self._last_sent[service]) < self._min_interval:
+    now = time.monotonic()
+    self.sm.update(0)
+
+    for service, updated in self.sm.updated.items():
+      if not updated:
+        continue
+      if (now - self._last_sent.get(service, 0.0)) < self._min_interval:
         continue
 
-      raw_bytes = sock.receive(non_blocking=True)
-      if raw_bytes is None:
-        continue
-
+      msg_dict = self.to_json(self.sm[service])
+      mono_time, valid = self.sm.logMonoTime[service], self.sm.valid[service]
+      outgoing_msg = {
+        "type": service,
+        "logMonoTime": mono_time,
+        "valid": valid,
+        "data": msg_dict,
+      }
+      encoded_msg = json.dumps(outgoing_msg, default=_json_default).encode("utf-8")
       self._last_sent[service] = now
+
       for channel in open_channels:
-        channel.send(raw_bytes)
+        if channel.is_open():
+          channel.send(encoded_msg)
 
 
 class ExtendedStreamSession(StreamSession):
   """
-  擴充版 WebRTC 串流工作階段（繼承自 StreamSession）。
+  擴充版 WebRTC 串流工作階段（繼承自原生 StreamSession）。
 
   擴充功能：
-  1. 支援 raw_capnp 模式：將 outgoing_bridge 替換為 RawCapnpOutgoingProxy。
-  2. 擴充 message_handler：在單一 messaging_channel 上攔截並處理 Params 同步與讀寫指令，
-     其餘原生指令（clockSync、livestreamCameraSwitch 等）完整交回父類處理。
+  1. 沿用原生 JSON 服務橋接，並以 ThrottledCerealOutgoingProxy 取代以支援節流與動態補訂。
+  2. 遠端 UI 模式（remote_ui=True）：
+     - 取消 300 秒強制斷線逾時，比照 body session 持續維持連線。
+     - 支援獨立控制視訊串流開關（預設 Offroad 不開影像、進 Onroad 再啟用），關閉影像時不中斷數據橋接。
+  3. 擴充 message_handler：攔截 Params 同步讀寫與動態訂閱指令，其餘原生指令完整交回父類處理。
   """
 
-  def __init__(self, body: StreamRequestBody, raw_capnp: bool = False, max_hz: float = 25.0):
-    super().__init__(body)
-    self.raw_capnp = raw_capnp
+  # 單一參數快照序列化上限（64 KB），避免巨型二進位資料阻塞控制通道，同時完整相容大型 JSON 設定
+  MAX_PARAM_JSON_BYTES = 65536
 
-    # 若客戶端請求原始 Capnp 二進位模式，替換掉上游預設的 JSON 推播代理
-    if self.raw_capnp and len(body.bridge_services_out) > 0:
-      self.outgoing_bridge = RawCapnpOutgoingProxy(
+  def __init__(
+    self,
+    body: StreamRequestBody,
+    remote_ui: bool = False,
+    video_enabled: bool | None = None,
+    max_hz: float = 25.0,
+  ):
+    super().__init__(body)
+    self.remote_ui = remote_ui
+    self.max_hz = max_hz
+    self.video_enabled = body.enabled if video_enabled is None else bool(video_enabled)
+
+    if self.remote_ui:
+      # 遠端 UI 永遠配置可動態擴充的節流 JSON 推播代理（即使初始清單為空亦建立）
+      self.outgoing_bridge = ThrottledCerealOutgoingProxy(
+        body.bridge_services_out,
+        enabled=True,
+        max_hz=max_hz,
+      )
+      # 僅控制影像軌道與位元率控制器，讓 Offroad 期間不浪費編碼與頻寬，進 Onroad 再開啟
+      for track in self.video_tracks:
+        track.enable(self.video_enabled)
+      if self.bitrate_controller is not None:
+        self.bitrate_controller.enable(self.video_enabled)
+    elif len(body.bridge_services_out) > 0:
+      # 非遠端 UI 請求若帶有 outgoing 服務，亦沿用節流代理確保相容性
+      self.outgoing_bridge = ThrottledCerealOutgoingProxy(
         body.bridge_services_out,
         enabled=self.enabled,
         max_hz=max_hz,
       )
 
-  def _dump_utf8_params(self) -> tuple[dict[str, Any], dict[str, int]]:
+  async def run_normal_session(self) -> None:
+    """遠端 UI 模式不套用 300 秒逾時斷線；其餘原生呼叫維持上游 300 秒保護。"""
+    if self.remote_ui:
+      await self.stream.wait_for_disconnection()
+      return
+    await super().run_normal_session()
+
+  def _dump_utf8_params(self) -> tuple[dict[str, Any], dict[str, int], dict[str, Any]]:
+    """
+    傾印 C4 真實 Params 快照、型別表與原生預設值表（零假資料）：
+    - snapshot：目前實際寫入 C4 的真實設定值。
+    - types：每個 key 對應的 ParamKeyType 整數值。
+    - defaults：從 C4 原生 get_default_value() 讀取的真實預設值（供遠端 return_default=True 使用）。
+    """
     snapshot: dict[str, Any] = {}
     types: dict[str, int] = {}
+    defaults: dict[str, Any] = {}
+
     for raw_key in self.params.all_keys():
       key = raw_key.decode("utf-8", errors="ignore") if isinstance(raw_key, bytes) else str(raw_key)
       try:
         t = self.params.get_type(key)
-        types[key] = int(t)  # 即使目前無值，也讓遠端知道型別
+        types[key] = int(t)  # 即使目前無值，也讓遠端知道真實型別
 
+        # 讀取 C4 真實預設值（若有定義）
+        default_val = self.params.get_default_value(key)
+        if default_val is not None and not isinstance(default_val, bytes):
+          json_default_val = self._to_jsonable(default_val)
+          if len(json.dumps(json_default_val, ensure_ascii=False)) <= self.MAX_PARAM_JSON_BYTES:
+            defaults[key] = json_default_val
+
+        # 讀取 C4 目前真實設定值
         val = self.params.get(key)
         if val is None or isinstance(val, bytes):
           continue
-        val = self._to_jsonable(val)
-        if len(json.dumps(val, ensure_ascii=False)) <= 4096:
-          snapshot[key] = val
+        json_val = self._to_jsonable(val)
+        if len(json.dumps(json_val, ensure_ascii=False)) <= self.MAX_PARAM_JSON_BYTES:
+          snapshot[key] = json_val
       except (TypeError, ValueError, UnicodeError):
         continue
       except Exception:
         self.logger.exception("Failed to serialize Params key %s", key)
         continue
-    return snapshot, types
+
+    return snapshot, types, defaults
+
+  def _send_json_message(self, payload: dict[str, Any]) -> None:
+    """安全送出 JSON 回覆訊息至 messaging_channel。"""
+    if self.stream.has_messaging_channel():
+      ch = self.stream.get_messaging_channel()
+      if ch.is_open():
+        ch.send(json.dumps(payload, default=_json_default))
 
   def message_handler(self, message: bytes | str) -> None:
     """
-    攔截遠端大螢幕送來的 Params 控制指令；非自訂指令則原封不動交回上游 StreamSession。
+    攔截遠端 UI 送來的控制指令與視訊切換指令；其餘原生指令原封不動交回上游 StreamSession。
     """
     try:
       payload = json.loads(message) if isinstance(message, (bytes, str)) else None
       if isinstance(payload, dict):
-        # 同時相容 cmd（RemoteParams 預設）與 type（webrtcd 原生慣例）
+        # 同時相容 cmd（RemoteParams / 動態訂閱）與 type（webrtcd 原生慣例）
         cmd = payload.get("cmd") or payload.get("type")
 
+        # 遠端 UI 模式下的原生 livestreamVideoEnable：只切換影像串流，不中斷數據通道
+        if cmd == "livestreamVideoEnable" and self.remote_ui:
+          enabled = bool(payload.get("data", {}).get("enabled", False))
+          self.video_enabled = enabled
+          for track in self.video_tracks:
+            track.enable(enabled)
+          if self.bitrate_controller is not None:
+            self.bitrate_controller.enable(enabled)
+          # 開啟影像時主動向 encoderd 請求關鍵幀（IDR），縮短進入 Onroad 首幀延遲
+          self.params.put("LivestreamRequestKeyframe", enabled)
+          return
+
+        if cmd == "subscribe_services":
+          services = payload.get("services", [])
+          if isinstance(services, list) and isinstance(self.outgoing_bridge, ThrottledCerealOutgoingProxy):
+            current = self.outgoing_bridge.add_services([str(s) for s in services])
+            self._send_json_message({"cmd": "services_subscribed", "services": current})
+          return
+
         if cmd == "get_all_params":
-          snapshot, types = self._dump_utf8_params()
-          resp = json.dumps({"cmd": "all_params", "params": snapshot, "types": types})
-          self.stream.get_messaging_channel().send(resp)
+          snapshot, types, defaults = self._dump_utf8_params()
+          self._send_json_message({
+            "cmd": "all_params",
+            "params": snapshot,
+            "types": types,
+            "defaults": defaults,
+          })
           return
 
         if cmd == "put_param":
@@ -148,7 +273,7 @@ class ExtendedStreamSession(StreamSession):
             self.params.put(key, coerced, block=block)
             ack_value = self._to_jsonable(coerced)
           except Exception:
-            # 寫入失敗：回傳 C4 實際值，讓遠端樂觀快取回滾
+            # 寫入失敗：回傳 C4 實際值，讓遠端樂觀快取回滾為真實狀態
             self.logger.exception("put_param failed for key %s", key)
             try:
               actual = self._to_jsonable(self.params.get(key))
@@ -156,26 +281,23 @@ class ExtendedStreamSession(StreamSession):
                 actual = None
             except Exception:
               actual = None
-            rollback = json.dumps({"cmd": "param_updated", "key": key, "value": actual})
-            self.stream.get_messaging_channel().send(rollback)
+            self._send_json_message({"cmd": "param_updated", "key": key, "value": actual})
             return
 
-          ack = json.dumps({"cmd": "param_updated", "key": key, "value": ack_value})
-          self.stream.get_messaging_channel().send(ack)
+          self._send_json_message({"cmd": "param_updated", "key": key, "value": ack_value})
           return
 
         if cmd == "remove_param":
           key = payload.get("key")
           if key is not None:
             self.params.remove(str(key))
-            ack = json.dumps({"cmd": "param_updated", "key": str(key), "value": None})
-            self.stream.get_messaging_channel().send(ack)
+            self._send_json_message({"cmd": "param_updated", "key": str(key), "value": None})
           return
     except Exception:
       self.logger.exception("ExtendedStreamSession params command failure")
       return
 
-    # 其餘指令交由上游原生 message_handler 處理
+    # 其餘指令（livestreamCameraSwitch、livestreamSettings、clockSync、bridge_services_in 等）交由上游處理
     super().message_handler(message)
 
   def _coerce_for_put(self, key: str, value: Any) -> Any:
@@ -186,10 +308,14 @@ class ExtendedStreamSession(StreamSession):
     t = self.params.get_type(key)  # key 不存在時會拋 UnknownKeyName
 
     if t == ParamKeyType.BOOL:
+      if isinstance(value, bool):
+        return value
       if isinstance(value, str):
-        return value.strip().lower() in ("1", "true")
+        return value.strip().lower() in ("1", "true", "yes", "on")
       return bool(value)
     if t == ParamKeyType.INT:
+      if isinstance(value, bool):
+        return int(value)
       return int(float(value))
     if t == ParamKeyType.FLOAT:
       return float(value)
@@ -214,7 +340,6 @@ class ExtendedStreamSession(StreamSession):
     return value.isoformat() if isinstance(value, datetime) else value
 
 
-
 async def handle_get_stream_ext(
   state: ServerState,
   raw_body: bytes,
@@ -222,15 +347,18 @@ async def handle_get_stream_ext(
 ) -> tuple[int, bytes, str]:
   """
   擴充版 /stream 處理器：
-  抽離 raw_capnp 與 max_hz 擴充欄位後再建立上游 StreamRequestBody，
+  抽離 remote_ui、video_enabled 與 max_hz 擴充欄位後再建立上游 StreamRequestBody，
   確保完全不需要修改 openpilot/system/webrtc/helpers.py。
   """
   if content_type != "application/json":
     return _json_response({"error": "unsupported media type"}, status=415)
 
   raw_dict = json.loads(raw_body)
-  raw_capnp = bool(raw_dict.pop("raw_capnp", False))
+  remote_ui = bool(raw_dict.pop("remote_ui", False))
+  video_enabled = raw_dict.pop("video_enabled", None)
   max_hz = float(raw_dict.pop("max_hz", 25.0))
+  # 向後相容舊版欄位，已改為原生 JSON 通道故忽略 raw_capnp
+  raw_dict.pop("raw_capnp", None)
 
   stream_dict = state.streams
   body = StreamRequestBody(**raw_dict)
@@ -253,7 +381,12 @@ async def handle_get_stream_ext(
       stream_dict.pop(sid, None)
 
     # 建立擴充版工作階段
-    session = ExtendedStreamSession(body, raw_capnp=raw_capnp, max_hz=max_hz)
+    session = ExtendedStreamSession(
+      body,
+      remote_ui=remote_ui,
+      video_enabled=video_enabled,
+      max_hz=max_hz,
+    )
     stream_dict[session.identifier] = session
     try:
       answer = await asyncio.wait_for(session.get_answer(), timeout=30)
@@ -280,25 +413,208 @@ async def handle_get_stream_ext(
 
   return _json_response({"sdp": answer.sdp, "type": answer.type})
 
+def _enum_schema_to_map(enum_schema: Any) -> dict[str, int]:
+  """
+  將 pycapnp 的 EnumSchema 轉換為 {列舉名稱: 整數編號} 對照表。
+  優先讀取 enumerants 字典，若版本差異無此屬性則退回讀取底層 node.enum.enumerants 索引。
+  """
+  enumerants = getattr(enum_schema, "enumerants", None)
+  if isinstance(enumerants, dict) and enumerants:
+    return {str(k): int(v) for k, v in enumerants.items()}
+
+  node = getattr(enum_schema, "node", None)
+  if node is not None and node.which() == "enum":
+    # Cap'n Proto schema node 內的 enumerants 順序即為真實列舉整數編號（ordinal）
+    return {str(e.name): idx for idx, e in enumerate(node.enum.enumerants)}
+
+  return {}
+
+
+def _extract_enums_from_list(
+  list_schema: Any,
+  elem_type_proto: Any,
+  ancestors: frozenset[int],
+) -> dict[str, Any]:
+  """遞迴萃取 List 型別元素內部的列舉定義（支援 List(Enum)、List(Struct) 與巢狀 List）。"""
+  elem_which = elem_type_proto.which()
+  if elem_which not in ("enum", "struct", "list"):
+    return {}
+
+  try:
+    elem_schema = getattr(list_schema, "elementType", None)
+  except Exception:
+    return {}
+
+  if elem_schema is None:
+    return {}
+
+  if elem_which == "enum":
+    enum_map = _enum_schema_to_map(elem_schema)
+    return {"__list__": {"__enum__": enum_map}} if enum_map else {}
+
+  if elem_which == "struct":
+    sub = _extract_enums_from_struct(elem_schema, ancestors)
+    return {"__list__": sub} if sub else {}
+
+  if elem_which == "list":
+    sub = _extract_enums_from_list(elem_schema, elem_type_proto.list.elementType, ancestors)
+    return {"__list__": sub} if sub else {}
+
+  return {}
+
+
+def _extract_enums_from_field(
+  field: Any,
+  ancestors: frozenset[int] = frozenset(),
+) -> dict[str, Any]:
+  """從單一 Cap'n Proto Struct 欄位遞迴萃取所有真實列舉對照表（僅保留含列舉之分支）。"""
+  proto = getattr(field, "proto", None)
+  if proto is None:
+    return {}
+
+  kind = proto.which()
+  if kind == "group":
+    return _extract_enums_from_struct(field.schema, ancestors)
+
+  if kind == "slot":
+    slot_type = proto.slot.type
+    type_which = slot_type.which()
+    if type_which == "enum":
+      enum_map = _enum_schema_to_map(field.schema)
+      return {"__enum__": enum_map} if enum_map else {}
+    if type_which == "struct":
+      return _extract_enums_from_struct(field.schema, ancestors)
+    if type_which == "list":
+      return _extract_enums_from_list(field.schema, slot_type.list.elementType, ancestors)
+
+  return {}
+
+
+def _extract_enums_from_struct(
+  struct_schema: Any,
+  ancestors: frozenset[int] = frozenset(),
+) -> dict[str, Any]:
+  """
+  遞迴走訪 Cap'n Proto Struct 的所有欄位並收集列舉對照表。
+  使用路徑型祖先集合（ancestors）防止自參照循環遞迴，同時允許同結構體於不同兄弟欄位重複展開。
+  """
+  node = getattr(struct_schema, "node", None)
+  node_id = getattr(node, "id", None)
+  if node_id is not None:
+    if node_id in ancestors:
+      return {}
+    ancestors = ancestors | {node_id}
+
+  fields = getattr(struct_schema, "fields", None)
+  if not isinstance(fields, dict):
+    return {}
+
+  result: dict[str, Any] = {}
+  for field_name, field in fields.items():
+    if field_name.endswith("DEPRECATED"):
+      continue
+    sub = _extract_enums_from_field(field, ancestors)
+    if sub:
+      result[field_name] = sub
+  return result
+
+
+def handle_get_enums(services_param: str) -> tuple[int, bytes, str]:
+  """
+  回傳指定 cereal services 的真實 Cap'n Proto 列舉名稱與整數編號對照表，
+  供遠端純 Python SubMaster 精準還原 enum.raw 整數值（不影響原生 /schema 與 DataChannel 格式）。
+  """
+  services = [s.strip() for s in services_param.split(",") if s.strip()]
+  enum_dict: dict[str, Any] = {}
+  for s in services:
+    if s in log.Event.schema.fields and not s.endswith("DEPRECATED"):
+      extracted = _extract_enums_from_field(log.Event.schema.fields[s])
+      if extracted:
+        enum_dict[s] = extracted
+  return _json_response(enum_dict)
+
+def handle_get_version() -> tuple[int, bytes, str]:
+  """
+  回傳目前裝置的版號與 git commit 資訊（欄位結構對齊 athenad.py getVersion()），
+  供 Windows / macOS / Android / iOS App 框架比對是否需要下載新版 UI 套件。
+  """
+  build_metadata = get_build_metadata()
+  return _json_response({
+    "version": build_metadata.openpilot.version,
+    "remote": build_metadata.openpilot.git_normalized_origin,
+    "branch": build_metadata.channel,
+    "commit": build_metadata.openpilot.git_commit,
+    "commit_date": build_metadata.openpilot.git_commit_date.strip("'").split()[0],
+  })
+
+
+def build_ui_bundle_tarball(base_dir: str = BASEDIR) -> bytes:
+  """
+  將純 Python UI 程式碼與靜態資源打包成 tar.gz，供遠端 App 框架下載後進行 compileall 編譯：
+  - 僅收錄 UI 執行所需目錄，自動排除 __pycache__、.pyc、.so、.dylib 等平台相依產物。
+  """
+  include_paths = (
+    "openpilot/__init__.py",
+    "openpilot/selfdrive/__init__.py",
+    "openpilot/selfdrive/ui",
+    "openpilot/selfdrive/assets",
+    "openpilot/system/__init__.py",
+    "openpilot/system/ui",
+  )
+
+  def _tar_filter(tarinfo: tarfile.TarInfo) -> tarfile.TarInfo | None:
+    parts = tarinfo.name.split("/")
+    if "__pycache__" in parts or ".git" in parts:
+      return None
+    if tarinfo.name.endswith((".pyc", ".pyo", ".so", ".dylib", ".dll", ".o")):
+      return None
+    return tarinfo
+
+  buf = io.BytesIO()
+  with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+    for rel_path in include_paths:
+      full_path = os.path.join(base_dir, rel_path)
+      if os.path.exists(full_path):
+        tar.add(full_path, arcname=rel_path, filter=_tar_filter)
+  return buf.getvalue()
+
 
 class ExtendedWebrtcdHandler(WebrtcdHandler):
   """
   擴充版 HTTP 請求處理器：
-  攔截 POST /stream 導向 handle_get_stream_ext，其餘路由（/schema、/notify 等）
-  完整沿用上游 WebrtcdHandler。未來第二階段的 /api/version 與 /api/ui-bundle 亦加於此處。
+  - POST /stream：導向 handle_get_stream_ext。
+  - GET /api/enums：回傳指定服務的真實 Cap'n Proto 列舉編號表。
+  - GET /api/version：回傳版本與 git commit 資訊。
+  - GET /api/ui-bundle：打包並下載純 Python UI 與資源檔（tar.gz）。
+  - 其餘路由（/schema、/notify 等）完整沿用上游 WebrtcdHandler。
   """
 
   def _dispatch_request(self) -> None:
     parsed = urlparse(self.path)
-    if parsed.path == "/stream" and self.command == "POST":
-      try:
+    try:
+      if parsed.path == "/stream" and self.command == "POST":
         result = self._run(
           handle_get_stream_ext(self.server.state, self._read_body(), self.headers.get_content_type())
         )
-      except Exception as e:
-        logging.getLogger("webrtcd").exception("Unhandled error handling %s", self.path)
-        result = _json_response({"error": "exception", "message": f"{type(e).__name__}: {e}"}, status=500)
-      self._send(*result)
+        self._send(*result)
+        return
+
+      if parsed.path == "/api/enums" and self.command in ("GET", "HEAD"):
+        services = parse_qs(parsed.query).get("services", [""])[0]
+        self._send(*handle_get_enums(services))
+        return
+
+      if parsed.path == "/api/version" and self.command in ("GET", "HEAD"):
+        self._send(*handle_get_version())
+        return
+
+      if parsed.path == "/api/ui-bundle" and self.command in ("GET", "HEAD"):
+        archive = build_ui_bundle_tarball()
+        self._send(200, archive, "application/gzip")
+        return
+    except Exception as e:
+      logging.getLogger("webrtcd").exception("Unhandled error handling %s", self.path)
+      self._send(*_json_response({"error": "exception", "message": f"{type(e).__name__}: {e}"}, status=500))
       return
 
     super()._dispatch_request()

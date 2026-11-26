@@ -2,9 +2,9 @@
 import os
 import time
 
-from openpilot.selfdrive.ui.remote import REMOTE_UI, install_remote_hooks
+from openpilot.selfdrive.ui.remote import REMOTE_UI, connect_remote_ui, install_remote_hooks
 
-# 遠端模式：在匯入任何 UI 模組前統一掛載遠端 Params 與 messaging
+# 遠端模式：在匯入任何 UI 模組前統一掛載遠端 Params 與 messaging，並阻塞等待遠端服務就緒
 if REMOTE_UI:
   install_remote_hooks()
 
@@ -16,14 +16,19 @@ from openpilot.selfdrive.ui.layouts.main import MainLayout
 from openpilot.selfdrive.ui.mici.layouts.main import MiciMainLayout
 from openpilot.selfdrive.ui.ui_state import ui_state
 
-REMOTE_UI = os.getenv("REMOTE_UI") == "1"
 BIG_UI = gui_app.big_ui()
 
 
 def main():
   cores = {5, }
-  # above plannerd and radard
+
   config_realtime_process(0, Priority.CTRL_HIGH)
+
+  # 遠端模式開窗閘門：此時 ui_state 的 SubMaster 已註冊完所有服務，
+  # 等待 WebRTC 連通＋真實 Params 快照＋核心真實資料全部到位後才往下開窗
+  if REMOTE_UI:
+    connect_remote_ui()
+    ui_state.update()
 
   gui_app.init_window("UI")
   if BIG_UI:
