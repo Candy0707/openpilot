@@ -172,7 +172,7 @@ class LocalMapMatcher:
       if best_next:
         self.topology_next[sec_a] = best_next
 
-        print(f"[圖資] ✅ 載入 {len(self.sections)} 筆，建立 {len(self.topology_next)} 筆道路連結！")
+    print(f"[圖資] ✅ 載入 {len(self.sections)} 筆，建立 {len(self.topology_next)} 筆道路連結！")
 
   def _get_candidates_from_grid(self, lat, lon, radius_km=3):
     candidates = set()
@@ -387,13 +387,11 @@ def main():
       client.update_data(matcher)
       last_api_call = current_time
 
-    gps_source = None
     is_gps_ready = False
 
     if TEST_MODE:
       is_gps_ready = True
       lat, lon, bearing = TEST_LAT, TEST_LON, TEST_BEARING
-      gps_source = 'TEST_MODE'
     else:
       # 【修復 v2】主要來源：liveLocationKalman（融合定位，隧道/橋下短暫失鎖仍可靠航位推算撐住）
       llk = sm['liveLocationKalman']
@@ -416,7 +414,6 @@ def main():
           lat, lon, _ = llk.positionGeodetic.value
           bearing = math.degrees(llk.calibratedOrientationNED.value[2]) % 360
           is_gps_ready = True
-          gps_source = 'liveLocationKalman' if llk.gpsOK else 'liveLocationKalman(推算中)'
 
       # 備案：liveLocationKalman 不可用，或飄移太久失去真實GPS校正，改用原始 GPS 頂上
       if not is_gps_ready and sm.updated.get('gpsLocationExternal', False):
@@ -428,7 +425,6 @@ def main():
           lon = raw_gps.longitude
           bearing = raw_gps.bearingDeg
           is_gps_ready = True
-          gps_source = 'gpsLocationExternal(備案)'
 
     if is_gps_ready and (current_time - last_calc_time >= CALC_INTERVAL):
       last_calc_time = current_time
@@ -583,18 +579,6 @@ def main():
           event.isActive = True
 
       pm.send('tdx', msg)
-
-      # ----------------------------------------------------
-      # 輸出 log
-      # ----------------------------------------------------
-      print(f"GPS: {gps_source} | 航向: {bearing:.1f}°({my_direction})")
-      print(f"路段判定 -> 目前: {stable_current_section or '無'} | 前方: {stable_ahead_section or '無'}")
-
-      if traffic.nextSpeed > 0:
-        print(f" => 前方車速顯示: {traffic.nextSpeed} km/h (狀態: {traffic.status})")
-      if event.isActive:
-        print(f" => 事件警告 [{event.sectionId} / {event.distance:.0f}m]: {event.description}")
-      print("-" * 40)
 
 
 if __name__ == "__main__":

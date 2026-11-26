@@ -20,6 +20,9 @@ class LatControl(ABC):
 
   def reset(self):
     self.sat_time = 0.
+    if hasattr(self, 'pid'):
+      if self.pid is not None:
+        self.pid.reset()
 
   def _check_saturation(self, saturated, CS, steer_limited_by_safety, curvature_limited):
     # Saturated only if control output is not being limited by car torque/angle rate limits
