@@ -12,6 +12,7 @@
 extern "C" {
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libavutil/dict.h>
 #include <libavutil/imgutils.h>
 }
 
@@ -56,9 +57,30 @@ void FfmpegEncoder::encoder_open() {
   this->codec_ctx->height = frame->height;
   this->codec_ctx->pix_fmt = AV_PIX_FMT_YUV420P;
   this->codec_ctx->time_base = (AVRational){ 1, encoder_info.fps };
-  int err = avcodec_open2(this->codec_ctx, codec, NULL);
+
+  AVDictionary *opts = nullptr;
+  if (codec_id == AV_CODEC_ID_H264) {
+    // 低延遲即時串流調優：
+    // - gop_size = fps：每 1 秒輸出 1 張 IDR 關鍵幀（取代預設 250 幀），大幅縮短連線首幀延遲。
+    // - max_b_frames = 0 / LOW_DELAY：停用 B-frame 重排，消除編碼緩衝延遲。
+    // - thread_count = 2：限制 libx264 執行緒數，避免模擬環境吃滿多核 CPU（原本高達 509%）。
+    // - repeat-headers=1：確保每張 IDR 關鍵幀前都自動附帶 SPS/PPS，供遠端解碼器即時起播。
+    this->codec_ctx->gop_size = encoder_info.fps > 0 ? encoder_info.fps : 20;
+    this->codec_ctx->max_b_frames = 0;
+    this->codec_ctx->thread_count = 2;
+    this->codec_ctx->flags |= AV_CODEC_FLAG_LOW_DELAY;
+
+    av_dict_set(&opts, "preset", "ultrafast", 0);
+    av_dict_set(&opts, "tune", "zerolatency", 0);
+    av_dict_set(&opts, "x264-params", "repeat-headers=1:annexb=1", 0);
+  }
+
+  int err = avcodec_open2(this->codec_ctx, codec, &opts);
+  av_dict_free(&opts);
   assert(err >= 0);
 
+  keyframe_requested.store(false, std::memory_order_release);
+  bitrate_warned = false;
   is_open = true;
   segment_num++;
   counter = 0;
@@ -72,11 +94,17 @@ void FfmpegEncoder::encoder_close() {
 }
 
 void FfmpegEncoder::set_bitrate(int bitrate) {
-  LOGE("adaptive bitrate is not supported for ffmpeg encoder %s", encoder_info.publish_name);
+  (void)bitrate;
+  // 軟體編碼器不支援運行中熱改位元率：僅首次提示一次，避免 webrtcd 位元率控制持續洗版拖累效能
+  if (!bitrate_warned) {
+    LOGW("adaptive bitrate is not supported for ffmpeg encoder %s (further warnings suppressed)", encoder_info.publish_name);
+    bitrate_warned = true;
+  }
 }
 
 void FfmpegEncoder::request_keyframe() {
-  LOGE("keyframe request is not supported for ffmpeg encoder %s", encoder_info.publish_name);
+  // 標記於下一張送編碼的影格強制產生 IDR 關鍵幀（搭配 repeat-headers=1 自動附帶 SPS/PPS）
+  keyframe_requested.store(true, std::memory_order_release);
 }
 
 int FfmpegEncoder::encode_frame(VisionBuf* buf, VisionIpcBufExtra *extra) {
@@ -114,6 +142,13 @@ int FfmpegEncoder::encode_frame(VisionBuf* buf, VisionIpcBufExtra *extra) {
     frame->data[2] = cv;
   }
   frame->pts = counter*50*1000; // 50ms per frame
+
+  // 依外部 request_keyframe() 請求決定本幀是否強制輸出 I-frame（IDR），送出後自動還原為自動排程
+  if (keyframe_requested.exchange(false, std::memory_order_acq_rel)) {
+    frame->pict_type = AV_PICTURE_TYPE_I;
+  } else {
+    frame->pict_type = AV_PICTURE_TYPE_NONE;
+  }
 
   int ret = counter;
 

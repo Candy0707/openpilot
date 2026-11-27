@@ -1,213 +1,49 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 import asyncio
 from collections.abc import Callable
 import contextlib
 import json
 import os
-import shutil
-import subprocess
+import queue
 import threading
 import time
 from typing import Any
 from urllib.parse import urlencode
 import urllib.request
 
-import numpy as np
-
-
-class VideoDecoderBackend(ABC):
-  """
-  跨平台 H.264 視訊解碼器抽象介面：
-  - 桌面端（Linux / WSL / Windows / macOS）：預設使用 FFmpegSubprocessDecoder。
-  - 行動端（Android / iOS App 框架）：於啟動 ui.py 前注入原生 MediaCodec / VideoToolbox 解碼器。
-  """
-
-  @abstractmethod
-  def feed(self, nal_data: bytes) -> None:
-    """餵入重組後的 H.264 NAL Unit 資料。"""
-
-  @abstractmethod
-  def stop(self) -> None:
-    """停止解碼器並釋放資源。"""
-
-
-class FFmpegSubprocessDecoder(VideoDecoderBackend):
-  """桌面端預設 H.264 -> RGB24 低延遲解碼管線（零 PyAV 依賴，直接呼叫系統 ffmpeg/ffprobe）。"""
-
-  def __init__(self, on_frame: Callable[[np.ndarray], None]):
-    self._on_frame = on_frame
-    self._running = True
-    self._proc: subprocess.Popen[bytes] | None = None
-    self._lock = threading.Lock()
-    self._probe_buf = bytearray()
-    self._reader_thread: threading.Thread | None = None
-
-  @staticmethod
-  def _probe_h264_dimensions(h264_sample: bytes) -> tuple[int, int] | None:
-    """
-    使用系統 ffprobe 從累積的 H.264 樣本資料（含 SPS/PPS）解析實際視訊解析度。
-    若尚未收到 SPS 標頭則回傳 None 繼續累積。
-    """
-    ffprobe_bin = shutil.which("ffprobe")
-    if not ffprobe_bin:
-      # 若無 ffprobe，退回 comma 3X road 串流標準預設解析度
-      return (1928, 1208)
-
-    cmd = [
-      ffprobe_bin,
-      "-v", "error",
-      "-f", "h264",
-      "-select_streams", "v:0",
-      "-show_entries", "stream=width,height",
-      "-of", "json",
-      "-",
-    ]
-    try:
-      res = subprocess.run(cmd, input=h264_sample, capture_output=True, timeout=2.0)
-      if res.returncode != 0:
-        return None
-      info = json.loads(res.stdout.decode("utf-8", errors="ignore"))
-      streams = info.get("streams", [])
-      if streams and streams[0].get("width") and streams[0].get("height"):
-        return int(streams[0]["width"]), int(streams[0]["height"])
-    except Exception:
-      pass
-    return None
-
-  def _start_ffmpeg(self, width: int, height: int) -> None:
-    """啟動低延遲 ffmpeg 子程序，從 stdin 接收 H.264 並於 stdout 輸出 raw RGB24 畫面。"""
-    ffmpeg_bin = shutil.which("ffmpeg")
-    if not ffmpeg_bin:
-      print("[RemoteWebRTC] 找不到 ffmpeg 執行檔，無法解碼視訊串流")
-      return
-
-    cmd = [
-      ffmpeg_bin,
-      "-loglevel", "error",
-      "-fflags", "nobuffer",
-      "-flags", "low_delay",
-      "-f", "h264",
-      "-i", "pipe:0",
-      "-pix_fmt", "rgb24",
-      "-f", "rawvideo",
-      "pipe:1",
-    ]
-    proc = subprocess.Popen(
-      cmd,
-      stdin=subprocess.PIPE,
-      stdout=subprocess.PIPE,
-      stderr=subprocess.DEVNULL,
-      bufsize=0,
-    )
-    self._proc = proc
-
-    def _read_stdout_frames() -> None:
-      """背景執行緒：持續從 ffmpeg stdout 讀取完整 RGB24 畫面幀並回報上層。"""
-      frame_bytes = width * height * 3
-      stdout = proc.stdout
-      if stdout is None:
-        return
-
-      while self._running and proc.poll() is None:
-        try:
-          raw = stdout.read(frame_bytes)
-          if not raw or len(raw) < frame_bytes:
-            break
-          rgb_array = np.frombuffer(raw, dtype=np.uint8).reshape((height, width, 3)).copy()
-          self._on_frame(rgb_array)
-        except Exception:
-          break
-
-    self._reader_thread = threading.Thread(
-      target=_read_stdout_frames,
-      name="RemoteFFmpegReader",
-      daemon=True,
-    )
-    self._reader_thread.start()
-
-  def feed(self, nal_data: bytes) -> None:
-    if not self._running or not nal_data:
-      return
-
-    with self._lock:
-      # 階段一：尚未啟動 ffmpeg 前，先累積初期資料探測實際解析度（避免硬編碼寬高造成畫面錯位）
-      if self._proc is None:
-        self._probe_buf.extend(nal_data)
-        # 限制探測緩衝上限 512 KB，防止未收到 SPS 時無限膨脹
-        if len(self._probe_buf) > 512 * 1024:
-          del self._probe_buf[: -256 * 1024]
-
-        dims = self._probe_h264_dimensions(bytes(self._probe_buf))
-        if dims is None:
-          return
-
-        width, height = dims
-        self._start_ffmpeg(width, height)
-        if self._proc is None or self._proc.stdin is None:
-          return
-
-        # 將探測期間累積的完整初始序列（含 SPS/PPS/IDR）一併寫入 ffmpeg
-        initial_payload = bytes(self._probe_buf)
-        self._probe_buf.clear()
-        try:
-          self._proc.stdin.write(initial_payload)
-          self._proc.stdin.flush()
-        except Exception:
-          self._proc = None
-        return
-
-      # 階段二：持續將後續 H.264 NAL Unit 寫入 ffmpeg stdin
-      proc = self._proc
-      if proc is not None and proc.stdin is not None and proc.poll() is None:
-        try:
-          proc.stdin.write(nal_data)
-          proc.stdin.flush()
-        except Exception:
-          self._proc = None
-
-  def stop(self) -> None:
-    """安全關閉並清理 ffmpeg 子程序與探測緩衝區。"""
-    self._running = False
-    with self._lock:
-      proc = self._proc
-      self._proc = None
-      self._probe_buf.clear()
-
-    if proc is not None:
-      with contextlib.suppress(Exception):
-        if proc.stdin:
-          proc.stdin.close()
-        proc.terminate()
-        proc.wait(timeout=1.0)
-      if proc.poll() is None:
-        with contextlib.suppress(Exception):
-          proc.kill()
-
+from openpilot.selfdrive.ui.remote.video_decoder import (
+  DecodedFrame,
+  DecoderFactory,
+  H264RtpUnpacker,
+  RemoteVideoPipeline,
+  VideoDecoderBackend,
+  create_default_video_decoder,
+)
 
 # 型別別名：服務資料回呼 (service_name, data_dict, log_mono_time, valid)
 ServiceCallback = Callable[[str, Any, int, bool], None]
 ControlCallback = Callable[[dict[str, Any]], None]
-DecoderFactory = Callable[[Callable[[np.ndarray], None]], VideoDecoderBackend]
 
 
 class RemoteWebRTCClient:
   """
-  遠端 UI 專用的 WebRTC 客戶端單例（完全沿用原生 webrtcd JSON 協議，零 pycapnp 依賴）。
+  遠端 UI 專用的 WebRTC 客戶端單例（完全沿用原生 webrtcd JSON 協議，零 pycapnp / 零 PyAV 依賴）。
 
   架構說明：
   1. 主執行緒由 pyray (ui.py) 獨佔執行 60 FPS 渲染迴圈。
-  2. 本類別啟動獨立的 daemon 背景執行緒運行 asyncio 事件迴圈，處理所有網路 I/O。
-  3. 透過原生 teleoprtc 與 C4 的 webrtcd_ext 建立連線，並分流處理影像與 JSON 訊息：
-     - Video Track ("road")：預設於 Offroad 關閉，進入 Onroad 後才開啟並交由解碼後端輸出 RGB24。
-     - messaging_channel (JSON)：統一承載原生 cereal 服務資料（{"type", "logMonoTime", "valid", "data"}）
-       與雙向控制指令（Params 初始快照／讀寫、動態補訂服務、視訊與鏡頭切換）。
+  2. 背景執行緒職責切分（徹底消除 GIL 與 libdatachannel 互鎖）：
+     - RemoteWebRTCThread：運行 asyncio 事件迴圈處理信令、連線與自動退避重連。
+     - RemoteControlSenderThread：所有上行控制指令統一走非阻塞 HTTP POST /api/control，
+       讓 WebRTC DataChannel 專職單向高速下行推播，徹底根除 nanobind ch.send() 死鎖。
+     - RemoteVideoPipeline（於 video_decoder.py）：獨立處理 RTP 拆包與內建 FFmpeg NV12 解碼。
   """
 
   _instance: RemoteWebRTCClient | None = None
   _instance_lock = threading.Lock()
-  _decoder_factory: DecoderFactory = FFmpegSubprocessDecoder
+  # 使用 staticmethod 包裝一般工廠函式，避免透過 self._decoder_factory 存取時
+  # 觸發 Python 描述符綁定將 self 誤塞為第一個位置參數
+  _decoder_factory: DecoderFactory = staticmethod(create_default_video_decoder)  # type: ignore[assignment]
 
   # 原生系統控制訊息 type，不應視為 cereal 服務封包分派給 SubMaster
   _SYSTEM_MSG_TYPES = frozenset({
@@ -240,13 +76,17 @@ class RemoteWebRTCClient:
   @classmethod
   def set_video_decoder_factory(cls, factory: DecoderFactory) -> None:
     """允許行動端 App 框架於啟動前注入原生硬體解碼器（MediaCodec / VideoToolbox）。"""
-    cls._decoder_factory = factory
+    # 同樣以 staticmethod 包裝，確保外部注入一般函式或類別時皆不會被綁定 self
+    cls._decoder_factory = staticmethod(factory)  # type: ignore[assignment]
+    if cls._instance is not None:
+      cls._instance._video.set_decoder_factory(factory)
 
   def __init__(self, host: str, port: int = 5001):
     self.host = host
     self.port = port
     self.base_url = f"http://{self.host}:{self.port}"
     self.signaling_url = f"{self.base_url}/stream"
+    self.control_url = f"{self.base_url}/api/control"
 
     # 連線與三段式就緒閘門狀態
     self._running = False
@@ -262,6 +102,10 @@ class RemoteWebRTCClient:
     self._thread: threading.Thread | None = None
     self._stream: Any = None
 
+    # 獨立 HTTP POST 上行控制執行緒與佇列（避開 libdatachannel DataChannel.send 互鎖）
+    self._control_queue: queue.Queue[dict[str, Any] | None] = queue.Queue(maxsize=256)
+    self._control_thread: threading.Thread | None = None
+
     # 動態訂閱的 cereal 服務集合（由 RemoteSubMaster 註冊）
     self._services_lock = threading.Lock()
     self._subscribed_services: set[str] = set()
@@ -270,15 +114,9 @@ class RemoteWebRTCClient:
     self._service_callbacks: list[ServiceCallback] = []
     self._control_callbacks: list[ControlCallback] = []
 
-    # 影像雙緩衝區與 Onroad 串流開關（預設關閉，進入 Onroad 才啟用）
-    self._frame_lock = threading.Lock()
-    self._latest_frame: np.ndarray | None = None
-    self._frame_id: int = 0
-    self._frame_timestamp: float = 0.0
-    self._video_enabled = False
+    # 視訊拆包與解碼獨立管線（預設於 Offroad 關閉，進入 Onroad 才啟用）
+    self._video = RemoteVideoPipeline(decoder_factory=self._decoder_factory)
     self._current_camera = "road"
-    self._decoder: VideoDecoderBackend | None = None
-    self._decoder_lock = threading.Lock()
     self._video_track: Any = None
     self._video_track_attached = False
 
@@ -289,7 +127,7 @@ class RemoteWebRTCClient:
   def register_services(self, services: list[str]) -> None:
     """
     註冊需要動態訂閱的 cereal service 清單。
-    若在已連線狀態下追加新服務，立即透過 DataChannel 發送 subscribe_services 補訂。
+    若在已連線狀態下追加新服務，立即透過非阻塞 HTTP 控制端點發送 subscribe_services 補訂。
     """
     with self._services_lock:
       new_services = sorted(set(services) - self._subscribed_services)
@@ -342,10 +180,20 @@ class RemoteWebRTCClient:
     return {}
 
   def start(self) -> None:
-    """啟動背景執行緒並開始連線至 C4。"""
+    """啟動連線監管、上行控制與獨立視訊解碼背景執行緒。"""
     if self._running:
       return
     self._running = True
+
+    self._control_thread = threading.Thread(
+      target=self._control_sender_loop,
+      name="RemoteControlSenderThread",
+      daemon=True,
+    )
+    self._control_thread.start()
+
+    self._video.start()
+
     self._thread = threading.Thread(
       target=self._run_event_loop,
       name="RemoteWebRTCThread",
@@ -354,7 +202,7 @@ class RemoteWebRTCClient:
     self._thread.start()
 
   def stop(self) -> None:
-    """停止背景執行緒並優雅關閉 WebRTC 連線與解碼器。"""
+    """停止所有背景執行緒並優雅關閉 WebRTC 連線與解碼管線（可安全重複呼叫）。"""
     self._running = False
     self._connected = False
     self._connected_event.clear()
@@ -362,15 +210,33 @@ class RemoteWebRTCClient:
     with self._data_updated_cond:
       self._data_updated_cond.notify_all()
 
-    self._stop_video_decoder(clear_frame=True)
-    if self._loop:
-      if self._stop_event:
-        self._loop.call_soon_threadsafe(self._stop_event.set)
+    self._drain_control_queue()
+    with contextlib.suppress(queue.Full):
+      self._control_queue.put_nowait(None)
+
+    self._video.stop()
+
+    loop = self._loop
+    if loop is not None and not loop.is_closed():
+      if self._stop_event is not None:
+        with contextlib.suppress(Exception):
+          loop.call_soon_threadsafe(self._stop_event.set)
       if self._stream is not None:
         with contextlib.suppress(Exception):
-          asyncio.run_coroutine_threadsafe(self._stream.stop(), self._loop)
-    if self._thread and self._thread.is_alive():
-      self._thread.join(timeout=2.0)
+          asyncio.run_coroutine_threadsafe(self._stream.stop(), loop)
+
+    cur = threading.current_thread()
+    for t in (self._control_thread, self._thread):
+      if t is not None and t.is_alive() and t is not cur:
+        t.join(timeout=2.0)
+
+  def _drain_control_queue(self) -> None:
+    """非阻塞排空控制指令佇列。"""
+    while True:
+      try:
+        self._control_queue.get_nowait()
+      except queue.Empty:
+        break
 
   def wait_until_ready(
     self,
@@ -435,69 +301,100 @@ class RemoteWebRTCClient:
   @property
   def video_enabled(self) -> bool:
     """回傳目前是否已開啟道路視訊串流（Onroad 狀態）。"""
-    return self._video_enabled
+    return self._video.enabled
+
+  @property
+  def current_camera(self) -> str:
+    """回傳目前請求串流中的遠端鏡頭名稱（road / wideRoad / driver）。"""
+    return self._current_camera
 
   def set_video_enabled(self, enabled: bool) -> None:
     """
     切換道路視訊串流開關（配合進 Onroad 再顯示道路串流的設計）：
-    - enabled=True：送出原生 livestreamVideoEnable(True) 並啟動解碼器。
+    - enabled=True：送出原生 livestreamVideoEnable(True) 並啟動解碼管線。
     - enabled=False：送出原生 livestreamVideoEnable(False)、停止解碼器並清空舊畫面。
     """
     enabled = bool(enabled)
-    changed = (self._video_enabled != enabled)
-    self._video_enabled = enabled
-
-    if not enabled:
-      self._stop_video_decoder(clear_frame=True)
-    elif self._connected and self._video_track is not None:
-      self._ensure_video_decoder_started()
+    changed = self._video.set_enabled(enabled)
+    if enabled and self._connected and self._video_track is not None:
+      self._video.ensure_started_if_enabled()
 
     if self._connected and changed:
       self.send_control_command({
         "type": "livestreamVideoEnable",
         "data": {"enabled": enabled},
       })
-      if enabled and self._video_track is not None:
-        with contextlib.suppress(Exception):
-          self._video_track.request_keyframe()
 
   def switch_camera(self, camera: str) -> None:
     """透過原生 livestreamCameraSwitch 指令切換遠端鏡頭（road / wideRoad / driver）。"""
     if camera == self._current_camera:
       return
     self._current_camera = camera
+    self._video.reset_stream()
+
     if self._connected:
       self.send_control_command({
         "type": "livestreamCameraSwitch",
         "data": {"camera": camera},
       })
 
-  def get_latest_frame(self) -> tuple[np.ndarray | None, int, float]:
+  def get_latest_frame(self) -> tuple[DecodedFrame | None, int, float]:
     """
-    取得最新一張解碼後的道路影像幀（供 CameraView 更新 pyray Texture）。
-    回傳值：(rgb24_ndarray, frame_id, timestamp)
+    取得最新一張解碼後的 NV12 道路影像幀（供 RemoteVisionIpcClient 轉交 CameraView 更新 Texture）。
+    回傳值：(decoded_frame, frame_id, timestamp)
     """
-    with self._frame_lock:
-      return self._latest_frame, self._frame_id, self._frame_timestamp
+    return self._video.get_latest_frame()
 
   def send_control_command(self, payload: dict[str, Any]) -> bool:
     """
-    執行緒安全地透過 teleoprtc messaging_channel 送出 JSON 指令給 C4。
-    若尚未連線則回傳 False，絕不阻塞主執行緒。
+    執行緒安全地將控制指令放入獨立 HTTP POST 發送佇列（POST /api/control）：
+    - 不呼叫 DataChannel.send()，徹底避免 nanobind / libdatachannel 的 GIL 互鎖死鎖。
+    - 絕不阻塞主執行緒；若尚未連線則回傳 False。
     """
-    if not self._loop or not self._connected or self._stream is None:
+    if not self._running or not self._connected:
       return False
 
-    message = json.dumps(payload)
+    try:
+      self._control_queue.put_nowait(payload)
+      return True
+    except queue.Full:
+      with contextlib.suppress(queue.Empty):
+        self._control_queue.get_nowait()
+      with contextlib.suppress(queue.Full):
+        self._control_queue.put_nowait(payload)
+      return True
 
-    def _send() -> None:
-      if self._stream is not None and self._stream.has_messaging_channel():
-        ch = self._stream.get_messaging_channel()
-        if ch.is_open():
-          ch.send(message)
+  # =========================================================================
+  # 獨立 HTTP POST 控制發送執行緒
+  # =========================================================================
 
-    self._loop.call_soon_threadsafe(_send)
-    return True
+  def _post_control(self, payload: dict[str, Any], timeout: float = 2.0) -> bool:
+    """透過 HTTP POST /api/control 送出單筆控制指令。"""
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+      self.control_url,
+      data=data,
+      headers={"Content-Type": "application/json"},
+      method="POST",
+    )
+    try:
+      with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return resp.status == 200
+    except Exception:
+      return False
+
+  def _control_sender_loop(self) -> None:
+    """背景執行緒：循序以 HTTP POST 發送上行控制指令，與 WebRTC DataChannel 完全解耦。"""
+    while self._running:
+      try:
+        payload = self._control_queue.get(timeout=0.5)
+      except queue.Empty:
+        continue
+      if payload is None:
+        break
+      if not self._running or not self._connected:
+        continue
+      self._post_control(payload)
 
   # =========================================================================
   # 背景 asyncio 連線與斷線重連迴圈
@@ -527,7 +424,7 @@ class RemoteWebRTCClient:
         self._connected_event.clear()
         self._video_track = None
         self._video_track_attached = False
-        self._stop_video_decoder(clear_frame=True)
+        self._video.stop_decoder(clear_frame=True)
         if self._stream is not None:
           with contextlib.suppress(Exception):
             await self._stream.stop()
@@ -601,71 +498,15 @@ class RemoteWebRTCClient:
           self._received_services.add(msg_type)
         self._data_updated_cond.notify_all()
 
-  # =========================================================================
-  # 視訊軌道與可抽換解碼後端管理
-  # =========================================================================
-
-  def _on_decoded_frame(self, rgb_array: np.ndarray) -> None:
-    """解碼後端回呼：將最新 RGB24 畫面幀寫入執行緒安全雙緩衝區。"""
-    if not self._video_enabled:
-      return
-    now = time.monotonic()
-    with self._frame_lock:
-      self._latest_frame = rgb_array
-      self._frame_id += 1
-      self._frame_timestamp = now
-
-  def _ensure_video_decoder_started(self) -> None:
-    """確保目前存在運作中的解碼後端實例。"""
-    with self._decoder_lock:
-      if self._decoder is None:
-        self._decoder = self._decoder_factory(self._on_decoded_frame)
-
-  def _stop_video_decoder(self, clear_frame: bool = False) -> None:
-    """停止解碼後端，並視需要清除舊畫面（例如離開 Onroad 時）。"""
-    with self._decoder_lock:
-      decoder = self._decoder
-      self._decoder = None
-    if decoder is not None:
-      with contextlib.suppress(Exception):
-        decoder.stop()
-
-    if clear_frame:
-      with self._frame_lock:
-        self._latest_frame = None
-        self._frame_id = 0
-        self._frame_timestamp = 0.0
-
   def _attach_video_track(self, track: Any) -> None:
-    """
-    將 libdatachannel 的 H264RtpDepacketizer 掛載至 incoming video track；
-    僅在 _video_enabled 為 True（Onroad 狀態）時才將 NAL Unit 餵入解碼器。
-    """
-    from libdatachannel import H264RtpDepacketizer, NalUnit
-
+    """將 incoming video track 接收回呼直接串接至 RemoteVideoPipeline 的非阻塞入列函式。"""
     self._video_track = track
     if self._video_track_attached:
       return
 
-    depacketizer = H264RtpDepacketizer(NalUnit.Separator.LongStartSequence)
-    track.set_media_handler(depacketizer)
-
-    def on_h264_frame(data: bytes | str) -> None:
-      if not self._running or not self._video_enabled or not isinstance(data, bytes) or not data:
-        return
-      self._ensure_video_decoder_started()
-      with self._decoder_lock:
-        decoder = self._decoder
-      if decoder is not None:
-        decoder.feed(data)
-
-    track.on_message(on_h264_frame)
+    track.on_message(self._video.on_rtp_packet)
     self._video_track_attached = True
-
-    if self._video_enabled:
-      self._ensure_video_decoder_started()
-      with contextlib.suppress(Exception):
-        track.request_keyframe()
+    self._video.ensure_started_if_enabled()
 
   async def _connect_once(self) -> None:
     """使用原生 teleoprtc WebRTCOfferBuilder 執行單次連線並維持直到中斷。"""
@@ -685,9 +526,9 @@ class RemoteWebRTCClient:
         "enabled": True,
         "bridge_services_in": [],
         "bridge_services_out": services_list,
-        "remote_ui": True,                 # 啟用不逾時與獨立影像開關模式
-        "video_enabled": self._video_enabled,  # Offroad 預設 False，進 Onroad 再啟動影像
-        "max_hz": 25.0,                    # 逐服務節流上限 25 Hz，平衡流暢度與區網頻寬
+        "remote_ui": True,                      # 啟用不逾時與獨立影像開關模式
+        "video_enabled": self._video.enabled,   # Offroad 預設 False，進 Onroad 再啟動影像
+        "max_hz": 25.0,                         # 逐服務節流上限 25 Hz，平衡流暢度與區網頻寬
       }
       answer_data = await asyncio.to_thread(self._post_signaling, self.signaling_url, request_body)
       return RTCSessionDescription(
@@ -714,17 +555,18 @@ class RemoteWebRTCClient:
       self._data_updated_cond.notify_all()
     print(f"[RemoteWebRTC] 已連線至 C4 ({self.host}:{self.port})")
 
-    # 4. 連線成功後立即請求同步初始 Params 快照，並補訂連線期間新增的服務
-    if stream.has_messaging_channel():
-      ch = stream.get_messaging_channel()
-      if ch.is_open():
-        ch.send(json.dumps({"cmd": "get_all_params"}))
-        with self._services_lock:
-          extra_services = sorted(self._subscribed_services - set(services_list))
-        if extra_services:
-          ch.send(json.dumps({"cmd": "subscribe_services", "services": extra_services}))
+    # 4. 連線成功後透過 HTTP POST /api/control 請求同步初始 Params 快照與補訂服務
+    #    （全程不呼叫 DataChannel.send()，避免與下行推播搶鎖）
+    await asyncio.to_thread(self._post_control, {"cmd": "get_all_params"})
+    with self._services_lock:
+      extra_services = sorted(self._subscribed_services - set(services_list))
+    if extra_services:
+      await asyncio.to_thread(
+        self._post_control,
+        {"cmd": "subscribe_services", "services": extra_services},
+      )
 
-    # 5. 掛載道路鏡頭軌道（解碼器會等 _video_enabled=True 即進入 Onroad 才真正啟動）
+    # 5. 掛載道路鏡頭軌道（解碼器會等進入 Onroad 開啟視訊後才真正啟動）
     if stream.has_incoming_video_track(self._current_camera):
       video_track = stream.get_incoming_video_track(self._current_camera)
       self._attach_video_track(video_track)
@@ -738,3 +580,14 @@ class RemoteWebRTCClient:
     )
     for task in pending:
       task.cancel()
+
+
+__all__ = [
+  "ControlCallback",
+  "DecodedFrame",
+  "DecoderFactory",
+  "H264RtpUnpacker",
+  "RemoteWebRTCClient",
+  "ServiceCallback",
+  "VideoDecoderBackend",
+]

@@ -9,7 +9,6 @@ from openpilot.tools.sim.bridge.metadrive.metadrive_common import RGBCameraRoad,
 from openpilot.tools.sim.bridge.metadrive.metadrive_world import MetaDriveWorld
 from openpilot.tools.sim.lib.camerad import W, H
 
-
 def straight_block(length):
   return {
     "id": "S",

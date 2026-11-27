@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -29,7 +30,11 @@ private:
   int counter = 0;
   bool is_open = false;
 
-  AVCodecContext *codec_ctx;
+  // 遠端串流關鍵幀請求旗標（跨執行緒安全）與位元率不支援單次提示旗標
+  std::atomic<bool> keyframe_requested{false};
+  bool bitrate_warned = false;
+
+  AVCodecContext *codec_ctx = nullptr;
   AVFrame *frame = NULL;
   std::vector<uint8_t> convert_buf;
   std::vector<uint8_t> downscale_buf;

@@ -11,8 +11,6 @@ from openpilot.system.ui.lib.egl import init_egl, create_egl_image, destroy_egl_
 from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.ui_state import ui_state
 
-from openpilot.selfdrive.ui.remote import REMOTE_UI, get_remote_client
-
 CONNECTION_RETRY_INTERVAL = 0.2  # seconds between connection attempts
 
 VERSION = """
@@ -72,6 +70,8 @@ class CameraView(Widget):
   def __init__(self, name: str, stream_type: VisionStreamType):
     super().__init__()
     self._name = name
+    # Primary stream
+    self.client = VisionIpcClient(name, stream_type, conflate=True)
     self._stream_type: VisionStreamType = stream_type
     self.available_streams: list[VisionStreamType] = []
 
@@ -82,6 +82,8 @@ class CameraView(Widget):
 
     self._texture_needs_update = True
     self.last_connection_attempt: float = 0.0
+    self.shader = rl.load_shader_from_memory(VERTEX_SHADER, FRAME_FRAGMENT_SHADER)
+    self._texture1_loc: int = rl.get_shader_location(self.shader, "texture1") if not COMMA_HARDWARE else -1
 
     self.frame: VisionBuf | None = None
     self.texture_y: rl.Texture | None = None
@@ -92,28 +94,6 @@ class CameraView(Widget):
     self.egl_texture: rl.Texture | None = None
 
     self._placeholder_color: rl.Color | None = None
-
-    # 遠端 WebRTC 影像資源（僅在 REMOTE_UI=1 模式下啟用）
-    self._remote_client = get_remote_client() if REMOTE_UI else None
-    self._remote_texture: rl.Texture | None = None
-    self._remote_frame_id: int = -1
-    self._remote_size: tuple[int, int] = (0, 0)
-
-    if REMOTE_UI:
-      # 遠端模式下略過本機 VisionIPC、NV12 Shader 與 EGL 初始化，直接改由 WebRTC 提供 RGB24 影像
-      self.client: VisionIpcClient | None = None
-      self.shader: rl.Shader | None = None
-      self._texture1_loc: int = -1
-      # 註冊 Onroad / Offroad 切換回呼，並依目前實際狀態決定是否啟用道路視訊串流
-      ui_state.add_offroad_transition_callback(self._offroad_transition)
-      if self._remote_client is not None:
-        self._remote_client.set_video_enabled(ui_state.is_onroad())
-      return
-
-    # Primary stream
-    self.client = VisionIpcClient(name, stream_type, conflate=True)
-    self.shader = rl.load_shader_from_memory(VERTEX_SHADER, FRAME_FRAGMENT_SHADER)
-    self._texture1_loc = rl.get_shader_location(self.shader, "texture1") if not COMMA_HARDWARE else -1
 
     # Initialize EGL for zero-copy rendering on COMMA_HARDWARE
     if COMMA_HARDWARE:
@@ -128,16 +108,6 @@ class CameraView(Widget):
     ui_state.add_offroad_transition_callback(self._offroad_transition)
 
   def _offroad_transition(self):
-    if REMOTE_UI:
-      if self._remote_client is not None:
-        is_onroad = ui_state.is_onroad()
-        self._remote_client.set_video_enabled(is_onroad)
-        if not is_onroad:
-          # 離開 Onroad 時清掉舊畫面 Texture，避免下次進入閃現舊影格
-          self._clear_textures()
-          self._remote_frame_id = -1
-      return
-
     # Reconnect if not first time going onroad
     if ui_state.is_onroad() and self.frame is not None:
       # Prevent old frames from showing when going onroad. Qt has a separate thread
@@ -155,20 +125,6 @@ class CameraView(Widget):
 
   def switch_stream(self, stream_type: VisionStreamType) -> None:
     if self._stream_type == stream_type:
-      return
-
-    # 遠端模式下不建立本機 VisionIpcClient，透過原生 livestreamCameraSwitch 同步切換 C4 鏡頭
-    if REMOTE_UI:
-      self._stream_type = stream_type
-      if self._remote_client is not None:
-        stream_to_camera = {
-          VisionStreamType.VISION_STREAM_ROAD: "road",
-          VisionStreamType.VISION_STREAM_WIDE_ROAD: "wideRoad",
-          VisionStreamType.VISION_STREAM_DRIVER: "driver",
-        }
-        cam_name = stream_to_camera.get(stream_type)
-        if cam_name is not None:
-          self._remote_client.switch_camera(cam_name)
       return
 
     if self._switching and self._target_stream_type == stream_type:
@@ -225,11 +181,6 @@ class CameraView(Widget):
     ])
 
   def _render(self, rect: rl.Rectangle):
-    # 遠端模式：改走 WebRTC RGB24 影像渲染流程
-    if REMOTE_UI:
-      self._render_remote(rect)
-      return
-
     if self._switching:
       self._handle_switch()
 
@@ -274,62 +225,6 @@ class CameraView(Widget):
       self._render_egl(src_rect, dst_rect)
     else:
       self._render_textures(src_rect, dst_rect)
-
-  def _render_remote(self, rect: rl.Rectangle) -> None:
-    """
-    遠端模式專用渲染函式：
-    僅於 Onroad 狀態從 RemoteWebRTCClient 讀取最新解碼的 RGB24 影像幀，
-    更新至 GPU Texture 並依原生寬高比置中繪製。
-    """
-    if self._remote_client is None or not ui_state.is_onroad():
-      self._draw_placeholder(rect)
-      return
-
-    # 若剛進入 Onroad 而視訊開關尚未打開，自動補開串流
-    if not self._remote_client.video_enabled:
-      self._remote_client.set_video_enabled(True)
-
-    frame, frame_id, _ = self._remote_client.get_latest_frame()
-    if frame is None:
-      self._draw_placeholder(rect)
-      return
-
-    h, w = frame.shape[:2]
-
-    # 首次收到影像或解析度變更時，建立對應尺寸的 RGB24 Texture
-    if self._remote_texture is None or self._remote_size != (w, h):
-      if self._remote_texture and self._remote_texture.id:
-        rl.unload_texture(self._remote_texture)
-      self._remote_texture = rl.load_texture_from_image(
-        rl.Image(None, w, h, 1, rl.PixelFormat.PIXELFORMAT_UNCOMPRESSED_R8G8B8)
-      )
-      self._remote_size = (w, h)
-      self._remote_frame_id = -1
-
-    # 僅在收到新幀時才上傳至 GPU，避免 60 FPS 迴圈重複拷貝同一張畫面
-    if frame_id != self._remote_frame_id:
-      contig = np.ascontiguousarray(frame)
-      rl.update_texture(self._remote_texture, rl.ffi.cast("void *", rl.ffi.from_buffer(contig)))
-      self._remote_frame_id = frame_id
-
-    # 沿用原生寬高比縮放與置中計算，確保上層車道線與 HUD 精準對齊
-    widget_aspect_ratio = rect.width / rect.height
-    frame_aspect_ratio = w / h
-    zx = min(frame_aspect_ratio / widget_aspect_ratio, 1.0)
-    zy = min(widget_aspect_ratio / frame_aspect_ratio, 1.0)
-
-    scale_x = rect.width * zx
-    scale_y = rect.height * zy
-    x_offset = rect.x + (rect.width - scale_x) / 2
-    y_offset = rect.y + (rect.height - scale_y) / 2
-
-    src_rect = rl.Rectangle(0, 0, float(w), float(h))
-    if self._stream_type == VisionStreamType.VISION_STREAM_CABIN:
-      src_rect.width = -src_rect.width
-    dst_rect = rl.Rectangle(x_offset, y_offset, scale_x, scale_y)
-
-    # RGB24 已為標準色彩格式，直接繪製無需套用 NV12 Shader
-    rl.draw_texture_pro(self._remote_texture, src_rect, dst_rect, rl.Vector2(0, 0), 0.0, rl.WHITE)
 
   def _draw_placeholder(self, rect: rl.Rectangle):
     if self._placeholder_color:
@@ -451,12 +346,6 @@ class CameraView(Widget):
         int(self.client.height // 2), 1, rl.PixelFormat.PIXELFORMAT_UNCOMPRESSED_GRAY_ALPHA))
 
   def _clear_textures(self):
-    # 釋放遠端 WebRTC RGB24 Texture
-    if self._remote_texture and self._remote_texture.id:
-      rl.unload_texture(self._remote_texture)
-      self._remote_texture = None
-      self._remote_size = (0, 0)
-
     if self.texture_y and self.texture_y.id:
       rl.unload_texture(self.texture_y)
       self.texture_y = None

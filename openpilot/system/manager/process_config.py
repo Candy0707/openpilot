@@ -66,7 +66,7 @@ def only_offroad(started: bool, params: Params, CP: car.CarParams) -> bool:
   return not started
 
 def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
-  return params.get_bool("IsLiveStreaming") or True
+  return params.get_bool("IsLiveStreaming")
 
 def use_copyparty(started, params, CP: car.CarParams) -> bool:
   return bool(params.get_bool("EnableCopyparty"))
