@@ -11,8 +11,9 @@ dragonpilot 系（dp0111pre）由 dashy serverd（:5088）提供車型讀寫；s
   GET  /api/models          → {"model_list": {品牌: [車型名稱, …]}, "selected_model": "<車型名稱>" | "",
                                "apply_hint": "<設定後何時生效>"}
   POST /api/models/select   body {"selected_model": "<車型名稱>" | "[AUTO]" | ""}
-  GET  /api/experimental_mode → {"experimental_mode": bool, "available": bool, "confirmed": bool}
-  POST /api/experimental_mode   body {"enabled": bool} → 200 {"experimental_mode": bool} | 400 / 409 {"error": "<原因>"}
+  GET  /api/experimental_mode → {"experimental_mode": bool, "available": bool, "confirmed": bool, "reason": "<不能開的原因>" | ""}
+  POST /api/experimental_mode   body {"enabled": bool} → 200 {"experimental_mode": bool}
+                              | 400 / 403（不能開）/ 409（尚未確認實驗模式說明）{"error": "<原因>"}
                               （opview 側欄第一顆按鈕；與 dp serverd 相同介面）
   GET  /api/auto_hold       → {"paused": bool, "available": bool, "holding": bool}
   POST /api/auto_hold         body {"paused": bool} → 200 {"paused", "available", "holding"} | 400 / 409 {"error": "<原因>"}
@@ -27,6 +28,7 @@ import argparse
 import json
 import logging
 import os
+import socket
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from collections.abc import Callable
@@ -134,11 +136,26 @@ def experimental_long_available(params: Params) -> bool | None:
   return bool(cp.openpilotLongitudinalControl)
 
 
+EXP_REASON_NO_CP = "尚未取得車輛資訊，請先發動一次再開啟實驗模式"
+EXP_REASON_NO_LONG = "此車未使用 openpilot 縱向控制，無法開啟實驗模式"
+EXP_REASON_NOT_CONFIRMED = "請先在 comma 設定頁開啟一次實驗模式並確認說明"
+
+
+def experimental_unavailable_reason(long_available: bool | None) -> str:
+  """不能開實驗模式的原因；可以開時回傳空字串（opview 依 available / reason 把按鈕變灰）。"""
+  if long_available is None:
+    return EXP_REASON_NO_CP
+  if not long_available:
+    return EXP_REASON_NO_LONG
+  return ""
+
+
 def handle_experimental_status(params: Params, long_available: bool | None) -> tuple[int, dict]:
   return 200, {
     "experimental_mode": params.get_bool("ExperimentalMode"),
     "available": bool(long_available),
     "confirmed": params.get_bool("ExperimentalModeConfirmed"),
+    "reason": experimental_unavailable_reason(long_available),
   }
 
 
@@ -147,12 +164,11 @@ def handle_experimental_mode(params: Params, payload: Any, long_available: bool 
     return 400, {"error": 'body 需為 {"enabled": true | false}'}
   enabled = payload["enabled"]
   if enabled:
-    if long_available is None:
-      return 409, {"error": "尚未取得車輛資訊，請先發動一次再開啟實驗模式"}
-    if not long_available:
-      return 409, {"error": "此車未使用 openpilot 縱向控制，無法開啟實驗模式"}
+    reason = experimental_unavailable_reason(long_available)
+    if reason:
+      return 403, {"error": reason}  # 不能開：403；409 只留給「尚未確認實驗模式說明」
     if not params.get_bool("ExperimentalModeConfirmed"):
-      return 409, {"error": "請先在 comma 設定頁開啟一次實驗模式並確認說明"}
+      return 409, {"error": EXP_REASON_NOT_CONFIRMED}
   params.put_bool("ExperimentalMode", enabled)
   now = params.get_bool("ExperimentalMode")
   logger.warning("opviewd: ExperimentalMode=%s", now)
@@ -264,13 +280,26 @@ class OpviewdHandler(BaseHTTPRequestHandler):
 class OpviewdHTTPServer(ThreadingHTTPServer):
   daemon_threads = True
   allow_reuse_address = True
+
+  def server_bind(self) -> None:
+    # IPv6 socket 同時收 IPv4（::ffff:a.b.c.d）：手機熱點時 opview 可能用 comma 的 IPv6 位址連 :5088
+    if self.address_family == socket.AF_INET6 and hasattr(socket, "IPV6_V6ONLY"):
+      try:
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+      except OSError:
+        pass
+    super().server_bind()
   params: Params
   cars: CarList
   long_available: Callable[[Params], bool | None]
 
 
 def make_server(host: str, port: int, params: Params | None = None, cars: CarList | None = None) -> OpviewdHTTPServer:
-  server = OpviewdHTTPServer((host, port), OpviewdHandler)
+  if ":" in host:  # IPv6 位址（"::" = IPv4 + IPv6 雙協定）
+    server_cls = type("OpviewdHTTPServer6", (OpviewdHTTPServer,), {"address_family": socket.AF_INET6})
+    server = server_cls((host, port), OpviewdHandler)
+  else:
+    server = OpviewdHTTPServer((host, port), OpviewdHandler)
   server.params = params or Params()
   server.cars = cars or CarList(server.params)
   server.long_available = experimental_long_available
@@ -279,12 +308,19 @@ def make_server(host: str, port: int, params: Params | None = None, cars: CarLis
 
 def main():
   parser = argparse.ArgumentParser(description="opview helper daemon")
-  parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to listen on")
+  parser.add_argument("--host", type=str, default="::", help="Host to listen on（預設 :: = IPv4 + IPv6）")
   parser.add_argument("--port", type=int, default=OPVIEWD_PORT, help="Port to listen on")
   args = parser.parse_args()
 
   logging.basicConfig(level=logging.INFO)
-  server = make_server(args.host, args.port)
+  try:
+    server = make_server(args.host, args.port)
+  except OSError as e:
+    if ":" not in args.host:
+      raise
+    logger.warning("opviewd: IPv6 不可用（%s），改只聽 IPv4", e)
+    args.host = "0.0.0.0"
+    server = make_server(args.host, args.port)
   logger.info("opviewd listening on %s:%d", args.host, args.port)
   server.serve_forever()
 

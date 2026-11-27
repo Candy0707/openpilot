@@ -1,6 +1,9 @@
 import json
+import socket
 import threading
 import urllib.request
+
+import pytest
 
 from openpilot.common.test import OpenpilotTestCase
 from openpilot.sunnypilot.opview.opviewd import CarList, make_server, HINT_OFFROAD, HINT_ONROAD
@@ -87,10 +90,12 @@ class TestOpviewd(OpenpilotTestCase):
   def test_experimental_mode_requires_long_and_confirmation(self):
     self.server.long_available = lambda p: None  # 從未發動
     status, j = self._req("/api/experimental_mode", {"enabled": True})
-    assert status == 409 and "發動" in j["error"]
+    assert status == 403 and "發動" in j["error"]
     self.server.long_available = lambda p: False
     status, j = self._req("/api/experimental_mode", {"enabled": True})
-    assert status == 409 and "縱向" in j["error"]
+    assert status == 403 and "縱向" in j["error"]
+    status, j = self._req("/api/experimental_mode")
+    assert status == 200 and j["available"] is False and "縱向" in j["reason"]
     self.server.long_available = lambda p: True
     status, j = self._req("/api/experimental_mode", {"enabled": True})
     assert status == 409 and "確認" in j["error"]
@@ -101,7 +106,8 @@ class TestOpviewd(OpenpilotTestCase):
     self.server.long_available = lambda p: True
     self.params.put("ExperimentalModeConfirmed", True)
     assert self._req("/api/experimental_mode", {"enabled": True}) == (200, {"experimental_mode": True})
-    assert self._req("/api/experimental_mode") == (200, {"experimental_mode": True, "available": True, "confirmed": True})
+    assert self._req("/api/experimental_mode") == (200, {"experimental_mode": True, "available": True, "confirmed": True,
+                                                    "reason": ""})
     # 關閉一律允許
     self.server.long_available = lambda p: False
     assert self._req("/api/experimental_mode", {"enabled": False}) == (200, {"experimental_mode": False})
@@ -133,3 +139,25 @@ class TestOpviewd(OpenpilotTestCase):
     self.params.put("OpviewAutoHoldState", 0)  # 恢復一律允許（即使已熄火 / 不可用）
     status, j = self._req("/api/auto_hold", {"paused": False})
     assert status == 200 and j["paused"] is False
+
+
+@pytest.mark.skipif(not socket.has_ipv6, reason="no IPv6")
+def test_dual_stack_ipv4_and_ipv6():
+  """預設 :: 要同時收 IPv4 與 IPv6（opview 可能用 comma 的 IPv6 位址連 :5088）。"""
+  params = FakeParams()
+  try:
+    server = make_server("::", 0, params, CarList(params, path="/nonexistent/car_list.json"))
+  except OSError:
+    pytest.skip("IPv6 unavailable")
+  server.long_available = lambda p: False
+  port = server.server_address[1]
+  t = threading.Thread(target=server.serve_forever, daemon=True)
+  t.start()
+  try:
+    for host in ("127.0.0.1", "[::1]"):
+      with urllib.request.urlopen(f"http://{host}:{port}/api/experimental_mode", timeout=5) as r:
+        j = json.loads(r.read())
+      assert j["available"] is False and "縱向" in j["reason"]
+  finally:
+    server.shutdown()
+    server.server_close()
