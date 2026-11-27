@@ -10,11 +10,23 @@ from openpilot.system.ui.widgets.label import UnifiedLabel
 from openpilot.system.ui.widgets.mici_keyboard import MiciKeyboard
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.application import gui_app, FontWeight, MousePos
+from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets.slider import RedBigSlider, BigSlider
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.ui.mici.widgets.button import BigCircleButton, GreyBigButton
 
 DEBUG = False
+
+# dp - mici zh-CHT: tokens are a latin word or a single CJK glyph, each keeping its trailing whitespace,
+# so CJK text (no spaces between words) can wrap across cards and mixed "啟用 openpilot" keeps its spaces
+_CJK = r'\u2e80-\u9fff\uf900-\ufaff\u3000-\u303f\uff00-\uffef'
+_TOKEN_RE = re.compile(rf'[{_CJK}]\s*|[^\s{_CJK}]+\s*')
+
+
+def _join_tokens(tokens: list[str]) -> str:
+  # whitespace runs collapse to one space, same as the original " ".join(sentence.split())
+  return re.sub(r"\s+", " ", "".join(tokens)).strip()
+
 
 PADDING = 20
 
@@ -43,23 +55,28 @@ class SettingDescriptionDialog(NavScroller):
   def __init__(self, title: str, description: str, icon: Union[rl.Texture, None] = None):
     super().__init__()
     cards = [GreyBigButton(title, "scroll for details", icon or gui_app.texture("icons_mici/setup/green_info.png", 64, 64))]
+    # dp - mici zh-CHT: translate the whole description first (the msgid is the full English text)
+    description = tr(description) if description else description
     # Explicit lines are authored cards; otherwise prefer sentence boundaries.
-    paragraphs = description.splitlines() if "\n" in description else re.split(r"(?<=[.!?])\s+", description.strip())
+    # dp - mici zh-CHT: also split after full-width sentence punctuation (no trailing space in CJK)
+    paragraphs = description.splitlines() if "\n" in description else \
+      [p for p in re.split(r"(?<=[.!?])\s+|(?<=[。！？])", description.strip()) if p.strip()]
     # Measure each card so longer text still fits with the actual font and padding.
     for sentence in paragraphs:
       card = GreyBigButton("", "")
       words: list[str] = []
-      for word in sentence.split():
-        card.set_value(" ".join([*words, word]))
+      # dp - mici zh-CHT: tokens are latin words or single CJK glyphs, so CJK text wraps across cards too
+      for word in _TOKEN_RE.findall(sentence):
+        card.set_value(_join_tokens([*words, word]))
         height = card._sub_label.get_content_height(card._subtitle_width_hint())
         if words and height > card.rect.height - 2 * card.LABEL_VERTICAL_PADDING:
-          card.set_value(" ".join(words))
+          card.set_value(_join_tokens(words))
           cards.append(card)
           card = GreyBigButton("", "")
           words = []
         words.append(word)
       if words:
-        card.set_value(" ".join(words))
+        card.set_value(_join_tokens(words))
         cards.append(card)
     self._scroller.add_widgets(cards)
 
@@ -71,6 +88,8 @@ class BigConfirmationDialog(BigDialogBase):
     self._confirm_callback = confirm_callback
     self._exit_on_confirm = exit_on_confirm
 
+    # dp - mici zh-CHT: slider is shared with mici setup, so translate here (dialog is built per click)
+    title = tr(title)
     self._slider: BigSlider | RedBigSlider
     if red:
       self._slider = self._child(RedBigSlider(title, icon, confirm_callback=self._on_confirm))
@@ -106,7 +125,7 @@ class BigInputDialog(BigDialogBase):
                auto_return_to_letters: str = "",
                text_validator: Callable[[str], bool] | None = None):
     super().__init__()
-    self._hint_label = UnifiedLabel(hint, font_size=35, text_color=rl.Color(255, 255, 255, int(255 * 0.35)),
+    self._hint_label = UnifiedLabel(tr(hint) if hint else hint, font_size=35, text_color=rl.Color(255, 255, 255, int(255 * 0.35)),
                                     font_weight=FontWeight.MEDIUM)
     self._keyboard = MiciKeyboard(auto_return_to_letters=auto_return_to_letters)
     self._keyboard.set_text(default_text)

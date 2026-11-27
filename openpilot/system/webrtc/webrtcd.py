@@ -6,10 +6,14 @@ import os
 import socket
 import time
 import capnp
+import ctypes
+import gc
 import argparse
 import asyncio
 import contextlib
+import ipaddress
 import json
+import math
 import uuid
 import logging
 import signal
@@ -23,11 +27,250 @@ from openpilot.system.webrtc.schema import generate_field
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.cereal import messaging, log
+from openpilot.cereal.services import SERVICE_LIST
+from openpilot.sunnypilot.privacy import privacy_mode
 
 SESSION_TIMEOUT_SECONDS = 300
 
+# --- opview ---
+# opview（Android 手機 App）在區網直接連 webrtcd（:5001），請求格式沿用 dp0111pre 的新版 webrtcd：
+#   {"sdp", "initCamera": "road", "bridge_services_out": [...], "bridge_services_in": []}
+# sunnypilot 的 webrtcd 是 upstream 新版（libdatachannel、只聽 127.0.0.1、要求 cameras + enabled、
+# session 300 秒逾時），以下為了讓 opview 能連上所做的相容處理，全部只作用在 opview session，
+# sunnylink / athena 的 livestream（從 127.0.0.1 來）行為與 upstream 相同。
+OPVIEW_PARAM = "OpviewEnabled"
+OPVIEW_CAMERAS = ("road", "wideRoad", "driver")
+# opview 使用的舊 service 名稱 → 這版 sunnypilot（upstream）改名後的名稱。
+# capnp ordinal 與欄位都相同（log.capnp：extrinsicsCalibration @19 :ExtrinsicsCalibration、narrowRoadCameraState @2 :FrameData、
+# cabinCameraState @70 :FrameData），只是名字不同，所以請求時換成新名稱、送出時 type 換回舊名稱，opview 不需修改。
+# 只在舊名稱不存在、新名稱存在時才轉換（其他分支仍用舊名稱時不受影響）。
+OPVIEW_SERVICE_ALIASES = {
+  "liveCalibration": "extrinsicsCalibration",
+  "roadCameraState": "narrowRoadCameraState",
+  "driverCameraState": "cabinCameraState",
+}
+
+
+# opview 已內建 TDX（手機 GPS + TDX API），comma 的 tdx 不再傳給 opview：
+# opview 的請求若帶 tdx（舊版 App）就從 bridge_services_out 拿掉，不訂閱、不轉送，也不會因此回 500。
+# sunnylink / athena（upstream 格式）的請求不受影響。
+OPVIEW_DROPPED_SERVICES = frozenset({"tdx"})
+
+
+def resolve_opview_services(services: list[str]) -> list[str]:
+  out: list[str] = []
+  for s in services:
+    if s not in SERVICE_LIST and OPVIEW_SERVICE_ALIASES.get(s) in SERVICE_LIST:
+      s = OPVIEW_SERVICE_ALIASES[s]
+    if s not in out:
+      out.append(s)
+  return out
+
+
+def opview_outgoing_names(services: list[str]) -> dict[str, str]:
+  """送給 opview 時的 type：新名稱 → opview 認得的舊名稱"""
+  reverse = {new: old for old, new in OPVIEW_SERVICE_ALIASES.items() if old not in SERVICE_LIST}
+  return {s: reverse[s] for s in services if s in reverse}
+
+
+def _r3(values) -> list[float]:
+  return [round(v, 3) for v in values]
+
+
+def _xyz(xyzt) -> dict:
+  return {"x": _r3(xyzt.x), "y": _r3(xyzt.y), "z": _r3(xyzt.z)}
+
+
+def compact_model_v2(model) -> dict:
+  """opview 用的 modelV2 精簡版（移植自 dp0111pre）：只送畫面用到的欄位，數值四捨五入到小數 3 位。
+  完整 to_dict() 約 31 KB / 筆（20 Hz ≈ 5 Mbps），精簡後約 5.6 KB（≈ 0.9 Mbps）。
+  opview 讀的欄位：position.x/y/z、laneLines[].x/y/z、laneLineProbs、roadEdges[].x/y/z、roadEdgeStds、acceleration.x、orientationRate.z[0]、
+  leadsV3[].prob/x/y（近距離警示）
+  （見 opview lib/selfdrive/ui/ui_state.dart applyModelV2）。opview 之後若要用其他欄位，需在這裡一併加上。"""
+  return {
+    "frameId": model.frameId,
+    "position": _xyz(model.position),
+    "laneLines": [_xyz(line) for line in model.laneLines],
+    "laneLineProbs": _r3(model.laneLineProbs),
+    "roadEdges": [_xyz(e) for e in model.roadEdges],
+    "roadEdgeStds": _r3(model.roadEdgeStds),
+    "acceleration": {"x": _r3(model.acceleration.x)},
+    # 本車轉向角速度（opview v2.0.13 車型 3D 辨識：追蹤目標速度扣掉本車轉向、連續車頭角度）：只送 t = 0 那一點
+    "orientationRate": {"z": _r3([model.orientationRate.z[0]] if len(model.orientationRate.z) else [])},
+    # 純視覺前車（近距離警示用：opview 讀 leadsV3[0] 的 x[0] / y[0] / prob）
+    "leadsV3": [{"prob": round(lead.prob, 3), "x": _r3(lead.x), "y": _r3(lead.y)} for lead in model.leadsV3],
+  }
+
+
+# opview 只讀這些欄位（opview lib/selfdrive/ui/ui_state.dart 的 apply* 函式）。其他欄位不送，
+# 省下 to_dict() 產生整個巢狀 dict 與 json.dumps 的 CPU / 記憶體（實測 rlog 每筆 JSON：longitudinalPlan 2.0 KB、
+# carState 1.6 KB、controlsState 1.6 KB、radarState 1.0 KB、roadCameraState 0.6 KB → 各約 0.05–0.3 KB）。
+# key 是 opview 端的 service 名稱（改名前的舊名稱）；欄位不存在的分支就略過該欄位（與 to_dict() 沒有該欄位相同）。
+# 表上沒有的 service 照舊整筆 to_dict()。modelV2 另由 compact_model_v2 處理。
+# 有沒有前車：dragonpilot 舊 cereal 叫 status，openpilot / sunnypilot 新版改名 present（同 @11）。兩個都列，
+# 不存在的那個會略過。只列 status 時新版分支 leadOne 沒有這個欄位，opview 判定「沒有前車」（鎖定框、車距都不見，2026-11-13）。
+OPVIEW_LEAD_FIELDS = ("status", "present", "dRel", "yRel", "vRel", "vLead", "aLeadK", "modelProb", "radar")
+OPVIEW_COMPACT_FIELDS: dict[str, dict[str, Any]] = {
+  "carState": dict.fromkeys(("vEgo", "aEgo", "steeringAngleDeg", "leftBlinker", "rightBlinker", "leftBlindspot",
+                             "rightBlindspot", "gearShifter", "standstill", "gasPressed", "vEgoCluster", "vCruiseCluster")) |
+              {"cruiseState": ("enabled",)},  # opview Auto Hold 按鈕：巡航中不顯示
+  "selfdriveState": dict.fromkeys(("enabled", "experimentalMode", "alertText1", "alertText2", "alertSize",
+                                   "alertStatus", "state")),
+  "controlsState": dict.fromkeys(("vCruiseDEPRECATED",)),
+  "radarState": {"leadOne": OPVIEW_LEAD_FIELDS, "leadTwo": OPVIEW_LEAD_FIELDS},
+  "longitudinalPlan": dict.fromkeys(("allowThrottle",)),
+  "deviceState": dict.fromkeys(("deviceType", "started")),
+  "liveCalibration": dict.fromkeys(("calStatus", "rpyCalib", "wideFromDeviceEuler", "height")),
+  "roadCameraState": dict.fromkeys(("sensor",)),
+}
+
+
+def _plain(value: Any) -> Any:
+  """capnp 值 → JSON 可序列化的值（與 to_dict() 相同：enum 用名稱字串、list 轉 list）"""
+  if value is None or isinstance(value, (bool, int, float, str)):
+    return value
+  if isinstance(value, (capnp._DynamicListReader, list, tuple)):
+    return [_plain(v) for v in value]
+  if isinstance(value, capnp._DynamicStructReader):
+    return value.to_dict()
+  return str(value)  # _DynamicEnum → 'drive'、'calibrated'…
+
+
+def compact_fields(reader: Any, fields: dict[str, Any] | tuple[str, ...]) -> dict:
+  """只取指定欄位；fields 的值是 tuple 時代表子結構只取那些欄位。不存在的欄位略過。"""
+  out: dict[str, Any] = {}
+  items = fields.items() if isinstance(fields, dict) else ((f, None) for f in fields)
+  for name, sub in items:
+    try:
+      value = getattr(reader, name)
+    except (AttributeError, capnp.KjException):
+      continue
+    out[name] = compact_fields(value, sub) if sub is not None else _plain(value)
+  return out
+
+
+class StreamRequestError(Exception):
+  def __init__(self, status: int, error: str, message: str):
+    super().__init__(message)
+    self.status, self.error, self.message = status, error, message
+
+
+def parse_stream_request(raw: Any, remote_is_local: bool = True, allow_driver_camera: bool = True) -> tuple[StreamRequestBody, bool]:
+  """回傳 (body, is_opview)。
+  - upstream 格式（sunnylink / athena：cameras + enabled）原樣交給 StreamRequestBody，行為不變。
+  - opview 格式（initCamera，或明確帶 "client": "opview"）：
+      initCamera → cameras=[initCamera]、enabled 預設 True、忽略不認得的欄位（同 dp0111pre）。
+  - opview 請求帶的 tdx 一律拿掉（opview 已內建 TDX，見 OPVIEW_DROPPED_SERVICES）。
+  - 不認得的 cereal service → 500（與 dp0111pre / stock webrtcd 一致）。
+  - 區網（非 127.0.0.1）來的請求不允許 bridge_services_in：webrtcd 原本只聽 localhost，
+    開放給 opview 後不能讓區網任何人往 comma 發 cereal 訊息（testJoystick、can…）。"""
+  if not isinstance(raw, dict):
+    raise StreamRequestError(400, "invalid_request", "request body must be a JSON object")
+
+  is_opview = raw.get("client") == "opview" or ("initCamera" in raw and "cameras" not in raw)
+  if is_opview:
+    raw = dict(raw)
+    camera = raw.get("initCamera") or "road"
+    if "cameras" not in raw:
+      raw["cameras"] = [camera]
+    raw.setdefault("enabled", True)
+    known = StreamRequestBody.__dataclass_fields__.keys()
+    raw = {k: v for k, v in raw.items() if k in known}
+    if isinstance(raw.get("bridge_services_out"), list):
+      out = [svc for svc in raw["bridge_services_out"] if svc not in OPVIEW_DROPPED_SERVICES]
+      raw["bridge_services_out"] = resolve_opview_services(out)
+
+  try:
+    body = StreamRequestBody(**raw)
+  except TypeError as e:
+    raise StreamRequestError(400, "invalid_request", str(e)) from e
+
+  if is_opview:
+    if len(body.cameras) != 1 or body.cameras[0] not in OPVIEW_CAMERAS:
+      raise StreamRequestError(400, "invalid_camera", f"unsupported camera {body.cameras}")
+    unknown = [s for s in (*body.bridge_services_out, *body.bridge_services_in) if s not in SERVICE_LIST]
+    if unknown:
+      # 500：與 dp0111pre / stock webrtcd（SubMaster KeyError）一致
+      raise StreamRequestError(500, "unknown_service", f"unknown services {unknown}")
+
+  if not allow_driver_camera and "driver" in body.cameras:
+    # 隱私模式：不串流車內鏡頭（opview / sunnylink 皆同）
+    raise StreamRequestError(403, "forbidden", "driver camera is disabled in privacy mode")
+
+  if not remote_is_local and body.bridge_services_in:
+    raise StreamRequestError(403, "forbidden", "bridge_services_in is only allowed from localhost")
+
+  return body, is_opview
+
+
 
 # ice candidate parser for logging
+# --- 記憶體（openpilot-test：按巡航 commIssue 調查，mici 空閒記憶體常態約 20 MB） ---
+# webrtcd 有多條執行緒（HTTP、asyncio、libdatachannel），glibc 預設最多開「CPU 核心數 × 8」個 malloc arena，
+# 每個 arena 各自保留釋放後的空間，RSS 只增不減。
+#   1. 啟動時 mallopt(M_ARENA_MAX, 2)：最多 2 個 arena。
+#   2. 連線結束（沒有任何 session）後 gc.collect() + malloc_trim(0)：把 arena 裡空出來的頁還給系統。
+# 與上游不同（刻意）：上游 webrtcd 沒有這兩項。非 glibc（macOS、musl）時兩者都不做事，回傳 False。
+M_ARENA_MAX = -8  # glibc <malloc.h>
+WEBRTCD_MALLOC_ARENAS = 2
+MEMORY_RELEASE_DELAY_S = 1.0  # session 結束後等 libdatachannel / asyncio 收尾再 trim
+
+_libc: ctypes.CDLL | None | bool = None
+
+
+def _glibc() -> ctypes.CDLL | None:
+  global _libc
+  if _libc is None:
+    try:
+      lib = ctypes.CDLL("libc.so.6")
+      lib.mallopt.argtypes = [ctypes.c_int, ctypes.c_int]
+      lib.mallopt.restype = ctypes.c_int
+      lib.malloc_trim.argtypes = [ctypes.c_size_t]
+      lib.malloc_trim.restype = ctypes.c_int
+      _libc = lib
+    except (OSError, AttributeError):
+      _libc = False
+  return _libc or None
+
+
+def limit_malloc_arenas(n: int = WEBRTCD_MALLOC_ARENAS) -> bool:
+  """限制 malloc arena 數量；要在建立其他執行緒之前呼叫。成功回傳 True。"""
+  lib = _glibc()
+  return lib is not None and lib.mallopt(M_ARENA_MAX, n) == 1
+
+
+def _rss_mb() -> float | None:
+  try:
+    with open("/proc/self/statm") as f:
+      return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 1e6
+  except (OSError, ValueError, IndexError):
+    return None
+
+
+def release_memory() -> tuple[bool, float | None, float | None]:
+  """gc.collect() 後 malloc_trim(0)。回傳 (是否真的還了記憶體, trim 前 RSS MB, trim 後 RSS MB)。"""
+  before = _rss_mb()
+  gc.collect()
+  lib = _glibc()
+  released = bool(lib.malloc_trim(0)) if lib is not None else False
+  return released, before, _rss_mb()
+
+
+def schedule_memory_release(state: "ServerState") -> None:
+  """連線結束後延遲一下再還記憶體；屆時若已有新連線就不做（避免和新 session 搶時間）。"""
+  def release():
+    if state.streams:
+      return
+    t0 = time.monotonic()
+    released, before, after = release_memory()
+    logging.getLogger("webrtcd").info(
+      "session ended: malloc_trim released=%s, RSS %s -> %s MB (%.0f ms)", released,
+      f"{before:.0f}" if before is not None else "?", f"{after:.0f}" if after is not None else "?",
+      (time.monotonic() - t0) * 1000)
+
+  asyncio.get_running_loop().call_later(MEMORY_RELEASE_DELAY_S, release)
+
+
 def _ice_candidates(sdp: str) -> list[str]:
   return [line.removeprefix("a=") for line in sdp.splitlines() if line.startswith("a=candidate:")]
 
@@ -68,13 +311,416 @@ class AsyncTaskRunner:
     pass
 
 
+# opview Auto Hold 按鈕：card 寫入的 OpviewAutoHoldState（bit0 可用、bit1 已暫停、bit2 保持中），
+# 附在 carState 訊息的 "opviewAutoHold" 欄位送給 opview。Params 每 0.2 秒最多讀一次。
+OPVIEW_AUTO_HOLD_READ_INTERVAL = 0.2
+
+
+class OpviewAutoHoldReader:
+  def __init__(self):
+    self.params = Params()
+    self.last_read = 0.0
+    self.value: dict[str, bool] = {"available": False, "paused": False, "holding": False}
+
+  def get(self) -> dict[str, bool]:
+    now = time.monotonic()
+    if now - self.last_read >= OPVIEW_AUTO_HOLD_READ_INTERVAL:
+      self.last_read = now
+      try:
+        state = int(self.params.get("OpviewAutoHoldState") or 0)
+      except Exception:
+        state = 0
+      self.value = {"available": bool(state & 1), "paused": bool(state & 2), "holding": bool(state & 4)}
+    return self.value
+
+
+# ===== opview 專業除錯模式（2026-11-27）=====
+# opview 開啟「專業除錯模式」時，會另外開一條 label = "opviewDebug" 的 data channel
+# （手機端建立，ordered = false、maxRetransmits = 0：不排序、不重傳，掉了就丟，只看最新的一筆）。
+# 主通道（label "data"，可靠、有序）完全不變：0–45 m 的 opviewTracks 照舊附在 radarState，給相機融合用；
+# 除錯通道另外送一份完整 0–120 m 點雲與連線統計，掉封包不會拖慢 HUD，也不影響融合結果。
+# 沒開除錯模式就沒有這條通道，comma 端不會多送任何東西。
+#
+# 除錯通道上的訊息（JSON，緊湊格式，無空白）：
+#   comma → 手機 opviewDebug（10 Hz）：
+#     {"type":"opviewDebug","t":送出時 comma 單調時鐘 ns,"seq":序號,"src":"radarTracks"|"liveTracks"|"",
+#      "n":雷達軌跡總點數,"age":最新一筆雷達軌跡距今 ms（-1 = 沒收過）,"cut":超過大小上限沒送的點數,
+#      "pts":[[trackId,dRel,yRel,vRel],...] 或 [[trackId,dRel,yRel,vRel,aRel,yvRel,measured],...]}
+#     pts 依 dRel 由近到遠、只送 0 < dRel ≤ 120 m；yRel 與 radarTracks 相同為「左正」（opview 自己取負號）。
+#     新版 openpilot / opendbc（例如 Candy0707/openpilot test 釘的 opendbc 91e7a70）RadarPoint 只剩 trackId / dRel / yRel / vRel，
+#     aRel / yvRel / measured 移進 deprecated 群組、雷達程式不再設定，所有點都是真實點 → 每點只送 4 個值。
+#     舊版（dplcc、dp0111pre：Toyota measured = VALID，分數 > 50 保留的點為 False）這一筆只要有任何點讀得到
+#     這三個欄位就送 7 個值：aRel / yvRel 不是有限值（Toyota 雷達是 NaN）時為 null；measured：1 / 0。
+#     單筆上限 OPVIEW_DEBUG_MAX_BYTES（不超過一個 SCTP 封包，不可靠通道上不拆片），超過的遠處點捨棄並記在 cut。
+#   comma → 手機 opviewDebugStats（1 Hz）：
+#     {"type":"opviewDebugStats","t":ns,"dt":統計區間秒數,"svc":{service:[訊息數,bytes]},
+#      "dbg":[除錯通道訊息數,bytes,丟棄數],"cong":[主通道壅塞次數,略過的訊息數],"loop":送出迴圈最大間隔 ms,
+#      "buf":主通道送出佇列 bytes（aiortc 才有；libdatachannel 為 null）,"trk":{"src","n","meas","rx"}}
+#     svc 是主通道「實際送出」的每個 service 訊息數與 bytes（JSON 長度），手機端除以 dt 就是每個 service 的頻寬。
+#   手機 → comma opviewDebugPing（1 Hz）：{"type":"opviewDebugPing","t0":手機時鐘 µs}
+#   comma → 手機 opviewDebugPong（收到 ping 立刻回）：{"type":"opviewDebugPong","t0":原值,"tc":comma 單調時鐘 ns}
+#     手機用 RTT 最小的那幾次估計兩台時鐘的差，之後每筆主通道訊息的 logMonoTime 都能換成「端到端延遲」。
+#     tc 用 time.monotonic_ns()：與 Python 發佈的 logMonoTime（cereal new_message）同一個時鐘；
+#     C++ 發佈的 logMonoTime 用 CLOCK_BOOTTIME，comma 行車中不會休眠，兩者相同。
+OPVIEW_DEBUG_LABEL = "opviewDebug"
+OPVIEW_DEBUG_MAX_D = 120.0
+OPVIEW_DEBUG_INTERVAL = 0.1
+OPVIEW_DEBUG_STATS_INTERVAL = 1.0
+OPVIEW_DEBUG_MAX_BYTES = 1000
+OPVIEW_DEBUG_BACKOFF_S = 0.5
+
+
+def _dbg_num(v, nd: int = 1):
+  """有限數值 → 四捨五入；NaN / inf / 讀不到 → None（JSON null）。Toyota 雷達的 aRel / yvRel 是 NaN，
+  直接 json.dumps 會輸出 NaN，手機 jsonDecode 會整筆失敗。"""
+  try:
+    f = float(v)
+  except Exception:
+    return None
+  return round(f, nd) if math.isfinite(f) else None
+
+
+def _dbg_dumps(obj) -> str:
+  return json.dumps(obj, separators=(",", ":"), allow_nan=False)
+
+
+def _dbg_attr(p, name: str):
+  try:
+    return getattr(p, name)
+  except Exception:
+    return None
+
+
+class OpviewDebugLinkBase:
+  """除錯通道的共用邏輯（aiortc / libdatachannel 各自實作 _send / attach）"""
+
+  def __init__(self, tracks):
+    self.tracks = tracks
+    self.channel = None
+    self.logger = logging.getLogger("webrtcd")
+    self._reset()
+
+  def _reset(self):
+    now = time.monotonic()
+    self.seq = 0
+    self.last_frame = 0.0
+    self.last_stats = now
+    self.backoff_until = 0.0
+    self.svc: dict[str, list[int]] = {}
+    self.dbg_msgs = 0
+    self.dbg_bytes = 0
+    self.dbg_drop = 0
+    self.cong_events = 0
+    self.skipped = 0
+    self.loop_prev: float | None = None
+    self.loop_max = 0.0
+
+  @property
+  def active(self) -> bool:
+    return self.channel is not None
+
+  # -- 主通道統計（CerealOutgoingMessageProxy 呼叫；沒開除錯通道時什麼都不做）--
+  def note_loop(self, now: float):
+    if self.channel is None:
+      self.loop_prev = None
+      return
+    prev = self.loop_prev
+    self.loop_prev = now
+    if prev is not None and now - prev > self.loop_max:
+      self.loop_max = now - prev
+
+  def count_main(self, name: str, nbytes: int):
+    if self.channel is None:
+      return
+    e = self.svc.get(name)
+    if e is None:
+      self.svc[name] = [1, nbytes]
+    else:
+      e[0] += 1
+      e[1] += nbytes
+
+  def note_congested(self):
+    if self.channel is not None:
+      self.cong_events += 1
+
+  def note_skipped(self, n: int):
+    if self.channel is not None:
+      self.skipped += n
+
+  # -- 手機 → comma --
+  def _pong(self, message) -> str | None:
+    try:
+      if isinstance(message, bytes):
+        message = message.decode()
+      payload = json.loads(message)
+      if isinstance(payload, dict) and payload.get("type") == "opviewDebugPing":
+        t0 = payload.get("t0")
+        return _dbg_dumps({"type": "opviewDebugPong", "t0": t0 if isinstance(t0, int) else None,
+                           "tc": time.monotonic_ns()})
+    except Exception:
+      pass
+    return None
+
+  # -- comma → 手機 --
+  def _frame(self, now: float) -> str:
+    cache = []
+    src = ""
+    age = -1
+    if self.tracks is not None:
+      self.tracks.poll(now)
+      cache = self.tracks.cache
+      src = self.tracks.name or ""
+      if self.tracks.received_at > 0:
+        age = int((now - self.tracks.received_at) * 1000)
+    rows = sorted((p for p in cache if 0.0 < p[1] <= OPVIEW_DEBUG_MAX_D), key=lambda p: p[1])
+    self.seq += 1
+    head = {"type": "opviewDebug", "t": time.monotonic_ns(), "seq": self.seq, "src": src, "n": len(cache), "age": age}
+    base = _dbg_dumps(head)  # ...}
+    # 預留 ,"cut":NN,"pts":[ ... ]} 的長度
+    budget = OPVIEW_DEBUG_MAX_BYTES - len(base) - len(',"cut":999,"pts":[]')
+    parts: list[str] = []
+    used = 0
+    # 舊版欄位（aRel / yvRel / measured）這一筆有沒有任何點讀得到；新版 RadarPoint 讀不到 → 每點只送 4 個值
+    legacy = any(p[4] is not None or p[5] is not None or p[6] is not None for p in rows)
+    for p in rows:
+      row = [p[0], _dbg_num(p[1]), _dbg_num(p[2]), _dbg_num(p[3])]
+      if legacy:
+        m = p[6]
+        row += [_dbg_num(p[4]), _dbg_num(p[5]), None if m is None else int(bool(m))]
+      s = _dbg_dumps(row)
+      if used + len(s) + 1 > budget:
+        break
+      parts.append(s)
+      used += len(s) + 1
+    cut = len(rows) - len(parts)
+    return f'{base[:-1]},"cut":{cut},"pts":[{",".join(parts)}]}}'
+
+  def _stats(self, now: float, buffered: int | None) -> str:
+    trk = None
+    if self.tracks is not None:
+      cache = self.tracks.cache
+      # meas：新版 RadarPoint 沒有 measured（全部是真實點）→ null
+      meas = sum(1 for p in cache if p[6]) if any(p[6] is not None for p in cache) else None
+      trk = {"src": self.tracks.name or "", "n": len(cache), "meas": meas, "rx": self.tracks.dbg_rx}
+      self.tracks.dbg_rx = 0
+    out = {"type": "opviewDebugStats", "t": time.monotonic_ns(), "dt": round(now - self.last_stats, 3),
+           "svc": self.svc, "dbg": [self.dbg_msgs, self.dbg_bytes, self.dbg_drop],
+           "cong": [self.cong_events, self.skipped], "loop": round(self.loop_max * 1000, 1),
+           "buf": buffered, "trk": trk}
+    self.last_stats = now
+    self.svc = {}
+    self.dbg_msgs = self.dbg_bytes = self.dbg_drop = 0
+    self.cong_events = self.skipped = 0
+    self.loop_max = 0.0
+    return _dbg_dumps(out)
+
+  def tick(self, now: float, buffered: int | None = None):
+    """送出迴圈每輪呼叫（約 100 Hz）：10 Hz 點雲、1 Hz 統計"""
+    if self.channel is None:
+      return
+    try:
+      if now - self.last_stats >= OPVIEW_DEBUG_STATS_INTERVAL:
+        self._send(self._stats(now, buffered))
+      if now - self.last_frame >= OPVIEW_DEBUG_INTERVAL:
+        self.last_frame = now
+        if now < self.backoff_until:
+          self.dbg_drop += 1
+        else:
+          self._send(self._frame(now))
+    except Exception:
+      self.logger.exception("opview debug channel failure")
+      self.detach(self.channel)
+
+  def _send(self, text: str) -> bool:
+    raise NotImplementedError
+
+  def detach(self, channel):
+    if channel is not None and self.channel is channel:
+      self.channel = None
+      self.logger.warning("opview debug channel closed")
+
+
+# opview 吉米三線道模型（v2.0.9）：雷達點雲精簡版，附在 radarState 訊息的 "opviewTracks" 欄位送給 opview。
+# 用途：讓手機的相機車種辨識目標對到雷達點，40 m 內的位置改用雷達量到的距離 / 橫向。
+# 只送 measured（雷達程式不設 measured 時全部）、前方 0–45 m 的點（opview 只要求 40 m 內準確，多 5 m 給配對容錯），每點 [trackId, dRel, yRel, vRel]
+# 小數 1 位，10 Hz（radarState 20 Hz，隔一筆附一次）。實測 TSS2 rlog 每筆約 7 點、≤ 0.25 KB → ≤ 20 kbps，
+# 約影像串流（5 Mbps）的 0.4%。舊版 opview 會忽略這個欄位；沒有 radarTracks / liveTracks 的分支不附。
+# 2026-11-27：移植自 opview docs/comma_reference/sunnypilot/webrtcd.py（過濾規則、opviewTracksSrc 診斷相同），
+#   改成 poll() 讀進 cache，主通道 get()（0–45 m）與專業除錯模式（OpviewDebugLink，0–120 m）共用同一個 conflate socket。
+OPVIEW_TRACKS_MAX_D = 45.0
+OPVIEW_TRACKS_INTERVAL = 0.1
+OPVIEW_TRACKS_STALE = 0.5
+
+
+def _opview_measured(p) -> bool | None:
+  """雷達點的 measured；新版 opendbc 把 measured 移進 deprecated 群組（直接讀會 AttributeError）→ None（不提供）"""
+  try:
+    return bool(p.measured)
+  except Exception:
+    return None
+
+
+class OpviewTracksReader:
+  def __init__(self):
+    self.name: str | None = None
+    self.sock = None
+    try:
+      for name in ("radarTracks", "liveTracks"):  # openpilot 新版改名為 radarTracks；dragonpilot 舊 cereal 為 liveTracks
+        if name in SERVICE_LIST:
+          self.name = name
+          break
+      if self.name is not None:
+        self.sock = messaging.sub_sock(self.name, conflate=True)
+    except Exception:
+      self.sock = None
+    self.last_attach = 0.0
+    self.received_at = 0.0
+    self.points: list[list[float]] = []
+    # 最新一筆雷達軌跡的全部點：(trackId, dRel, yRel, vRel, aRel, yvRel, measured)
+    self.cache: list[tuple] = []
+    # 診斷（2026-11-20）：每秒附一次 opviewTracksSrc，opview log 可看出 comma 端有沒有收到雷達軌跡、過濾前後各幾點
+    self.last_info = 0.0
+    self.rx = 0     # 這一秒收到幾筆雷達軌跡訊息（opviewTracksSrc）
+    self.dbg_rx = 0  # 同上，給專業除錯模式的統計（各自歸零）
+    self.raw = 0    # 最近一筆過濾前的點數
+    self.meas = 0   # 最近一筆 measured 的點數
+    self.err = ""
+
+  def info(self) -> dict | None:
+    """每秒一次的診斷資訊；其他時候 None"""
+    now = time.monotonic()
+    if now - self.last_info < 1.0:
+      return None
+    self.last_info = now
+    out = {"src": self.name or "", "rx": self.rx, "raw": self.raw, "meas": self.meas,
+           "age": round(now - self.received_at, 1) if self.received_at > 0 else -1}
+    if self.err:
+      out["err"] = self.err[:80]
+    self.rx = 0
+    return out
+
+  def poll(self, now: float):
+    """讀最新一筆雷達軌跡進 cache（conflate：只留最新）；超過 OPVIEW_TRACKS_STALE 沒有新資料就清空"""
+    if self.sock is None:
+      return
+    try:
+      msg = messaging.recv_one_or_none(self.sock)
+      if msg is not None:
+        pts = getattr(msg, self.name).points
+        self.cache = [(int(p.trackId), float(p.dRel), float(p.yRel), float(p.vRel),
+                       _dbg_attr(p, "aRel"), _dbg_attr(p, "yvRel"), _opview_measured(p)) for p in pts]
+        self.rx += 1
+        self.dbg_rx += 1
+        self.raw = len(self.cache)
+        self.meas = sum(1 for p in self.cache if p[6])
+        self.received_at = now
+        self.err = ""
+    except Exception as e:
+      self.err = repr(e)
+      self.cache = []
+    if now - self.received_at > OPVIEW_TRACKS_STALE:
+      self.cache = []
+
+  def get(self) -> list[list[float]] | None:
+    """None = 這次不附（10 Hz 節流或沒有雷達點資料來源）"""
+    if self.sock is None:
+      return None
+    now = time.monotonic()
+    if now - self.last_attach < OPVIEW_TRACKS_INTERVAL:
+      return None
+    self.last_attach = now
+    self.poll(now)
+    # 有些 opendbc 不提供 measured（Candy0707/opendbc：measured 移進 deprecated 群組、Toyota 雷達程式也不設；
+    # 點本身已用 VALID / 分數 > 50 篩過），整筆沒有任何 measured 時不用 measured 過濾，否則一個點都送不出去
+    use_meas = any(p[6] for p in self.cache)
+    self.points = [[p[0], round(p[1], 1), round(p[2], 1), round(p[3], 1)]
+                   for p in self.cache if (p[6] or not use_meas) and 0.0 < p[1] <= OPVIEW_TRACKS_MAX_D]
+    return self.points
+
+
+# libdatachannel 的 DataChannel 包裝物件在關閉時銷毀可能卡死（teleoprtc stream.py 註解），
+# 與 teleoprtc 相同：除錯通道物件留著不釋放（每次連線一個，很小）。
+_OPVIEW_DEBUG_RETAINED: list = []
+
+
+class OpviewDebugLink(OpviewDebugLinkBase):
+  """libdatachannel 版（sunnypilot / upstream 新版 webrtcd）：
+  通道的回呼在 libdatachannel 的執行緒上，一律轉到 asyncio 迴圈處理。
+  壅塞只看 send() 的回傳值（False = 進了緩衝佇列），刻意不呼叫 buffered_amount()（見 CerealOutgoingMessageProxy 註解）。"""
+
+  def attach(self, channel, loop: asyncio.AbstractEventLoop):
+    """由 libdatachannel 執行緒呼叫（on_data_channel）"""
+    _OPVIEW_DEBUG_RETAINED.append(channel)
+
+    def on_message(message):
+      loop.call_soon_threadsafe(self._on_message, channel, message)
+
+    def on_closed():
+      loop.call_soon_threadsafe(self.detach, channel)
+
+    channel.on_message(on_message)
+    channel.on_closed(on_closed)
+    loop.call_soon_threadsafe(self._set_channel, channel)
+
+  def _set_channel(self, channel):
+    self._reset()
+    self.channel = channel
+    self.logger.warning("opview debug channel attached")
+
+  def _on_message(self, channel, message):
+    if channel is not self.channel:
+      return
+    reply = self._pong(message)
+    if reply is not None:
+      self._send(reply)
+
+  def _send(self, text: str) -> bool:
+    ch = self.channel
+    if ch is None:
+      return False
+    try:
+      if not ch.is_open():
+        return False
+      queued = ch.send(text) is False
+    except Exception:
+      self.detach(ch)
+      return False
+    self.dbg_msgs += 1
+    self.dbg_bytes += len(text)
+    if queued:
+      # 已進入緩衝佇列（仍會送出）：暫停點雲 OPVIEW_DEBUG_BACKOFF_S，避免佇列越積越多
+      self.backoff_until = time.monotonic() + OPVIEW_DEBUG_BACKOFF_S
+    return True
+
+
 class CerealOutgoingMessageProxy(AsyncTaskRunner):
-  def __init__(self, services: list[str], enabled: bool = True):
+  # opview：data channel 是可靠、有序的，送出佇列沒有上限。網路（例如 iPhone 熱點）或 comma CPU 跟不上時，
+  # 舊訊息會在佇列裡越積越多、照順序晚到。
+  # 壅塞判斷只用 send() 的回傳值（libdatachannel：True = 立即送出，False = 進了緩衝佇列）。
+  # 刻意「不」呼叫 buffered_amount()：實車 rlog 顯示呼叫它之後 webrtcd 事件迴圈卡死（連線後 CPU 不再增加、
+  # 資料 0 筆、影像只有 1 張），約 12 秒後 SIGSEGV（exitCode -11）。上游 webrtcd / teleoprtc 也只用 is_open() 與 send()。
+  # send() 回 False 後暫停 OPVIEW_BACKOFF_S（SubMaster 只留最新值，恢復後送的就是最新資料）。
+  OPVIEW_BACKOFF_S = 0.2
+  # opview 只在 modelV2（20 Hz）到達時重畫：carState、controlsState 這類 100 Hz 的 service 多送也看不到，
+  # 每個 service 最多約 33 Hz（間隔 30 ms）。20 Hz 以下的 service（含 modelV2）不受影響。
+  OPVIEW_MIN_SEND_INTERVAL = 0.03
+
+  def __init__(self, services: list[str], enabled: bool = True, opview: bool = False):
     super().__init__()
     self.services = list(services)
     self.sm = messaging.SubMaster(self.services)
     self.channels = []
     self._enabled = enabled
+    self.opview = opview
+    self.out_names = opview_outgoing_names(self.services) if opview else {}
+    self.skipped = 0
+    self.congested_since: float | None = None
+    self.backoff_until = 0.0
+    self.last_sent: dict[str, float] = {}
+    self.auto_hold = OpviewAutoHoldReader() if opview else None
+    self.tracks = OpviewTracksReader() if opview else None
+    # opview 專業除錯模式（opview 開了除錯通道才有作用）
+    self.debug = OpviewDebugLink(self.tracks) if opview else None
 
   def add_channel(self, channel):
     self.channels.append(channel)
@@ -97,6 +743,9 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
   def update(self):
     # this is blocking in async context...
     self.sm.update(0)
+    if self.opview:
+      self._update_opview()
+      return
     for service, updated in self.sm.updated.items():
       if not updated:
         continue
@@ -108,6 +757,67 @@ class CerealOutgoingMessageProxy(AsyncTaskRunner):
         if not channel.is_open():
           continue
         channel.send(encoded_msg)
+
+  def _update_opview(self):
+    now = time.monotonic()
+    debug = self.debug
+    if debug is not None and debug.active:
+      debug.note_loop(now)
+      debug.tick(now)
+    open_channels = [ch for ch in self.channels if ch.is_open()]
+    if not open_channels:
+      return
+    n_updated = sum(1 for updated in self.sm.updated.values() if updated)
+    if now < self.backoff_until:
+      self.skipped += n_updated
+      if debug is not None:
+        debug.note_skipped(n_updated)
+      return
+    if self.congested_since is not None:
+      self.logger.warning("opview data channel recovered after %.1fs, dropped %d messages", now - self.congested_since, self.skipped)
+      self.congested_since = None
+      self.skipped = 0
+
+    for service, updated in self.sm.updated.items():
+      if not updated:
+        continue
+      if now - self.last_sent.get(service, 0.0) < self.OPVIEW_MIN_SEND_INTERVAL:
+        continue
+      self.last_sent[service] = now
+      out_name = self.out_names.get(service, service)
+      if service == "modelV2":
+        msg_dict = compact_model_v2(self.sm[service])
+      elif out_name in OPVIEW_COMPACT_FIELDS:
+        msg_dict = compact_fields(self.sm[service], OPVIEW_COMPACT_FIELDS[out_name])
+        if out_name == "carState" and self.auto_hold is not None:
+          msg_dict["opviewAutoHold"] = self.auto_hold.get()
+        elif out_name == "radarState" and self.tracks is not None:
+          tracks = self.tracks.get()
+          if tracks is not None:
+            msg_dict["opviewTracks"] = tracks
+          info = self.tracks.info()
+          if info is not None:
+            msg_dict["opviewTracksSrc"] = info
+      else:
+        msg_dict = self.to_json(self.sm[service])
+      mono_time, valid = self.sm.logMonoTime[service], self.sm.valid[service]
+      outgoing_msg = {"type": out_name, "logMonoTime": mono_time, "valid": valid, "data": msg_dict}
+      encoded_msg = json.dumps(outgoing_msg).encode()
+      sent_now = True
+      for channel in open_channels:
+        if channel.send(encoded_msg) is False:
+          sent_now = False
+      if debug is not None:
+        debug.count_main(out_name, len(encoded_msg))
+      if not sent_now:
+        # 已進入緩衝佇列：這一筆仍會送達，之後暫停一下讓佇列消化
+        self.backoff_until = now + self.OPVIEW_BACKOFF_S
+        if self.congested_since is None:
+          self.congested_since = now
+          self.logger.warning("opview data channel congested, backing off %.1fs", self.OPVIEW_BACKOFF_S)
+          if debug is not None:
+            debug.note_congested()
+        return
 
   async def run(self):
     while True:
@@ -227,13 +937,17 @@ class LivestreamBitrateController(AsyncTaskRunner):
 class StreamSession:
   shared_pub_master = DynamicPubMaster([])
 
-  def __init__(self, body: StreamRequestBody):
+  def __init__(self, body: StreamRequestBody, is_opview: bool = False):
     from openpilot.system.webrtc.device.video import LiveStreamVideoStreamTrack
     from teleoprtc.builder import WebRTCAnswerBuilder
 
     self.identifier = str(uuid.uuid4())
     self.params = Params()
-    builder = WebRTCAnswerBuilder(body.sdp, bind_address=_default_route_ip())
+    self.is_opview = is_opview
+    # opview：不綁定預設路由介面。comma 同時有 LTE 與 WiFi 時預設路由可能是 LTE，
+    # 綁上去 ICE 只會產生 LTE 位址，手機熱點 / 區網的 opview 就連不到。
+    bind_address = None if is_opview else _default_route_ip()
+    builder = WebRTCAnswerBuilder(body.sdp, bind_address=bind_address)
 
     self.enabled = body.enabled
     self.video_tracks = []
@@ -252,17 +966,42 @@ class StreamSession:
     if len(body.bridge_services_in) > 0:
       self.incoming_bridge = CerealIncomingMessageProxy(self.shared_pub_master)
     if len(body.bridge_services_out) > 0:
-      self.outgoing_bridge = CerealOutgoingMessageProxy(body.bridge_services_out, self.enabled)
+      self.outgoing_bridge = CerealOutgoingMessageProxy(body.bridge_services_out, self.enabled, opview=is_opview)
     self.bitrate_controller = LivestreamBitrateController(self.stream.get_receiver_report_stats, self.params, self.enabled)
+    if self.outgoing_bridge is not None and self.outgoing_bridge.debug is not None:
+      self._hook_opview_debug_channel(self.outgoing_bridge.debug)
 
     self.run_task: asyncio.Task | None = None
     self._cleanup_lock = asyncio.Lock()
     self._cleanup_done = False
     self.logger = logging.getLogger("webrtcd")
     cloudlog.warning(
-      "New stream session (%s), video cameras %s, video enabled %s, incoming services %s, outgoing services %s",
-      self.identifier, [t.id for t in self.video_tracks], body.enabled, body.bridge_services_in, body.bridge_services_out,
+      "New stream session (%s), video cameras %s, video enabled %s, incoming services %s, outgoing services %s, opview %s",
+      self.identifier, [t.id for t in self.video_tracks], body.enabled, body.bridge_services_in, body.bridge_services_out, is_opview,
     )
+
+  def _hook_opview_debug_channel(self, debug: 'OpviewDebugLink'):
+    """opview 專業除錯模式：手機另外開的 "opviewDebug" 通道。
+    teleoprtc 只接 label "data" 的通道，其他通道被忽略；libdatachannel 的 on_data_channel 只能設一個回呼，
+    所以包一層：opviewDebug 交給 OpviewDebugLink，其他照舊交給 teleoprtc 原本的處理（直接覆蓋會讓主通道失效）。"""
+    try:
+      loop = asyncio.get_running_loop()
+    except RuntimeError:
+      logging.getLogger("webrtcd").warning("opview debug channel disabled: no running event loop")
+      return
+    teleoprtc_handler = self.stream._on_incoming_datachannel
+
+    def on_data_channel(channel):
+      try:
+        label = channel.label()
+      except Exception:
+        label = ""
+      if label == OPVIEW_DEBUG_LABEL:
+        debug.attach(channel, loop)
+      else:
+        teleoprtc_handler(channel)
+
+    self.stream.peer_connection.on_data_channel(on_data_channel)
 
   def start(self):
     self.run_task = asyncio.create_task(self.run())
@@ -352,7 +1091,8 @@ class StreamSession:
 
       with cloudlog.ctx(session_id=self.identifier):
         cloudlog.warning("webrtcd.session.connected")
-      if self.is_body:
+      if self.is_body or self.is_opview:
+        # opview 是整趟行車都開著的儀表，不套用 300 秒 session 逾時（同 body）
         await self.run_body_session()
       else:
         await self.run_normal_session()
@@ -408,12 +1148,19 @@ def _text_response(text: str, status: int = 200) -> tuple[int, bytes, str]:
   return (status, text.encode(), "text/plain; charset=utf-8")
 
 
-async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: str) -> tuple[int, bytes, str]:
+async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: str,
+                            remote_is_local: bool = True) -> tuple[int, bytes, str]:
   if content_type != "application/json":
     return _json_response({"error": "unsupported media type"}, status=415)
 
   stream_dict = state.streams
-  body = StreamRequestBody(**json.loads(raw_body))
+  try:
+    body, is_opview = parse_stream_request(json.loads(raw_body), remote_is_local, allow_driver_camera=not privacy_mode())
+  except json.JSONDecodeError:
+    return _json_response({"error": "bad request"}, status=400)
+  except StreamRequestError as e:
+    logging.getLogger("webrtcd").warning("rejected stream request: %s", e.message)
+    return _json_response({"error": e.error, "message": e.message}, status=e.status)
 
   async with state.stream_lock:
     # don't remove existing connection on prewarm request
@@ -425,13 +1172,15 @@ async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: s
       if s.run_task and not s.run_task.done():
         try:
           ch = s.stream.get_messaging_channel()
-          ch.send(json.dumps({"type": "disconnect", "data": "Another device has connected, closing this session."}))
+          # opview 認的是 connectionReplaced（收到後停止自動重連，避免兩台裝置互搶）；其他 client 維持 upstream 的 disconnect
+          msg_type = "connectionReplaced" if s.is_opview else "disconnect"
+          ch.send(json.dumps({"type": msg_type, "data": "Another device has connected, closing this session."}))
         except Exception:
           pass
       await s.stop()
       stream_dict.pop(sid, None)
 
-    session = StreamSession(body)
+    session = StreamSession(body, is_opview)
     stream_dict[session.identifier] = session
     try:
       answer = await asyncio.wait_for(session.get_answer(), timeout=30)
@@ -460,6 +1209,7 @@ async def handle_get_stream(state: ServerState, raw_body: bytes, content_type: s
     def remove_finished_session(_: asyncio.Task) -> None:
       stream_dict.pop(session.identifier, None)
       schedule_teardown(state)
+      schedule_memory_release(state)
 
     session.run_task.add_done_callback(remove_finished_session)
 
@@ -521,12 +1271,22 @@ class WebrtcdHandler(BaseHTTPRequestHandler):
   def _run(self, coro) -> tuple[int, bytes, str]:
     return asyncio.run_coroutine_threadsafe(coro, self.server.loop).result()
 
+  def _remote_is_local(self) -> bool:
+    try:
+      return ipaddress.ip_address(self.client_address[0]).is_loopback
+    except ValueError:
+      return False
+
   def _dispatch_request(self) -> None:
     parsed = urlparse(self.path)
     allowed = self._routes.get(parsed.path)
+    remote_is_local = self._remote_is_local()
 
     try:
-      if allowed is None:
+      if not remote_is_local and not self.server.params.get_bool(OPVIEW_PARAM):
+        # 只有開啟 opview 時才接受區網連線；未開啟時與 upstream 一樣只服務 localhost（sunnylink / athena）
+        result = _json_response({"error": "forbidden", "message": "LAN access requires opview to be enabled"}, status=403)
+      elif allowed is None:
         result = _json_response({"error": "not found"}, status=404)
       elif self.command not in allowed:
         result = _json_response({"error": "method not allowed"}, status=405)
@@ -534,7 +1294,7 @@ class WebrtcdHandler(BaseHTTPRequestHandler):
         services = parse_qs(parsed.query).get("services", [""])[0]
         result = self._run(handle_get_schema(self.server.state, services))
       elif parsed.path == "/stream":
-        result = self._run(handle_get_stream(self.server.state, self._read_body(), self.headers.get_content_type()))
+        result = self._run(handle_get_stream(self.server.state, self._read_body(), self.headers.get_content_type(), remote_is_local))
       else:  # /notify
         try:
           payload = json.loads(self._read_body())
@@ -579,6 +1339,7 @@ class WebrtcdHTTPServer(ThreadingHTTPServer):
   allow_reuse_address = True
   state: ServerState
   loop: asyncio.AbstractEventLoop
+  params: Params
 
 
 async def _shutdown(server: WebrtcdHTTPServer, state: ServerState, loop: asyncio.AbstractEventLoop) -> None:
@@ -596,8 +1357,11 @@ def prewarm_stream_session_imports() -> None:
   assert WebRTCAnswerBuilder
 
 
-def webrtcd_thread(host: str, port: int):
+def webrtcd_thread(host: str, port: int, arenas_limited: bool | None = None):
   logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
+  if arenas_limited is not None:
+    logging.getLogger("webrtcd").info("malloc arena limit %d: %s", WEBRTCD_MALLOC_ARENAS,
+                                      "on" if arenas_limited else "unavailable (not glibc)")
   prewarm_start = time.monotonic()
   prewarm_stream_session_imports()
   prewarm_end = time.monotonic()
@@ -610,6 +1374,7 @@ def webrtcd_thread(host: str, port: int):
   server = WebrtcdHTTPServer((host, port), WebrtcdHandler)
   server.state = state
   server.loop = loop
+  server.params = Params()
 
   # serve HTTP on a daemon thread so the asyncio loop can own the main thread
   http_thread = threading.Thread(target=server.serve_forever, name="webrtcd-http", daemon=True)
@@ -636,12 +1401,15 @@ def webrtcd_thread(host: str, port: int):
 
 
 def main():
+  # 必須在 webrtcd_thread 建立 HTTP / asyncio / libdatachannel 執行緒之前
+  arenas_limited = limit_malloc_arenas()
   parser = argparse.ArgumentParser(description="WebRTC daemon")
-  parser.add_argument("--host", type=str, default="127.0.0.1", help="Host to listen on")
+  # opview：手機在區網直接連 :5001，所以聽所有介面；非 localhost 的請求在 _dispatch_request 依 OpviewEnabled 擋下
+  parser.add_argument("--host", type=str, default="0.0.0.0", help="Host to listen on")
   parser.add_argument("--port", type=int, default=5001, help="Port to listen on")
   args = parser.parse_args()
 
-  webrtcd_thread(args.host, args.port)
+  webrtcd_thread(args.host, args.port, arenas_limited)
 
 
 if __name__=="__main__":

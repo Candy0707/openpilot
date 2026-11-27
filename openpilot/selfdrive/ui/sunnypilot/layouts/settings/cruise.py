@@ -100,10 +100,13 @@ class CruiseLayout(Widget):
       button_width=380,
     )
 
-    self.leaddeparturesmoother_toggle = toggle_item_sp(
-      title=tr("Enable LeadDepartureSmoother Control"),
-      description=tr(""),
-      param="LeadDepartureSmoother")
+    self.leaddeparturesmoother_toggle = multiple_button_item_sp(
+      title=lambda: tr("LeadDepartureSmoother Control"),
+      description=tr("Off: disabled. On: always active. Low Speed: active below 50 km/h, released above 60 km/h."),
+      buttons=[lambda: tr("Off"), lambda: tr("On"), lambda: tr("Low Speed")],
+      param="LeadDepartureSmoother",
+      button_width=300,
+    )
 
     self.dynamicturnspeedcontroller_toggle = toggle_item_sp(
       title=tr("Enable Dynamic Turn Speed Controller"),

@@ -113,7 +113,8 @@ const EncoderInfo main_wide_road_encoder_info = {
 const EncoderInfo main_cabin_encoder_info = {
   .publish_name = "cabinEncodeData",
   .filename = "dcamera.hevc",
-  .record = Params().getBool("RecordFront"),
+  // 隱私模式：不寫車內鏡頭影片（encoderd 每次發動時啟動，於啟動時讀取）
+  .record = Params().getBool("RecordFront") && !Params().getBool("PrivacyMode"),
   .get_settings = [](int in_width){return EncoderSettings::MainEncoderSettings(in_width);},
   INIT_ENCODE_FUNCTIONS(CabinEncode),
 };
@@ -152,7 +153,8 @@ const EncoderInfo stream_cabin_encoder_info = {
 const EncoderInfo qcam_encoder_info = {
   .publish_name = "qNarrowRoadEncodeData",
   .filename = "qcamera.ts",
-  .include_audio = Params().getBool("RecordAudio"),
+  // 隱私模式：qcamera 不混入車內錄音
+  .include_audio = Params().getBool("RecordAudio") && !Params().getBool("PrivacyMode"),
   .frame_width = 526,
   .frame_height = 330,
   .get_settings = [](int){return EncoderSettings::QcamEncoderSettings();},

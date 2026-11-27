@@ -48,11 +48,25 @@ class DeveloperLayoutSP(DeveloperLayout):
                                                      "and even make some edits on some files from your browser. " +
                                                      "Requires you to connect to your comma locally via its IP address."), param="EnableCopyparty")
 
+    self.opview_toggle = toggle_item_sp(tr("Enable opview"),
+                                        tr("Streams the road camera and driving data to the opview App (Android) on the same network " +
+                                           "(e.g. your phone hotspot). Also lets opview read and set the vehicle while offroad."),
+                                        param="OpviewEnabled")
+
+    self.privacy_toggle = toggle_item_sp(tr("Privacy Mode"),
+                                         tr("Blocks comma.ai cloud connections (remote access, uploads, statistics) " +
+                                            "and sunnylink's remote file, video and location access. " +
+                                            "Road video is still recorded on the device, but driver camera video and audio are not, " +
+                                            "the driver camera is not analyzed and driver monitoring is disabled. " +
+                                            "sunnylink settings still work. Reboot to apply."),
+                                         param="PrivacyMode")
+
     self.prebuilt_toggle = toggle_item_sp(tr("Quickboot Mode"), "", param="QuickBootToggle", callback=self._on_prebuilt_toggled)
 
     self.error_log_btn = button_item(tr("Error Log"), tr("VIEW"), tr("View the error log for sunnypilot crashes."), callback=self._on_error_log_clicked)
 
-    self.items: list = [self.show_advanced_controls, self.enable_github_runner_toggle, self.enable_copyparty_toggle, self.prebuilt_toggle, self.error_log_btn,]
+    self.items: list = [self.show_advanced_controls, self.enable_github_runner_toggle, self.enable_copyparty_toggle, self.opview_toggle,
+                        self.privacy_toggle, self.prebuilt_toggle, self.error_log_btn,]
 
   @staticmethod
   def _on_prebuilt_toggled(state):

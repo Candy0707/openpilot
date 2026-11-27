@@ -7,6 +7,11 @@ PARAM_REFRESH_SEC = 2.0
 MIN_SPEED_MS = 0.1
 # [安全鎖 4] 最高車速限制，約 45 km/h。超過此速度的 90 度大轉向屬危險動作，HTD 拒絕作動
 MAX_SPEED_MS = 12.5
+# [安全鎖 6] 恢復轉速鎖：方向盤轉速（含放手後自動回正）高於此值時不恢復自動轉向。
+# Toyota EPS 在轉速 > 100 deg/s 且有扭力請求約 0.17 s 後報 LKA_STATE 21/9（暫時故障，166 段實測）。
+RESUME_RATE_LOCK_DEG_S = 50.0
+# 轉速需連續低於門檻此秒數才允許恢復，避免回正過程中轉速短暫下探就恢復
+RESUME_RATE_STABLE_S = 0.2
 
 class HTDState(Enum):
   INACTIVE = auto()
@@ -41,6 +46,8 @@ class HumanTurnDetection:
     self._last_angle = 0.0
     self._last_torque = 0.0
     self._last_pressed = False
+    self._last_rate = 0.0
+    self._rate_ok_since = 0.0
     self._trigger_start_time = 0.0
 
     # 紀錄這一次彎道的最大角度
@@ -61,13 +68,16 @@ class HumanTurnDetection:
   def _transition(self, new_state: HTDState, reason: str) -> None:
     if new_state == self._state:
       return
+    self._rate_ok_since = 0.0
     self._state = new_state
     self._state_change_time = time.monotonic()
 
   def update(
-    self, lat_active: bool, cruise_enabled: bool, steering_angle_deg: float, steering_torque_nm: float, v_ego: float, steering_pressed: bool = False
+    self, lat_active: bool, cruise_enabled: bool, steering_angle_deg: float, steering_torque_nm: float, v_ego: float, steering_pressed: bool = False,
+    steering_rate_deg: float = 0.0
   ) -> tuple[bool, HTDState]:
     self._read_params()
+    self._last_rate = abs(steering_rate_deg)
 
     # 儲存帶正負號的原始數值
     self._last_angle_raw = steering_angle_deg
@@ -120,6 +130,17 @@ class HumanTurnDetection:
       if self._last_angle > self._resume_angle_lock_deg:
         # 維持在 RAMPING 狀態，持續回傳 False 不接管，直到角度回正進入安全範圍
         return False, self._state
+
+      # [安全鎖 6] 恢復轉速鎖：方向盤仍在快速回正時不恢復，轉速需連續 RESUME_RATE_STABLE_S 低於門檻
+      now = time.monotonic()
+      if self._last_rate > RESUME_RATE_LOCK_DEG_S:
+        self._rate_ok_since = 0.0
+        return False, self._state
+      if self._rate_ok_since == 0.0:
+        self._rate_ok_since = now
+      if now - self._rate_ok_since < RESUME_RATE_STABLE_S:
+        return False, self._state
+      self._rate_ok_since = 0.0
 
       self._max_turn_angle = 0.0  # 徹底恢復前，重置角度紀錄
       self._transition(HTDState.INACTIVE, "resume")

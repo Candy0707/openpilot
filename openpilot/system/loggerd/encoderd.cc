@@ -150,8 +150,31 @@ void encoder_thread(EncoderdState *s, const LogCameraInfo &cam_info) {
   }
 }
 
+// opview（stream_encoderd 只為 opview 而跑時）：opview 只看道路 / 廣角鏡頭（實驗模式低速切廣角），
+// 不編碼車內鏡頭，省一個硬體編碼器的緩衝區與 CPU。sunnylink / athena 開始 livestream（IsLiveStreaming）時
+// 才補開車內鏡頭編碼器（manager 不會重啟已在跑的 stream_encoderd，所以由這裡自己補）。
+// 與上游不同（刻意）：上游 --stream 一律編碼三顆鏡頭。
+static bool stream_for_opview_only() {
+  Params params;
+  return params.getBool("OpviewEnabled") && !params.getBool("IsLiveStreaming");
+}
+
+// 延後啟動的車內鏡頭編碼器：等到 IsLiveStreaming 才開始。用自己的 EncoderdState（只有自己一個），
+// 不參與道路 / 廣角已完成的啟動同步。
+void deferred_cabin_encoder_thread(LogCameraInfo cam_info) {
+  Params params;
+  while (!do_exit && !params.getBool("IsLiveStreaming")) {
+    util::sleep_for(500);
+  }
+  if (do_exit) return;
+  LOGW("livestream started: enabling %s", cam_info.thread_name);
+  EncoderdState s;
+  s.max_waiting = 1;
+  encoder_thread(&s, cam_info);
+}
+
 template <size_t N>
-void encoderd_thread(const LogCameraInfo (&cameras)[N]) {
+void encoderd_thread(const LogCameraInfo (&cameras)[N], bool defer_cabin = false) {
   EncoderdState s;
 
   std::set<VisionStreamType> streams;
@@ -169,6 +192,10 @@ void encoderd_thread(const LogCameraInfo (&cameras)[N]) {
       auto it = std::find_if(std::begin(cameras), std::end(cameras),
                              [stream](auto &cam) { return cam.stream_type == stream; });
       assert(it != std::end(cameras));
+      if (defer_cabin && stream == VISION_STREAM_CABIN) {
+        encoder_threads.push_back(std::thread(deferred_cabin_encoder_thread, *it));
+        continue;
+      }
       ++s.max_waiting;
       encoder_threads.push_back(std::thread(encoder_thread, &s, *it));
     }
@@ -219,7 +246,9 @@ int main(int argc, char* argv[]) {
   if (argc > 1) {
     std::string arg1(argv[1]);
     if (arg1 == "--stream") {
-      encoderd_thread(stream_cameras_logged);
+      const bool opview_only = stream_for_opview_only();
+      LOGW("stream encoderd: %s", opview_only ? "opview only (road + wide road, cabin deferred until livestream)" : "all cameras");
+      encoderd_thread(stream_cameras_logged, opview_only);
     } else {
       LOGE("Argument '%s' is not supported", arg1.c_str());
     }

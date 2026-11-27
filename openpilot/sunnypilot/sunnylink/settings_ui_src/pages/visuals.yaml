@@ -60,8 +60,6 @@ sections:
       label: All
     visibility:
     - $ref: '#/macros/hide_on_mici'
-    enablement:
-    - $ref: '#/macros/longitudinal'
 - id: developer_ui
   title: Developer UI Info
   description: Speedometer and debug display options
@@ -81,6 +79,17 @@ sections:
       label: Right
     - value: 3
       label: Right & Bottom
+  - key: RadarUIInfo
+    widget: option
+    title: Radar Info UI
+    description: Display Radar Points and Info.
+    options:
+    - value: 0
+      label: 'Off'
+    - value: 1
+      label: Point
+    - value: 2
+      label: Info
   - key: TrueVEgoUI
     widget: toggle
     title: 'Speedometer: Always Display True Speed'

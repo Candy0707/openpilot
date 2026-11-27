@@ -3,6 +3,7 @@ import operator
 import platform
 
 from opendbc.car.structs import car
+from openpilot.sunnypilot.privacy import privacy_mode_onroad
 from openpilot.cereal import custom
 from openpilot.common.params import Params
 from openpilot.common.hardware import PC, COMMA_HARDWARE
@@ -71,6 +72,18 @@ def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
 def use_copyparty(started, params, CP: car.CarParams) -> bool:
   return bool(params.get_bool("EnableCopyparty"))
 
+def dm_vision(started: bool, params: Params, CP: car.CarParams) -> bool:
+  # 隱私模式：不分析車內鏡頭（dmonitoringd 改用方向盤觸碰監控）
+  return driverview(started, params, CP) and not privacy_mode_onroad(started, params)
+
+def opview(started: bool, params: Params, CP: car.CarParams) -> bool:
+  # opview（手機 App）：行車中提供影像 + cereal 資料（stream_encoderd + webrtcd :5001）
+  return started and params.get_bool("OpviewEnabled")
+
+def opview_enabled(started: bool, params: Params, CP: car.CarParams) -> bool:
+  # opviewd（:5088 車型讀寫 / offroad 狀態）：開啟 opview 後 offroad 也要能用
+  return params.get_bool("OpviewEnabled")
+
 def sunnylink_ready_shim(started, params, CP: car.CarParams) -> bool:
   """Shim for sunnylink_ready to match the process manager signature."""
   return sunnylink_ready(params)
@@ -110,8 +123,9 @@ procs = [
   DaemonProcess("manage_athenad", "openpilot.system.athena.manage_athenad", "AthenadPid"),
 
   NativeProcess("loggerd", "openpilot/system/loggerd", ["./loggerd"], logging),
+  # 隱私模式仍錄道路 / 廣角 / qcamera；車內影片與錄音由 loggerd.h / loggerd.cc 依 PrivacyMode 關閉
   NativeProcess("encoderd", "openpilot/system/loggerd", ["./encoderd"], only_onroad),
-  NativeProcess("stream_encoderd", "openpilot/system/loggerd", ["./encoderd", "--stream"], or_(livestream, notcar)),
+  NativeProcess("stream_encoderd", "openpilot/system/loggerd", ["./encoderd", "--stream"], or_(livestream, or_(notcar, opview))),
   PythonProcess("logmessaged", "openpilot.system.logmessaged", always_run),
 
   NativeProcess("camerad", "openpilot/system/camerad", ["./camerad"], or_(driverview, livestream), enabled=not WEBCAM),
@@ -122,7 +136,7 @@ procs = [
   PythonProcess("timed", "openpilot.system.timed", always_run, enabled=not PC),
 
   PythonProcess("modeld", "openpilot.selfdrive.modeld.modeld", and_(only_onroad, is_stock_model)),
-  PythonProcess("dmonitoringmodeld", "openpilot.selfdrive.modeld.dmonitoringmodeld", driverview, enabled=(WEBCAM or not PC)),
+  PythonProcess("dmonitoringmodeld", "openpilot.selfdrive.modeld.dmonitoringmodeld", dm_vision, enabled=(WEBCAM or not PC)),
 
   PythonProcess("sensord", "openpilot.system.sensord.sensord", only_onroad, enabled=not PC),
   PythonProcess("ui", "openpilot.selfdrive.ui.ui", always_run),
@@ -156,7 +170,7 @@ procs = [
 
   # debug procs
   NativeProcess("bridge", "openpilot/cereal/messaging", ["./bridge"], notcar),
-  PythonProcess("webrtcd", "openpilot.system.webrtc.webrtcd", or_(livestream, notcar)),
+  PythonProcess("webrtcd", "openpilot.system.webrtc.webrtcd", or_(livestream, or_(notcar, opview))),
   PythonProcess("joystick", "openpilot.tools.joystick.joystick_control", and_(joystick, iscar)),
 
   # sunnylink <3
@@ -177,6 +191,9 @@ procs += [
   # mapd
   NativeProcess("mapd", Paths.mapd_root(), ["bash", "-c", f"{MAPD_PATH} > /dev/null 2>&1"], mapd_ready),
   PythonProcess("mapd_manager", "openpilot.sunnypilot.mapd.mapd_manager", always_run),
+
+  # opview
+  PythonProcess("opviewd", "openpilot.sunnypilot.opview.opviewd", opview_enabled),
 
   # locationd
   NativeProcess("locationd_llk", "openpilot/sunnypilot/selfdrive/locationd", ["./locationd"], only_onroad),

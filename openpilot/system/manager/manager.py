@@ -21,6 +21,7 @@ from openpilot.common.version import get_build_metadata
 from openpilot.common.hardware.hw import Paths
 
 from openpilot.sunnypilot.system.params_migration import run_migration
+from openpilot.sunnypilot.privacy import privacy_mode, stop_athenad_daemon, PRIVACY_BLOCKED_PROCS
 
 
 def manager_init() -> None:
@@ -80,6 +81,9 @@ def manager_init() -> None:
   params.put("HardwareSerial", serial, block=True)
 
   # set dongle id
+  # 隱私模式也照常取得裝置 ID：sunnylink 註冊需要 DongleId（sunnylink/api.py register_device）。
+  # register() 只在本機完全沒有 ID（DongleId 參數與 /persist/comma/dongle_id 都沒有）時才連 comma（v2/pilotauth），
+  # 其餘情況只讀本機、不連網路。comma_connect 在隱私模式只放行這個端點。
   reg_res = register(show_spinner=True)
   if reg_res:
     dongle_id = reg_res
@@ -124,6 +128,10 @@ def manager_thread() -> None:
   ignore: list[str] = []
   if params.get("DongleId") in (None, UNREGISTERED_DONGLE_ID):
     ignore += ["manage_athenad", "uploader"]
+  if privacy_mode(params):
+    ignore += list(PRIVACY_BLOCKED_PROCS)
+    stop_athenad_daemon(params)
+    cloudlog.warning(f"privacy mode: not running {PRIVACY_BLOCKED_PROCS}")
   if os.getenv("NOBOARD") is not None:
     ignore.append("pandad")
   ignore += [x for x in os.getenv("BLOCK", "").split(",") if len(x) > 0]

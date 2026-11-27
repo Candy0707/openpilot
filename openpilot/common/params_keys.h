@@ -145,7 +145,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"AccelPersonality", {PERSISTENT | BACKUP, INT, std::to_string(static_cast<int>(cereal::LongitudinalPlanSP::AccelerationPersonality::NORMAL))}},
     {"AccelPersonalityEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"DynamicTurnSpeedController", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"LeadDepartureSmoother", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"LeadDepartureSmoother", {PERSISTENT | BACKUP, INT, "0"}},  // 0 關閉 / 1 開啟 / 2 低速用（<50 km/h 開、>60 km/h 關）
     {"PathDeviationMonitor", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"htd_enabled", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"htd_turn_angle_threshold", {PERSISTENT | BACKUP, INT, "90"}},
@@ -189,6 +189,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"OnroadScreenOffTimer", {PERSISTENT | BACKUP, INT, "15"}},
     {"OnroadScreenOffTimerMigrated", {PERSISTENT | BACKUP, STRING, "0.0"}},
     {"OnroadUploads", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"OpviewEnabled", {PERSISTENT | BACKUP, BOOL, "0"}},  // opview: phone viewer over LAN (webrtcd :5001, opviewd :5088)
+    {"PrivacyMode", {PERSISTENT, BOOL, "0"}},  // block comma.ai cloud + sunnylink remote file/video/location access
     {"QuickBootToggle", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"QuietMode", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"RadarUIInfo", {PERSISTENT | BACKUP, INT, "0"}},
@@ -250,6 +252,10 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"ToyotaEnforceStockLongitudinal", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"ToyotaStopAndGoHack", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"ToyotaEnableAutoHold", {PERSISTENT | BACKUP, INT, "0"}},
+    // opview Auto Hold 按鈕：暫停旗標（opview 經 opviewd 寫入；每次發動重置為「恢復」）
+    {"OpviewAutoHoldPaused", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION, BOOL, "0"}},
+    // opview Auto Hold 按鈕：card 回報的實際狀態 bit0 = 可用、bit1 = 已暫停、bit2 = 保持中（webrtcd 轉給 opview）
+    {"OpviewAutoHoldState", {CLEAR_ON_MANAGER_START | CLEAR_ON_ONROAD_TRANSITION | CLEAR_ON_OFFROAD_TRANSITION, INT, "0"}},
 
 
     {"DynamicExperimentalControl", {PERSISTENT | BACKUP, BOOL, "0"}},

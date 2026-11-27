@@ -34,6 +34,7 @@ from openpilot.sunnypilot.sunnylink.api import SunnylinkApi
 from openpilot.sunnypilot.sunnylink.utils import sunnylink_need_register, sunnylink_ready, get_param_as_byte, save_param_from_base64_encoded_string
 from openpilot.sunnypilot.sunnylink.capabilities import generate_capabilities, CAPABILITY_LABELS
 from openpilot.sunnypilot.sunnylink.tools.generate_settings_schema import generate_schema
+from openpilot.sunnypilot.privacy import privacy_mode, PRIVACY_PARAM, SUNNYLINK_BLOCKED_METHODS, SUNNYLINK_BLOCKED_READ_PARAMS
 
 SUNNYLINK_ATHENA_HOST = os.getenv('SUNNYLINK_ATHENA_HOST', 'wss://athena.sunnylink.ai')
 HANDLER_THREADS = int(os.getenv('HANDLER_THREADS', "4"))
@@ -55,6 +56,7 @@ BLOCKED_PARAMS = {
   "HasAcceptedTermsSP",
   "OnroadCycleRequested",      # Prevent remote cycle trigger
   "ParamsVersion",         # Device-managed version counter
+  PRIVACY_PARAM,           # 隱私模式只能在 comma 本機關閉
 }
 
 
@@ -64,16 +66,25 @@ def handle_long_poll(ws: WebSocket, exit_event: threading.Event | None) -> None:
   end_event = threading.Event()
   comma_prime_cellular_end_event = threading.Event()
 
+  private = privacy_mode(params)
   threads = [
               threading.Thread(target=ws_manage, args=(ws, end_event), name='ws_manage'),
               threading.Thread(target=ws_recv, args=(ws, end_event), name='ws_recv'),
               threading.Thread(target=ws_send, args=(ws, end_event), name='ws_send'),
               threading.Thread(target=ws_ping, args=(ws, end_event), name='ws_ping'),
+            ]
+  if not private:
+    threads += [
               threading.Thread(target=upload_handler, args=(end_event,), name='upload_handler'),
               threading.Thread(target=sunny_log_handler, args=(end_event, comma_prime_cellular_end_event), name='log_handler'),
               threading.Thread(target=stat_handler, args=(end_event, Paths.stats_sp_root(), True), name='stat_handler'),
-            ] + [
-              threading.Thread(target=jsonrpc_handler, args=(end_event, partial(startLocalProxy, end_event),), name=f'worker_{x}')
+            ]
+  else:
+    # 隱私模式：不上傳檔案、不轉送 log、不上傳統計；遠端方法只保留設定 / 版本相關
+    apply_privacy_dispatcher()
+  local_proxy = refused_local_proxy if private else partial(startLocalProxy, end_event)
+  threads += [
+              threading.Thread(target=jsonrpc_handler, args=(end_event, local_proxy,), name=f'worker_{x}')
               for x in range(HANDLER_THREADS)
             ]
 
@@ -158,6 +169,18 @@ def sunny_log_handler(end_event: threading.Event, comma_prime_cellular_end_event
   comma_prime_cellular_end_event.set()
 
 
+def refused_local_proxy(*args, **kwargs):
+  raise PermissionError("PrivacyMode: remote access disabled")
+
+
+def apply_privacy_dispatcher() -> None:
+  """從共用的 dispatcher 移除隱私相關的遠端方法（含 athenad 註冊進來的）。
+  startLocalProxy 會被 jsonrpc_handler 每次啟動時重新放回，所以另外傳 refused_local_proxy。"""
+  for name in SUNNYLINK_BLOCKED_METHODS:
+    dispatcher.pop(name, None)
+  cloudlog.warning("sunnylinkd: privacy mode, blocked remote methods %s", sorted(SUNNYLINK_BLOCKED_METHODS))
+
+
 @dispatcher.add_method
 def toggleLogUpload(enabled: bool):
   DISALLOW_LOG_UPLOAD.clear() if enabled and DISALLOW_LOG_UPLOAD.is_set() else DISALLOW_LOG_UPLOAD.set()
@@ -208,6 +231,9 @@ def getParams(params_keys: list[str], compression: bool = False) -> str | dict[s
     }
 
     param_keys_validated = [key for key in params_keys if key in available_keys]
+    if privacy_mode(params):
+      # 隱私模式：不回傳位置相關參數
+      param_keys_validated = [key for key in param_keys_validated if key not in SUNNYLINK_BLOCKED_READ_PARAMS]
     params_dict: dict[str, list[dict[str, str | bool | int]]] = {"params": []}
     for key in param_keys_validated:
       value = get_param_as_byte(key)

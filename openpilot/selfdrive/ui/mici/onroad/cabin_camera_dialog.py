@@ -122,12 +122,14 @@ class BaseCabinCameraDialog(Widget):
 
     is_vision = dm_state.activePolicy == log.DriverMonitoringState.MonitoringPolicy.vision
     awareness_pct = dm_state.visionPolicyState.awarenessPercent if is_vision else dm_state.wheeltouchPolicyState.awarenessPercent
+    # dp - mici zh-CHT (sp only): translatable templates, numbers substituted after translation
+    awareness_str = tr("Awareness: {}%").format(f"{awareness_pct:.0f}")
     gui_label(rl.Rectangle(rect.x + 2, rect.y + 2, rect.width, rect.height),
-              f"Awareness: {awareness_pct:.0f}%", font_size=44, font_weight=FontWeight.MEDIUM,
+              awareness_str, font_size=44, font_weight=FontWeight.MEDIUM,
               alignment=TextAlignment.RIGHT,
               alignment_vertical=TextAlignmentVertical.TOP,
               color=rl.Color(0, 0, 0, 180))
-    gui_label(rect, f"Awareness: {awareness_pct:.0f}%", font_size=44, font_weight=FontWeight.MEDIUM,
+    gui_label(rect, awareness_str, font_size=44, font_weight=FontWeight.MEDIUM,
               alignment=TextAlignment.RIGHT,
               alignment_vertical=TextAlignmentVertical.TOP,
               color=rl.Color(255, 255, 255, int(255 * 0.9)))
@@ -136,7 +138,7 @@ class BaseCabinCameraDialog(Widget):
       return
 
     # Show alert level
-    alert_level_str = f"{'Pay Attention' if is_vision else 'Touch Wheel'} - level {dm_state.alertLevel}"
+    alert_level_str = f"{tr('Pay Attention') if is_vision else tr('Touch Wheel')} - {tr('level {}').format(dm_state.alertLevel)}"
     alignment = TextAlignment.RIGHT if self.driver_state_renderer.is_rhd else TextAlignment.LEFT
 
     shadow_rect = rl.Rectangle(rect.x + 2, rect.y + 2, rect.width, rect.height)

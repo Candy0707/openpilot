@@ -59,17 +59,8 @@ sections:
     widget: toggle
     title: Neural Network Lateral Control (NNLC)
     description: Use a neural network for lateral control instead of the default torque controller.
-    visibility:
-    - type: not
-      condition:
-        type: capability
-        field: steer_control_type
-        equals: angle
     enablement:
     - $ref: '#/macros/offroad'
-    - type: capability
-      field: torque_allowed
-      equals: true
     - type: param
       key: EnforceTorqueControl
       equals: false

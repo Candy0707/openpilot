@@ -95,7 +95,8 @@ class AlertItem(Widget):
   def _split_text(self, text: str) -> tuple[str, str]:
     """Split text into title (first sentence) and body (remaining text)."""
     # Find the end of the first sentence (period, exclamation, or question mark followed by space or end)
-    match = re.search(r'[.!?](?:\s+|$)', text)
+    # dp - mici zh-CHT: also split on full-width CJK sentence punctuation
+    match = re.search(r'[.!?](?:\s+|$)|[。！？]', text)
     if match:
       # Found a sentence boundary - split at the end of the sentence
       title = text[:match.start()].strip()
@@ -209,7 +210,7 @@ class MiciOffroadAlerts(Scroller):
     self.alert_items: list[AlertItem] = []
 
     # Create empty state label
-    self._empty_label = UnifiedLabel(tr("no alerts"), 65, FontWeight.DISPLAY, rl.WHITE,
+    self._empty_label = UnifiedLabel(lambda: tr("no alerts"), 65, FontWeight.DISPLAY, rl.WHITE,
                                      alignment=TextAlignment.CENTER,
                                      alignment_vertical=TextAlignmentVertical.MIDDLE)
 
@@ -283,7 +284,8 @@ class MiciOffroadAlerts(Scroller):
             version, date = parts[0], parts[3]
             version_string = f"\nsunnypilot {version}, {date}\n"
 
-        update_alert_data.text = f"Update available {version_string}. Click to update. Read the release notes at blog.comma.ai."
+        # dp - mici zh-CHT: translatable template, version string stays as-is
+        update_alert_data.text = tr("Update available {}. Click to update. Read the release notes at blog.comma.ai.").format(version_string)
         update_alert_data.visible = True
         active_count += 1
       else:
@@ -299,7 +301,9 @@ class MiciOffroadAlerts(Scroller):
       alert_json = pending_params[alert_data.key]
 
       if alert_json:
-        text = alert_json.get("text", "").replace("%1", alert_json.get("extra", ""))
+        # dp - mici zh-CHT: translate the template before substituting %1
+        template = alert_json.get("text", "")
+        text = (tr(template) if template else "").replace("%1", alert_json.get("extra", ""))
 
       if text and not alert_data.visible:
         # Bump newly visible alerts to the top, severity sort keeps it at the top of its category

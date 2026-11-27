@@ -19,6 +19,18 @@ UI_DIR = files("openpilot.selfdrive.ui")
 TRANSLATIONS_DIR = UI_DIR.joinpath("translations")
 LANGUAGES_FILE = TRANSLATIONS_DIR.joinpath("languages.json")
 
+# 只開放英文與繁體中文：其他語言在語言選單中隱藏，也不會被加入字型快取（application.py 依此清單建立字集）。
+# languages.json / .po 檔維持原樣，以免影響 update_translations.py 等翻譯工具。
+SUPPORTED_LANGUAGES = ("en", "zh-CHT")
+
+FONT_FALLBACK_LANGUAGES = [
+  "th",
+  "zh-CHT",
+  "zh-CHS",
+  "ko",
+  "ja",
+]
+
 # Plural form selectors for supported languages
 PLURAL_SELECTORS = {
   'en': lambda n: 0 if n == 1 else 1,
@@ -173,6 +185,9 @@ class Multilang:
     self._language = language_code
     self.setup()
 
+  def requires_font_fallback(self) -> bool:
+    return self._language in FONT_FALLBACK_LANGUAGES
+
   def tr(self, text: str) -> str:
     return self._translations.get(text, text) or text
 
@@ -186,7 +201,8 @@ class Multilang:
 
   def _load_languages(self):
     with LANGUAGES_FILE.open(encoding='utf-8') as f:
-      self.languages = json.load(f)
+      all_languages: dict[str, str] = json.load(f)
+    self.languages = {name: code for name, code in all_languages.items() if code in SUPPORTED_LANGUAGES}
     self.codes = {v: k for k, v in self.languages.items()}
 
     if self._params is not None:
