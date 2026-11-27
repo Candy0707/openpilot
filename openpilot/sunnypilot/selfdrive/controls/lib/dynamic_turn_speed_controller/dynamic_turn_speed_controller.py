@@ -1,344 +1,227 @@
 """
-================================================================================
-Dynamic Turn Speed Controller (DTSC) - Final Pro Edition
-自動駕駛動態彎道速度控制器 (四階段狀態機 + TTA距離運算 + 非對稱Jerk + 50% EMA防護版) 🚀
-================================================================================
-
-【系統運作核心理論 (System Architecture & Control Theory)】
-本系統屏棄了傳統依賴「靜態地圖」或「單一曲率門檻」的生硬煞車方式，
-改採最先進的「時空軌跡重疊 (Spatio-Temporal Overlap)」與「四階段動態狀態機」。
-
-1. 信心濾波與 EMA 防護 (Confidence & EMA Filter)：
-   結合時空平移累積信心度，並在彎心特徵 (K與G值) 提取時加入 50% EMA 指數平滑，
-   徹底濾除 AI 視覺模型單幀的雜訊與錯誤預測，消滅幽靈點煞。
-
-2. 危險剝離與彎心鎖定 (Danger Extraction & Apex Targeting)：
-   在可信賴的視距內尋找「真正的入彎點」(G>0.3 或 曲率>0.005)，
-   直接抓取彎心 (Apex) 數據，反推絕對安全車速。
-
-   🌟 [防護] 實車 G 力強制介入：
-   若 AI 信心累積太慢，但底盤實測感受到的橫向 G 力已超越舒適極限，
-   將無視 AI，強制啟動減速接管，構築絕對安全底線。
-
-3. 四階段狀態機與雙模控制 (4-Stage State Machine & Dual-Mode Control)：
-   - [第一階段] 啟用判定：AI 預見彎道 OR 底盤 G 力超標。
-   - [第二階段] 狀態定位：以 0.0m 為界，區分預先減速區 (Pre-decel) 與 彎中動態區 (Turning)。
-   - [第三階段] 減速實作：入彎前利用距離反推 TTA 減速；彎中結合當下G力與未來1秒預測G力取最小防護。
-   - [第四階段] 出彎判斷：使用實體曲率並執行 20 幀連續驗證，確保 S 彎不提早加速。
-================================================================================
+動態過彎速度控制器 (Dynamic Turn Speed Controller - DTSC)
 """
 
+import math
 import numpy as np
+
 from openpilot.cereal import messaging
 from opendbc.car import structs
-from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
-from openpilot.common.constants import CV
-from openpilot.common.swaglog import cloudlog
+from openpilot.common.realtime import DT_MDL
+from openpilot.selfdrive.car.cruise import V_CRUISE_MAX
+from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.sunnypilot.selfdrive.controls.lib.targetsbase import TargetsBase
 
-# ==========================================================
-# [0. 系統全域常數與物理極限設定]
-# ==========================================================
-# 【系統輸出權限界線】
-MAX_ACCEL = 1.0        # 解鎖正向加速權限
-MIN_ACCEL = ACCEL_MIN  # 最大允許煞車力道線
 
-# 【時間與空間網格化】
+# ==========================================
+# 全域物理常數與演算法參數定義
+# ==========================================
+TARGET_LAT_G = 0.15            # 目標舒適橫向向心 G 值 (0.15G)
+MIN_LAT_G = 0.08               # 陡下坡時容許橫向向心 G 值(0.08G)
+DOWNHILL_G_FACTOR = 0.5        # 下坡重力分量折減權重 (k_g)
+GRAVITY = 9.81                 # 重力加速度常數 (m/s^2)
+MIN_CURVATURE = 0.0015         # 最小有效曲率門檻
+MIN_SPEED = 0.3                # 最小有效速度
+
+# 運動學減速參數
+CONVERGENCE_TAU = 1.5          # 動態距離下限之時間常數 (秒)
+
+# 200 格時空網格參數 (時間跨度 10 秒)
 NUM_SLOTS = 200
-DT_MDL = 0.05
 LINEAR_T = np.arange(0.0, 10.0, DT_MDL)
 MODEL_T = np.array(ModelConstants.T_IDXS)
-
-# 【彎道特徵與信心門檻】
-MIN_CURVATURE = 0.002
-TRIGGER_LAT_ACCEL = 0.6
-CONF_THRESHOLD = 0.60
-
-# 【人類舒適度動態查表】
-COMFORT_SPEEDS_KPH = [0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0, 110.0, 120.0]
-COMFORT_LAT_ACCELS = [1.2, 1.2, 1.2, 1.3, 1.4, 1.5, 1.6, 1.6, 1.8, 1.8, 1.8, 1.8, 1.8]
+CONF_THRESHOLD = 0.60          # 信心度確認門檻 (60%)
 
 
 class DynamicTurnSpeedController(TargetsBase):
-  def __init__(self, CP: structs.CarParams, mpc=None):
+  """
+  動態過彎速度控制器
+  """
+
+  def __init__(self, CP: structs.CarParams, mpc):
     super().__init__(CP, mpc)
-    self.log_timer = 0.0
-    self.exit_frame_count = 0
 
-    # 【狀態記憶體配置】
+    # --- 控制狀態記憶體配置 ---
+    self.latAction = False
+    self.curvature = 0.0
+    self.desiredCurvature = 0.0
+
+    self.active_target_source: str = '當前曲率'
+    self.targets: dict[str, list[float]] = {
+      '當前曲率': [float(V_CRUISE_MAX), 0.0],
+      '目標曲率': [float(V_CRUISE_MAX), 0.0],
+      '預測曲率': [float(V_CRUISE_MAX), 0.0],
+      '轉向限制': [float(V_CRUISE_MAX), 0.0],
+    }
+
+    # --- 200 格時空信心表記憶體配置 ---
     self.confidence_table = np.zeros(NUM_SLOTS)
-    self.ui_confidence = np.zeros(len(MODEL_T))
 
-    # 輸出控制記憶體
-    self.v_target_history = np.zeros(10)
-    self.a_target_history = np.zeros(10)
-    self.last_a_target_raw = 0.0  # 用於 Jerk 限制器
+    # --- 轉向不足濾波器 ---
+    # x0=1.0 (初值基準), rc=1.0s (時間常數), dt=DT_MDL (步長 0.05s)
+    self.steer_filter = FirstOrderFilter(1.0, 1.0, DT_MDL)
+    # 內部過濾後之轉向不足比值
+    self.steer_filtered = 1.0
 
-    # EMA 濾波器記憶體
-    self.ema_initialized = False
-    self.k_future_ema = 0.0
-    self.g_future_ema = 0.0
+  @staticmethod
+  def calc_v_by_curvature(curvature: float | np.ndarray, max_lat_g: float | np.ndarray = TARGET_LAT_G) -> float | np.ndarray:
+    """
+    依據向心加速度物理公式換算目標車速：
+      a_lat = v^2 / R = kappa * v^2
+      => v = sqrt(a_lat / kappa) = sqrt((max_lat_g * g) / kappa)
+
+    參數:
+      curvature (float | np.ndarray): 路徑曲率 (1/m)
+      max_lat_g (float | np.ndarray): 容許橫向加速度 G 值，預設為 TARGET_LAT_G (0.15G)
+
+    回傳:
+      float | np.ndarray: 物理速限 (m/s)；小於 MIN_CURVATURE 時回傳 V_CRUISE_MAX
+    """
+    if isinstance(curvature, np.ndarray) or isinstance(max_lat_g, np.ndarray):
+      curv_abs = np.abs(curvature)
+      a_lat_limit = np.asarray(max_lat_g, dtype=float) * GRAVITY
+      # 曲率小於最小曲率，表示無需減速，直接回傳最大巡航速度
+      return np.where(curv_abs < MIN_CURVATURE, float(V_CRUISE_MAX), np.sqrt(a_lat_limit / np.maximum(curv_abs, MIN_CURVATURE)))
+
+    curv_abs = abs(curvature)
+    # 曲率小於最小曲率，表示無需減速，直接回傳最大巡航速度
+    if curv_abs < MIN_CURVATURE:
+      return float(V_CRUISE_MAX)
+    a_lat_limit = float(max_lat_g) * GRAVITY
+    return math.sqrt(a_lat_limit / curv_abs)
+
+  @staticmethod
+  def calc_kinematic_target(v_ego: float, v_end: float, d_end: float) -> list[float]:
+    """
+    依據動態運動學公式計算單步目標車速與起始加速度。
+
+    核心公式：
+      a_req = (v_end^2 - v_ego^2) / (2 * d_end)
+
+    參數:
+      v_ego (float): 當前車速 (m/s)
+      v_end (float): 目標車速 (m/s)
+      d_end (float): 目標距離 (m)
+
+    回傳:
+      list[float]: [目標車速 v_target, 目標加速度 a_target]
+    """
+    # 目標速度大於當前車速，無需減速
+    if v_end >= v_ego:
+      return [v_end, 0.0]
+    # 動態距離
+    d_calc = max(d_end, v_ego * CONVERGENCE_TAU, MIN_SPEED * CONVERGENCE_TAU)
+    # 動態運動學公式求解所需等減速度
+    a_target = (v_end**2 - v_ego**2) / (2.0 * d_calc)
+    v_target = v_ego + a_target * DT_MDL
+    return [v_target, a_target]
 
   def update_target(self, sm: messaging.SubMaster, v_ego: float, a_ego: float, v_cruise: float):
-    model_msg = sm['modelV2']
-    ctrl_name = self.__class__.__name__
-
-    # 【基礎防呆機制】
-    if model_msg is None or len(model_msg.position.x) == 0:
-      self.v_target, self.a_target = v_cruise, a_ego
-      return super().update_target(sm, v_ego, a_ego, v_cruise)
-
-    # ==========================================================
-    # 車體狀態與虛擬軌跡萃取
-    # ==========================================================
-    cs_curvature = sm['controlsState'].curvature if sm.valid['controlsState'] else 0.0
-
-    x_raw = np.array(model_msg.position.x)
-    v_raw = np.maximum(np.array(model_msg.velocity.x), 0.1)
-    y_rate_raw = np.abs(np.array(model_msg.orientationRate.z))
-    pitch_raw = np.array(model_msg.orientation.y)
-
-    x_200 = np.interp(LINEAR_T, MODEL_T, x_raw)
-    pitch_200 = np.interp(LINEAR_T, MODEL_T, pitch_raw)
-
-    v_raw_k = np.maximum(v_raw, 1.0)
-    k_raw = y_rate_raw / v_raw_k
-
-    g_200 = np.interp(LINEAR_T, MODEL_T, y_rate_raw * v_raw)
-    k_200_raw = np.interp(LINEAR_T, MODEL_T, k_raw)
-
-    slope_factor = np.clip(np.abs(pitch_200) * 5.0, 0.0, 0.5)
-    k_200_safe = k_200_raw * (1.0 + slope_factor)
-
-    # ==========================================================
-    # 信心感知器
-    # ==========================================================
+    """
+    核心目標車速與加速度運算迴圈。
+    """
+    # 200 格信心表時空物理平移 (向左平移 1 格，新的一格補 0.0)
     self.confidence_table[:-1] = self.confidence_table[1:]
     self.confidence_table[-1] = 0.0
 
-    curve_mask = (g_200 > TRIGGER_LAT_ACCEL) | (k_200_safe > MIN_CURVATURE)
-    self.confidence_table[curve_mask] += 0.05
-    self.confidence_table[~curve_mask] -= 0.01
-    self.confidence_table = np.clip(self.confidence_table, 0.0, 1.0)
+    # 取得 controlsState 資料
+    if sm.valid['controlsState']:
+      cs = sm['controlsState']
+      lac = getattr(cs.lateralControlState, cs.lateralControlState.which())
+      self.latAction = lac.active
+      self.curvature = cs.curvature
+      self.desiredCurvature = cs.desiredCurvature
 
-    # ==========================================================
-    # 實車動態極限與 G 力計算
-    # ==========================================================
-    comfort_speeds_ms = [v * CV.KPH_TO_MS for v in COMFORT_SPEEDS_KPH]
-    comfort_g_limit = float(np.interp(v_ego, comfort_speeds_ms, COMFORT_LAT_ACCELS))
-
-    # 直接利用查表得出的 G 力極限反推實車安全限速
-    act_k_raw = max(abs(cs_curvature), 1e-5)
-    act_k_safe = act_k_raw * (1.0 + np.clip(-pitch_200[0] * 5.0, 0.0, 0.5))
-    v_actual_decision = np.sqrt(comfort_g_limit / act_k_safe)
-
-    current_lat_accel = (v_ego ** 2) * act_k_raw
-    is_g_force_override = (current_lat_accel > comfort_g_limit) and (act_k_raw > MIN_CURVATURE)
-
-    # ==========================================================
-    # AI 動態視距與 50% EMA 特徵過濾
-    # ==========================================================
-    ai_sees_curve = False
-    v_model_decision = v_cruise
-    k_future_max = 0.0001
-    g_future_max = 0.0
-    dist_to_entry, dyn_horizon_dist = 0.0, 0.0
-    entry_sec, horizon_sec, entry_conf, horizon_conf = 0.0, 0.0, 0.0, 0.0
-
-    valid_indices = np.where(self.confidence_table > CONF_THRESHOLD)[0]
-
-    if len(valid_indices) > 0:
-      ai_sees_curve = True
-      horizon_idx = valid_indices[-1]
-
-      dangerous_pts = np.where((g_200[valid_indices] > 0.3) | (k_200_safe[valid_indices] > 0.005))[0]
-      entry_idx = valid_indices[dangerous_pts[0]] if len(dangerous_pts) > 0 else valid_indices[0]
-
-      dist_to_entry = x_200[entry_idx]
-      dyn_horizon_dist = x_200[horizon_idx]
-      entry_sec, horizon_sec = entry_idx * DT_MDL, horizon_idx * DT_MDL
-      entry_conf, horizon_conf = self.confidence_table[entry_idx] * 100, self.confidence_table[horizon_idx] * 100
-
-      # 徹底過濾掉模型單幀預測的錯誤跳動
-      k_raw_max = float(np.max(k_200_safe[valid_indices]))
-      g_raw_max = float(np.max(g_200[valid_indices]))
-
-      if not self.ema_initialized:
-        self.k_future_ema = k_raw_max
-        self.g_future_ema = g_raw_max
-        self.ema_initialized = True
-      else:
-        # Alpha = 0.5 (新舊各佔一半，形成平滑趨勢)
-        self.k_future_ema = (k_raw_max * 0.5) + (self.k_future_ema * 0.5)
-        self.g_future_ema = (g_raw_max * 0.5) + (self.g_future_ema * 0.5)
-
-      k_future_max = self.k_future_ema
-      g_future_max = self.g_future_ema
-
-      # 直接以查表極限計算預測的安全速度
-      v_model_decision = np.sqrt(comfort_g_limit / max(k_future_max, 1e-5))
-    else:
-      self.ema_initialized = False # 無彎道時重置 EMA
-
-    # ==========================================================
-    # 【第一階段】 啟用/停用判斷
-    # ==========================================================
-    is_curve_ahead = False
-
-    if ai_sees_curve:
-      is_curve_ahead = True
-      v_decision_final = min(v_model_decision, v_actual_decision, v_cruise)
-    elif is_g_force_override:
-      is_curve_ahead = True
-      v_decision_final = min(v_actual_decision, v_cruise)
-      dist_to_entry = 0.0
-      k_future_max = act_k_safe
-      g_future_max = current_lat_accel
-    else:
-      v_decision_final = v_cruise
-
-    if v_ego > 0.1 and not self.action and is_curve_ahead:
-      self.action = True
-
-    # ==========================================================
-    # 【第二階段】 狀態定位 (以 0.0m 完美分界)
-    # ==========================================================
-    effective_dist = 0.0 if (is_g_force_override and not ai_sees_curve) else dist_to_entry
-
-    is_pre_deceleration = effective_dist > 0.0
-    is_in_curve_dynamic = effective_dist <= 0.0
-
-    # ==========================================================
-    # 【第三階段】 實作減速
-    # ==========================================================
-    a_target_raw = 0.0
-
-    if self.action:
-      if is_curve_ahead:
-        # --------------------------------------------------------
-        # (A) 預先減速實作：TTA 距離推算法
-        # --------------------------------------------------------
-        if is_pre_deceleration:
-          if v_ego > v_decision_final:
-            # 🌟 [利用距離計算 TTA]
-            # TTA = 當前位置到目標位置的距離 / 當前車速
-            tta = effective_dist / max(v_ego, 1.0)
-            # 再用速度差除以 TTA 得出完美的等減速度
-            a_req = (v_decision_final - v_ego) / max(tta, 0.1)
-            a_target_raw = min(a_req, 0.0)
-          else:
-            # 🌟 極簡防護：若前方確實有離心威脅，鎖死油門滑過去
-            if g_future_max > (comfort_g_limit * 0.5):
-              a_target_raw = 0.0
-            else:
-              a_target_raw = (v_decision_final - v_ego) / 2.5
-
-        # --------------------------------------------------------
-        # (B) 彎中動態實作：實車 G 力限速 + 未來 1 秒預測融合
-        # --------------------------------------------------------
-        elif is_in_curve_dynamic:
-          # 取未來 1 秒 (20 幀) 預測，與當下實體極限共同防護致動器延遲造成的入彎加速
-          k_ahead_1s = float(np.max(k_200_safe[:20]))
-          v_pred_1s_k_safe = np.sqrt(comfort_g_limit / max(k_ahead_1s, 1e-5))
-
-          v_curve_target = min(v_actual_decision, v_pred_1s_k_safe, v_cruise)
-          speed_diff_curve = v_curve_target - v_ego
-          a_target_raw = speed_diff_curve / 1.5
-
-      else:
-        # --------------------------------------------------------
-        # (C) 出彎過渡期實作：平滑加速
-        # --------------------------------------------------------
-        speed_diff_exit = v_cruise - v_ego
-        a_target_raw = speed_diff_exit / 2.0
-
-
-    # ==========================================================
-    # 【第四階段】 判斷出彎
-    # ==========================================================
-    exit_condition_raw = (abs(cs_curvature) < MIN_CURVATURE) and (not is_curve_ahead)
-
-    if exit_condition_raw:
-      self.exit_frame_count += 1
-    else:
-      self.exit_frame_count = 0
-
-    exit_condition = (self.exit_frame_count >= 20)
-
-    if (self.action and exit_condition) or v_ego <= 0.1:
+    # 橫向控制未啟用時，重置內部目標與濾波器狀態，避免重新啟用瞬間殘留舊幀數值
+    if not self.latAction:
       self.action = False
-      self.exit_frame_count = 0
+      self.active_target_source = '當前曲率'
+      self.steer_filter.x = 1.0
+      self.steer_filtered = 1.0
+      for key in self.targets:
+        self.targets[key] = [float(V_CRUISE_MAX), a_ego]
+      self.v_target = float(V_CRUISE_MAX)
+      self.a_target = a_ego
+      return super().update_target(sm, v_ego, a_ego, v_cruise)
 
+    # 算出當前曲率與目標曲率限制速度
+    v_curvature = float(self.calc_v_by_curvature(self.curvature))
+    self.targets['當前曲率'] = self.calc_kinematic_target(v_ego, v_curvature, 0.0)
+    v_desiredCurvature = float(self.calc_v_by_curvature(self.desiredCurvature))
+    self.targets['目標曲率'] = self.calc_kinematic_target(v_ego, v_desiredCurvature, 0.0)
 
-    # ==========================================================
-    # [非對稱 Jerk 限制器 與 輸出平滑]
-    # ==========================================================
-    if self.action:
-      # 🌟 [非對稱 Jerk 限制器] 限制加速度的劇烈變化
-      # 為了確保安全，我們允許煞車踩得比較快 (-2.5)，但補油必須相對柔和 (+1.0)
-      JERK_UP_LIMIT = 1.0    # m/s³
-      JERK_DOWN_LIMIT = -2.5 # m/s³
+    # 計算「前方預測彎道」動態減速 (僅使用 modelV2 相對俯仰角進行下坡坡度補償)
+    # 每幀預設重置為無限制，確保 modelV2 無效、點數不足或出彎後不會殘留舊的低速目標
+    self.targets['預測曲率'] = [float(V_CRUISE_MAX), a_ego]
 
-      max_delta_up = JERK_UP_LIMIT * DT_MDL
-      max_delta_down = JERK_DOWN_LIMIT * DT_MDL
+    if sm.valid['modelV2']:
+      model = sm['modelV2']
+      # 檢查 modelV2 四組陣列皆具完整 33 點，避免系統啟動初期或空幀造成 np.interp 崩潰
+      n_model_pts = len(MODEL_T)
+      if (
+        len(model.position.x) == n_model_pts
+        and len(model.velocity.x) == n_model_pts
+        and len(model.orientationRate.z) == n_model_pts
+        and len(model.orientation.y) == n_model_pts
+      ):
+        x_raw = np.array(model.position.x)
+        v_raw = np.maximum(np.array(model.velocity.x), MIN_SPEED)
+        y_rate_raw = np.abs(np.array(model.orientationRate.z))
+        pitch_raw = np.array(model.orientation.y)
+        curvatures_33 = y_rate_raw / v_raw
+        x_200 = np.interp(LINEAR_T, MODEL_T, x_raw)
+        v_200 = np.interp(LINEAR_T, MODEL_T, v_raw)
+        pitch_200 = np.interp(LINEAR_T, MODEL_T, pitch_raw)
+        k_200 = np.interp(LINEAR_T, MODEL_T, curvatures_33)
 
-      delta_a = a_target_raw - self.last_a_target_raw
-      delta_a = np.clip(delta_a, max_delta_down, max_delta_up)
+        pitch_down_200 = np.maximum(0.0, -pitch_200)
+        lat_g_eff_200 = np.maximum(TARGET_LAT_G * np.cos(pitch_200) - DOWNHILL_G_FACTOR * np.sin(pitch_down_200),MIN_LAT_G)
+        v_200_limit = self.calc_v_by_curvature(k_200, lat_g_eff_200)
+        curve_mask = (v_ego > 3.0) & (v_200 > 3.0) & (k_200 > MIN_CURVATURE) & (v_200_limit < v_cruise)
 
-      a_target_raw = self.last_a_target_raw + delta_a
-      self.last_a_target_raw = a_target_raw
+        # 滿足條件信心累積 (+0.05)，未滿足則衰減 (-0.01)
+        self.confidence_table[curve_mask] += 0.05
+        self.confidence_table[~curve_mask] -= 0.01
+        self.confidence_table = np.clip(self.confidence_table, 0.0, 1.0)
+
+        valid_indices = np.where(self.confidence_table > CONF_THRESHOLD)[0]
+        if len(valid_indices) > 0:
+          # 取「最低速限」點，
+          v_valid_limits = v_200_limit[valid_indices]
+          min_v_pos = int(np.argmin(v_valid_limits))
+          best_idx = valid_indices[min_v_pos]
+
+          v_curve_pred = float(v_valid_limits[min_v_pos])
+          d_pred_max = max(0.0, float(x_200[best_idx]))
+          self.targets['預測曲率'] = self.calc_kinematic_target(v_ego, v_curve_pred, d_pred_max)
+
+    # 判斷轉向需求
+    clipped_speed = max(v_ego, MIN_SPEED)
+    actual_lateral_accel = self.curvature * (clipped_speed ** 2)
+    desired_lateral_accel = self.desiredCurvature * (clipped_speed ** 2)
+    steer_raw = abs(desired_lateral_accel) / (abs(actual_lateral_accel) + 1e-3)
+    turning = abs(desired_lateral_accel) > MIN_LAT_G * GRAVITY
+    steer_input = float(np.clip(steer_raw, 0.8, 1.6)) if turning else 1.0
+    self.steer_filtered = self.steer_filter.update(steer_input)
+    steer_factor = float(np.interp(self.steer_filtered, [1.05, 1.20], [1.0, 0.0]))
+
+    # 轉向不足輸出降速目標；
+    if steer_factor < 1.0:
+      v_steer = v_ego * steer_factor
+      self.targets['轉向限制'] = self.calc_kinematic_target(v_ego, v_steer, 0.0)
     else:
-      # 待機時對齊實體現況，防止啟動瞬間爆衝
-      self.last_a_target_raw = a_ego
-      self.ema_initialized = False
+      self.targets['轉向限制'] = [float(V_CRUISE_MAX), a_ego]
 
-    # 10 幀環形平滑緩衝
-    self.a_target_history[1:] = self.a_target_history[:-1]
-    self.a_target_history[0] = a_target_raw
-    a_target_smoothed = float(np.mean(self.a_target_history))
-
-    self.a_target = np.clip(a_target_smoothed, MIN_ACCEL, MAX_ACCEL)
-
-    if self.action:
-      # 統一依賴查表極限 (comfort_g_limit) 計算虛擬目標車速
-      v_target_raw = np.sqrt(comfort_g_limit / max(k_future_max, 1e-5)) + (self.a_target * 4.0)
-      v_target_raw = np.clip(v_target_raw, 0.0, v_cruise)
-
-      self.v_target_history[1:] = self.v_target_history[:-1]
-      self.v_target_history[0] = v_target_raw
-      self.v_target = float(np.mean(self.v_target_history))
-    else:
-      self.v_target_history.fill(v_ego)
-      self.a_target_history.fill(a_ego)
-      self.v_target, self.a_target = v_cruise, a_ego
-
-    # ==========================================================
-    # [UI 視覺渲染與遙測日誌]
-    # ==========================================================
-    self.ui_confidence = np.interp(MODEL_T, LINEAR_T, self.confidence_table)
-    self.log_timer += DT_MDL
-
-    if self.action and self.log_timer >= 0.5:
-        if not is_curve_ahead:
-          state_str = "🏁 出彎加速"
-        elif is_g_force_override and not ai_sees_curve:
-          state_str = "⚠️ 實車Ｇ力強制介入"
-        elif is_in_curve_dynamic:
-          state_str = "🎯 彎中實車G力限速"
-        else:
-          state_str = "📉 預先減速"
-
-        log_msg = (
-          f"[{ctrl_name}] {state_str} | "
-          f"V(當前/安全/輸出): {v_ego * 3.6:4.1f}/{v_decision_final * 3.6:4.1f}/{self.v_target * 3.6:4.1f} | "
-          f"A(加速度輸出): {self.a_target:5.2f} | "
-          f"極限(曲率/橫向G值): {k_future_max:.4f}/{g_future_max:.2f} | "
-          f"入彎: {entry_sec:.1f}s/{dist_to_entry:.1f}m/{entry_conf:.0f}% | "
-          f"最遠: {horizon_sec:.1f}s/{dyn_horizon_dist:.1f}m/{horizon_conf:.0f}%"
-        )
-        cloudlog.debug(log_msg)
-        print(log_msg)
-        self.log_timer = 0.0
+    # 仲裁結果 (取最低目標車速；同速時取最保守加速度)
+    best_source, best_target = min(
+      self.targets.items(),
+      key=lambda item: (item[1][0], item[1][1]),
+    )
+    self.active_target_source = best_source
+    self.v_target = best_target[0]
+    self.a_target = best_target[1]
+    # 判定介入狀態 (action)：上鎖看 v_ego，解鎖看 v_cruise
+    self.action = bool((self.action or (self.v_target < v_ego)) and (self.v_target < v_cruise))
 
     return super().update_target(sm, v_ego, a_ego, v_cruise)
